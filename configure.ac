@@ -17,7 +17,9 @@ dnl Initialize libtool
 LT_PREREQ([2.2])
 LT_INIT
 
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile
+                 src/Makefile
+                 src/librmf/Makefile])
 AC_OUTPUT
 
 echo "
