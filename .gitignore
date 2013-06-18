@@ -37,6 +37,7 @@ src/librmf-common/test/.libs
 src/librmf-common/test/*.log
 src/librmf-common/test/*.trs
 src/librmf-common/test/test-message-private
+src/librmf-common/test/test-message
 
 src/librmf/.deps
 src/librmf/.libs
