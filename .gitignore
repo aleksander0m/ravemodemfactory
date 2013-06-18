@@ -28,5 +28,8 @@ missing
 stamp-h1
 depcomp
 
+src/librmf-common/.deps
+src/librmf-common/.libs
+
 src/librmf/.deps
 src/librmf/.libs

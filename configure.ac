@@ -19,6 +19,7 @@ LT_INIT
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile
+                 src/librmf-common/Makefile
                  src/librmf/Makefile])
 AC_OUTPUT
 
