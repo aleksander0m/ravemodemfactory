@@ -17,6 +17,11 @@ dnl Initialize libtool
 LT_PREREQ([2.2])
 LT_INIT
 
+dnl Require glib
+PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.32)
+AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
+
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/librmf-common/Makefile
