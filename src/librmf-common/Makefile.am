@@ -1,4 +1,6 @@
 
+SUBDIRS = . test
+
 lib_LTLIBRARIES = librmf-common.la
 
 librmf_common_la_SOURCES = \
