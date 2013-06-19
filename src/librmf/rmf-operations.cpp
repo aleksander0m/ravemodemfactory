@@ -143,7 +143,24 @@ failed:
 string
 GetManufacturer (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_manufacturer_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE) {
+        /* throw */
+    }
+
+    rmf_message_get_manufacturer_response_parse (response, &status, &str);
+    free (response);
+
+    return str;
 }
 
 /*****************************************************************************/
