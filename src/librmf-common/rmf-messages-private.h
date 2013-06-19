@@ -13,6 +13,19 @@
 #include <stdint.h>
 
 /******************************************************************************/
+
+struct RmfMessageHeader {
+    uint32_t length;
+    uint32_t type;
+    uint32_t command;
+    uint32_t status;
+    uint32_t fixed_size;
+    uint32_t variable_size;
+}  __attribute__((packed));
+
+#define RMF_MESSAGE_LENGTH(buffer) ((struct RmfMessageHeader *)buffer)->length
+
+/******************************************************************************/
 /* Message builder */
 
 typedef struct _RmfMessageBuilder RmfMessageBuilder;
@@ -29,7 +42,6 @@ uint8_t *rmf_message_builder_serialize (RmfMessageBuilder *builder);
 /******************************************************************************/
 /* Message reader */
 
-uint32_t rmf_message_get_length (const uint8_t *buffer);
 uint32_t rmf_message_get_type (const uint8_t *buffer);
 uint32_t rmf_message_get_command (const uint8_t *buffer);
 uint32_t rmf_message_get_status (const uint8_t *buffer);

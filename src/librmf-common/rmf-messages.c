@@ -25,6 +25,12 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_GET_MANUFACTURER = 1,
 };
 
+uint32_t
+rmf_message_get_length (const uint8_t *message)
+{
+    return RMF_MESSAGE_LENGTH (message);
+}
+
 /******************************************************************************/
 /* Get Manufacturer
  *

@@ -13,6 +13,11 @@
 #include <stdint.h>
 
 /******************************************************************************/
+
+#define RMF_MESSAGE_MAX_SIZE 4096
+uint32_t rmf_message_get_length (const uint8_t *message);
+
+/******************************************************************************/
 /* Get Manufacturer */
 
 uint8_t *rmf_message_get_manufacturer_request_new    (void);

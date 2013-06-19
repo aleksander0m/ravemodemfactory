@@ -105,14 +105,14 @@ test_empty (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 24);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 24);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
@@ -144,14 +144,14 @@ test_integers_one (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 28);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 28);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
@@ -188,14 +188,14 @@ test_integers_multiple (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 36);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 36);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
@@ -234,14 +234,14 @@ test_strings_one (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 40);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 40);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
@@ -299,14 +299,14 @@ test_strings_multiple (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 104);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 104);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
@@ -361,14 +361,14 @@ test_mixed (void)
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
-    test_message_trace (message, rmf_message_get_length (message),
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
                         expected, sizeof (expected));
 
     /* Check byte stream */
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (rmf_message_get_length  (message), ==, 72);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 72);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
