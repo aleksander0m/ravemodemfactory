@@ -121,7 +121,7 @@ test_empty (void)
 }
 
 static void
-test_integers_one (void)
+test_integers32_one (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
@@ -161,7 +161,7 @@ test_integers_one (void)
 }
 
 static void
-test_integers_multiple (void)
+test_integers32_multiple (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
@@ -202,6 +202,96 @@ test_integers_multiple (void)
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 1);
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 2);
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 3);
+
+    g_free (message);
+}
+
+static void
+test_integers64_one (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+    uint32_t walker = 0;
+
+    static const uint8_t expected[] = {
+        0x20, 0x00, 0x00, 0x00, /* length */
+        0x01, 0x00, 0x00, 0x00, /* type */
+        0x27, 0x00, 0x00, 0x00, /* command */
+        0x00, 0x00, 0x00, 0x00, /* status */
+        0x08, 0x00, 0x00, 0x00, /* fixed_size */
+        0x00, 0x00, 0x00, 0x00, /* variable_size */
+        /* fixed */
+        0x07, 0x00, 0x00, 0x00, /* integer 1 */
+        0x00, 0x00, 0x00, 0x00
+    };
+
+    /* Check builder */
+    builder = rmf_message_builder_new (1, 39, 0);
+    rmf_message_builder_add_uint64 (builder, 7);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
+                        expected, sizeof (expected));
+
+    /* Check byte stream */
+    g_assert (!memcmp (message, expected, sizeof (expected)));
+
+    /* Check getters */
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 32);
+    g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
+    g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
+    g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
+    g_assert_cmpuint (rmf_message_read_uint64 (message, &walker), ==, 7);
+
+    g_free (message);
+}
+
+static void
+test_integers64_multiple (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+    uint32_t walker = 0;
+
+    static const uint8_t expected[] = {
+        0x30, 0x00, 0x00, 0x00, /* length */
+        0x01, 0x00, 0x00, 0x00, /* type */
+        0x27, 0x00, 0x00, 0x00, /* command */
+        0x00, 0x00, 0x00, 0x00, /* status */
+        0x18, 0x00, 0x00, 0x00, /* fixed_size */
+        0x00, 0x00, 0x00, 0x00, /* variable_size */
+        /* fixed */
+        0x01, 0x00, 0x00, 0x00, /* integer 1 */
+        0x00, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x00, 0x00, /* integer 2 */
+        0x00, 0x00, 0x00, 0x00,
+        0x03, 0x00, 0x00, 0x00, /* integer 3 */
+        0x00, 0x00, 0x00, 0x00
+    };
+
+    /* Check builder */
+    builder = rmf_message_builder_new (1, 39, 0);
+    rmf_message_builder_add_uint64 (builder, 1);
+    rmf_message_builder_add_uint64 (builder, 2);
+    rmf_message_builder_add_uint64 (builder, 3);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    test_message_trace (message, RMF_MESSAGE_LENGTH (message),
+                        expected, sizeof (expected));
+
+    /* Check byte stream */
+    g_assert (!memcmp (message, expected, sizeof (expected)));
+
+    /* Check getters */
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 48);
+    g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
+    g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
+    g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
+    g_assert_cmpuint (rmf_message_read_uint64 (message, &walker), ==, 1);
+    g_assert_cmpuint (rmf_message_read_uint64 (message, &walker), ==, 2);
+    g_assert_cmpuint (rmf_message_read_uint64 (message, &walker), ==, 3);
 
     g_free (message);
 }
@@ -328,17 +418,18 @@ test_mixed (void)
     uint32_t walker = 0;
 
     static const uint8_t expected[] = {
-        0x48, 0x00, 0x00, 0x00, /* length */
+        0x4C, 0x00, 0x00, 0x00, /* length */
         0x01, 0x00, 0x00, 0x00, /* type */
         0x27, 0x00, 0x00, 0x00, /* command */
         0x00, 0x00, 0x00, 0x00, /* status */
-        0x20, 0x00, 0x00, 0x00, /* fixed_size */
+        0x24, 0x00, 0x00, 0x00, /* fixed_size */
         0x10, 0x00, 0x00, 0x00, /* variable_size */
         /* fixed */
         0x00, 0x00, 0x00, 0x00, /* string 1 offset */
         0x06, 0x00, 0x00, 0x00, /* string 1 len */
         0x07, 0x00, 0x00, 0x00, /* number 1 */
         0x08, 0x00, 0x00, 0x00, /* number 2 */
+        0x00, 0x00, 0x00, 0x00,
         0x09, 0x00, 0x00, 0x00, /* number 3 */
         0x08, 0x00, 0x00, 0x00, /* string 2 offset */
         0x06, 0x00, 0x00, 0x00, /* string 2 len */
@@ -354,7 +445,7 @@ test_mixed (void)
     builder = rmf_message_builder_new (1, 39, 0);
     rmf_message_builder_add_string (builder, "hello");
     rmf_message_builder_add_uint32 (builder, 7);
-    rmf_message_builder_add_uint32 (builder, 8);
+    rmf_message_builder_add_uint64 (builder, 8);
     rmf_message_builder_add_uint32 (builder, 9);
     rmf_message_builder_add_string (builder, "world");
     rmf_message_builder_add_uint32 (builder, 0);
@@ -368,13 +459,13 @@ test_mixed (void)
     g_assert (!memcmp (message, expected, sizeof (expected)));
 
     /* Check getters */
-    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 72);
+    g_assert_cmpuint (RMF_MESSAGE_LENGTH      (message), ==, 76);
     g_assert_cmpuint (rmf_message_get_type    (message), ==, 1);
     g_assert_cmpuint (rmf_message_get_command (message), ==, 39);
     g_assert_cmpuint (rmf_message_get_status  (message), ==, 0);
     g_assert_cmpstr  (rmf_message_read_string (message, &walker), ==, "hello");
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 7);
-    g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 8);
+    g_assert_cmpuint (rmf_message_read_uint64 (message, &walker), ==, 8);
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 9);
     g_assert_cmpstr  (rmf_message_read_string (message, &walker), ==, "world");
     g_assert_cmpuint (rmf_message_read_uint32 (message, &walker), ==, 0);
@@ -387,8 +478,10 @@ int main (int argc, char **argv)
     g_test_init (&argc, &argv, NULL);
 
     g_test_add_func ("/librmf-common/message-private/empty", test_empty);
-    g_test_add_func ("/librmf-common/message-private/integers/one", test_integers_one);
-    g_test_add_func ("/librmf-common/message-private/integers/multiple", test_integers_multiple);
+    g_test_add_func ("/librmf-common/message-private/integers32/one", test_integers32_one);
+    g_test_add_func ("/librmf-common/message-private/integers32/multiple", test_integers32_multiple);
+    g_test_add_func ("/librmf-common/message-private/integers64/one", test_integers64_one);
+    g_test_add_func ("/librmf-common/message-private/integers64/multiple", test_integers64_multiple);
     g_test_add_func ("/librmf-common/message-private/strings/one", test_strings_one);
     g_test_add_func ("/librmf-common/message-private/strings/multiple", test_strings_multiple);
     g_test_add_func ("/librmf-common/message-private/mixed", test_mixed);
