@@ -15,6 +15,8 @@
 #include <assert.h>
 #include <malloc.h>
 
+#include <stdexcept>
+
 #include "rmf-operations.h"
 
 extern "C" {
@@ -36,6 +38,16 @@ enum {
     ERROR_POLL_FAILED,
     ERROR_TIMEOUT,
     ERROR_RECV_FAILED
+};
+
+static const char *error_strings[] = {
+    "None",
+    "Socket failed",
+    "Connect failed",
+    "Send failed",
+    "Poll failed",
+    "Timeout",
+    "Recv failed"
 };
 
 static int
@@ -156,9 +168,8 @@ Modem::GetManufacturer (void)
     ret = send_and_receive (request, 10, &response);
     free (request);
 
-    if (ret != ERROR_NONE) {
-        /* throw */
-    }
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_manufacturer_response_parse (response, &status, &str);
     free (response);
