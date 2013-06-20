@@ -289,7 +289,9 @@ Modem::GetConnectionStats (uint32_t &txPacketsOk,
                            uint32_t &txPacketsError,
                            uint32_t &rxPacketsError,
                            uint32_t &txPacketsOverflow,
-                           uint32_t &rxPacketsOverflow)
+                           uint32_t &rxPacketsOverflow,
+                           uint64_t &txBytesOk,
+                           uint64_t &rxBytesOk)
 {
     return false;
 }

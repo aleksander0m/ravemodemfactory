@@ -173,6 +173,8 @@ namespace Modem {
      *                       buffer overflowed.
      * @rxPacketsOverflow: (out) amount of packes dropped because receiver
      *                       buffer overflowed.
+     * @txBytesOk: (out) amount of bytes transmitted without error.
+     * @rxBytesOk: (out) amount of bytes received without error.
      *
      * Get connection stats.
      *
@@ -183,7 +185,9 @@ namespace Modem {
                              uint32_t &txPacketsError,
                              uint32_t &rxPacketsError,
                              uint32_t &txPacketsOverflow,
-                             uint32_t &rxPacketsOverflow);
+                             uint32_t &rxPacketsOverflow,
+                             uint64_t &txBytesOk,
+                             uint64_t &rxBytesOk);
 
     /**
      * Connect:
