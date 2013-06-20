@@ -141,7 +141,7 @@ failed:
 /*****************************************************************************/
 
 string
-GetManufacturer (void)
+Modem::GetManufacturer (void)
 {
     uint8_t *request;
     uint8_t *response;
@@ -166,7 +166,7 @@ GetManufacturer (void)
 /*****************************************************************************/
 
 string
-GetModel (void)
+Modem::GetModel (void)
 {
 
 }
@@ -174,7 +174,7 @@ GetModel (void)
 /*****************************************************************************/
 
 string
-GetSoftwareRevision (void)
+Modem::GetSoftwareRevision (void)
 {
 
 }
@@ -182,7 +182,7 @@ GetSoftwareRevision (void)
 /*****************************************************************************/
 
 string
-GetHardwareRevision (void)
+Modem::GetHardwareRevision (void)
 {
 
 }
@@ -190,7 +190,7 @@ GetHardwareRevision (void)
 /*****************************************************************************/
 
 string
-GetImei (void)
+Modem::GetImei (void)
 {
 
 }
@@ -198,7 +198,7 @@ GetImei (void)
 /*****************************************************************************/
 
 string
-GetImsi (void)
+Modem::GetImsi (void)
 {
 
 }
@@ -206,7 +206,7 @@ GetImsi (void)
 /*****************************************************************************/
 
 string
-GetIccid (void)
+Modem::GetIccid (void)
 {
 
 }
@@ -214,14 +214,14 @@ GetIccid (void)
 /*****************************************************************************/
 
 void
-Unlock (const string pin)
+Modem::Unlock (const string pin)
 {
 }
 
 /*****************************************************************************/
 
 PowerStatus
-GetPowerStatus (void)
+Modem::GetPowerStatus (void)
 {
 
 }
@@ -229,14 +229,14 @@ GetPowerStatus (void)
 /*****************************************************************************/
 
 void
-SetPowerStatus (PowerStatus status)
+Modem::SetPowerStatus (PowerStatus status)
 {
 }
 
 /*****************************************************************************/
 
 vector<RadioPowerInfo>
-GetPowerInfo (void)
+Modem::GetPowerInfo (void)
 {
 
 }
@@ -244,25 +244,25 @@ GetPowerInfo (void)
 /*****************************************************************************/
 
 vector<RadioSignalInfo>
-GetSignalInfo (void)
+Modem::GetSignalInfo (void)
 {
 }
 
 /*****************************************************************************/
 
 RegistrationStatus
-GetRegistrationStatus (string   &operatorDescription,
-                       uint16_t &operatorMcc,
-                       uint16_t &operatorMnc,
-                       uint16_t &lac,
-                       uint32_t &cid)
+Modem::GetRegistrationStatus (string   &operatorDescription,
+                              uint16_t &operatorMcc,
+                              uint16_t &operatorMnc,
+                              uint16_t &lac,
+                              uint32_t &cid)
 {
 }
 
 /*****************************************************************************/
 
 ConnectionStatus
-GetConnectionStatus (void)
+Modem::GetConnectionStatus (void)
 {
     return Disconnected;
 }
@@ -270,12 +270,12 @@ GetConnectionStatus (void)
 /*****************************************************************************/
 
 bool
-GetConnectionStats (uint32_t &txPacketsOk,
-                    uint32_t &rxPacketsOk,
-                    uint32_t &txPacketsError,
-                    uint32_t &rxPacketsError,
-                    uint32_t &txPacketsOverflow,
-                    uint32_t &rxPacketsOverflow)
+Modem::GetConnectionStats (uint32_t &txPacketsOk,
+                           uint32_t &rxPacketsOk,
+                           uint32_t &txPacketsError,
+                           uint32_t &rxPacketsError,
+                           uint32_t &txPacketsOverflow,
+                           uint32_t &rxPacketsOverflow)
 {
     return false;
 }
@@ -284,15 +284,15 @@ GetConnectionStats (uint32_t &txPacketsOk,
 /*****************************************************************************/
 
 void
-Connect (const string apn,
-         const string user,
-         const string password)
+Modem::Connect (const string apn,
+                const string user,
+                const string password)
 {
 }
 
 /*****************************************************************************/
 
 void
-Disconnect (void)
+Modem::Disconnect (void)
 {
 }
