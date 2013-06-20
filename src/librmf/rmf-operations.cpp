@@ -16,7 +16,10 @@
 #include <malloc.h>
 
 #include "rmf-operations.h"
+
+extern "C" {
 #include "rmf-messages.h"
+}
 
 using namespace std;
 using namespace Modem;
