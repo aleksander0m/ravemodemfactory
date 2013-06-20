@@ -115,6 +115,9 @@ namespace Modem {
      *
      * Get the radio power information.
      *
+     * This information is given separately for each available radio access
+     * technology (e.g. GSM, UMTS or LTE).
+     *
      * Returns: a vector of #RadioPowerInfo structs.
      */
     std::vector<RadioPowerInfo> GetPowerInfo (void);
@@ -124,6 +127,9 @@ namespace Modem {
      * @signalInfo: (out)
      *
      * Get the signal quality information.
+     *
+     * This information is given separately for each available radio access
+     * technology (e.g. GSM, UMTS or LTE).
      *
      * Returns: a vector of #RadioSignalInfo structs.
      */
