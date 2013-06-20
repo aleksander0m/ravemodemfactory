@@ -41,3 +41,7 @@ src/librmf-common/test/test-message
 
 src/librmf/.deps
 src/librmf/.libs
+
+src/rmfcli/rmfcli
+src/rmfcli/.deps
+src/rmfcli/.libs

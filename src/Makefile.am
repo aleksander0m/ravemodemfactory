@@ -1,2 +1,2 @@
 
-SUBDIRS = librmf-common librmf
+SUBDIRS = librmf-common librmf rmfcli

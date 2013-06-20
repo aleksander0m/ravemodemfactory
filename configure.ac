@@ -26,7 +26,8 @@ AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/librmf-common/Makefile
                  src/librmf-common/test/Makefile
-                 src/librmf/Makefile])
+                 src/librmf/Makefile
+                 src/rmfcli/Makefile])
 AC_OUTPUT
 
 echo "
