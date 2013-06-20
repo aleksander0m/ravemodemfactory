@@ -104,11 +104,11 @@ namespace Modem {
 
     /**
      * SetPowerStatus:
-     * @status: (in) radio power status.
+     * @power_status: (in) radio power status.
      *
      * Set radio power status.
      */
-    void SetPowerStatus (PowerStatus status);
+    void SetPowerStatus (PowerStatus power_status);
 
     /**
      * GetPowerInfo:

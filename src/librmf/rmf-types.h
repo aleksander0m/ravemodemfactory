@@ -103,15 +103,15 @@ namespace Modem {
     /**
      * RadioSignalInfo:
      * @radioInterface: Radio interface to which this value applies.
-     * @rssi: RSSI, in dBm (-125.0 dBm or lower indicates no signal)
+     * @rssi: RSSI, in dBm (-125 dBm or lower indicates no signal)
      * @quality: quality in percentage [0,100].
      *
      * Radio signal information.
      */
     struct RadioSignalInfo {
         RadioInterface radioInterface;
-        double         rssi;
-        uint8_t        quality;
+        int32_t        rssi;
+        uint32_t       quality;
     };
 }
 

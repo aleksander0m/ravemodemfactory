@@ -28,6 +28,13 @@ using namespace Modem;
 
 /*****************************************************************************/
 
+static const char *response_status_str[] = {
+    "Ok", /* RMF_RESPONSE_STATUS_OK */
+    "Unknown error", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
+};
+
+/*****************************************************************************/
+
 #define SOCKET_PATH "/tmp/rmf-server"
 
 enum {
@@ -181,6 +188,9 @@ Modem::GetManufacturer (void)
     rmf_message_get_manufacturer_response_parse (response, &status, &str);
     free (response);
 
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
     return str;
 }
 
@@ -189,7 +199,26 @@ Modem::GetManufacturer (void)
 string
 Modem::GetModel (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_model_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_model_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
@@ -197,15 +226,54 @@ Modem::GetModel (void)
 string
 Modem::GetSoftwareRevision (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_software_revision_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_software_revision_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
 
 string
 Modem::GetHardwareRevision (void)
-{
 
+{
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_get_hardware_revision_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_hardware_revision_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
@@ -213,7 +281,26 @@ Modem::GetHardwareRevision (void)
 string
 Modem::GetImei (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_imei_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_imei_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
@@ -221,7 +308,26 @@ Modem::GetImei (void)
 string
 Modem::GetImsi (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_imsi_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_imsi_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
@@ -229,7 +335,26 @@ Modem::GetImsi (void)
 string
 Modem::GetIccid (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
 
+    request = rmf_message_get_iccid_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_iccid_response_parse (response, &status, &str);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return str;
 }
 
 /*****************************************************************************/
@@ -237,6 +362,23 @@ Modem::GetIccid (void)
 void
 Modem::Unlock (const string pin)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_unlock_request_new (pin.c_str());
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_unlock_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
 }
 
 /*****************************************************************************/
@@ -244,14 +386,50 @@ Modem::Unlock (const string pin)
 PowerStatus
 Modem::GetPowerStatus (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t power_status;
+    int ret;
 
+    request = rmf_message_get_power_status_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_power_status_response_parse (response, &status, &power_status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return (PowerStatus) power_status;
 }
 
 /*****************************************************************************/
 
 void
-Modem::SetPowerStatus (PowerStatus status)
+Modem::SetPowerStatus (PowerStatus power_status)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_set_power_status_request_new ((uint32_t)power_status);
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_set_power_status_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
 }
 
 /*****************************************************************************/
@@ -259,7 +437,103 @@ Modem::SetPowerStatus (PowerStatus status)
 vector<RadioPowerInfo>
 Modem::GetPowerInfo (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    std::vector<RadioPowerInfo> info_vector;
+    RadioPowerInfo info;
+    uint32_t gsm_in_traffic;
+    uint32_t gsm_tx_power;
+    uint32_t gsm_rx0_radio_tuned;
+    uint32_t gsm_rx0_power;
+    uint32_t gsm_rx1_radio_tuned;
+    uint32_t gsm_rx1_power;
+    uint32_t umts_in_traffic;
+    uint32_t umts_tx_power;
+    uint32_t umts_rx0_radio_tuned;
+    uint32_t umts_rx0_power;
+    uint32_t umts_rx1_radio_tuned;
+    uint32_t umts_rx1_power;
+    uint32_t lte_in_traffic;
+    uint32_t lte_tx_power;
+    uint32_t lte_rx0_radio_tuned;
+    uint32_t lte_rx0_power;
+    uint32_t lte_rx1_radio_tuned;
+    uint32_t lte_rx1_power;
+    int ret;
 
+    request = rmf_message_get_power_info_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_power_info_response_parse (
+        response,
+        &status,
+        &gsm_in_traffic,
+        &gsm_tx_power,
+        &gsm_rx0_radio_tuned,
+        &gsm_rx0_power,
+        &gsm_rx1_radio_tuned,
+        &gsm_rx1_power,
+        &umts_in_traffic,
+        &umts_tx_power,
+        &umts_rx0_radio_tuned,
+        &umts_rx0_power,
+        &umts_rx1_radio_tuned,
+        &umts_rx1_power,
+        &lte_in_traffic,
+        &lte_tx_power,
+        &lte_rx0_radio_tuned,
+        &lte_rx0_power,
+        &lte_rx1_radio_tuned,
+        &lte_rx1_power);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    /* Note: power values come in scale of 0.1 dBm */
+
+    /* GSM */
+    if (gsm_in_traffic || gsm_rx0_radio_tuned || gsm_rx1_radio_tuned) {
+        info.radioInterface = Gsm;
+        info.inTraffic = gsm_in_traffic;
+        info.txPower = (0.1) * ((double)gsm_tx_power);
+        info.rx0RadioRuned = gsm_rx0_radio_tuned;
+        info.rx0Power = (0.1) * ((double)gsm_rx0_power);
+        info.rx1RadioTuned = gsm_rx1_radio_tuned;
+        info.rx1Power = (0.1) * ((double)gsm_rx1_power);
+        info_vector.push_back (info);
+    }
+
+    /* UMTS */
+    if (umts_in_traffic || umts_rx0_radio_tuned || umts_rx1_radio_tuned) {
+        info.radioInterface = Umts;
+        info.inTraffic = umts_in_traffic;
+        info.txPower = (0.1) * ((double)umts_tx_power);
+        info.rx0RadioRuned = umts_rx0_radio_tuned;
+        info.rx0Power = (0.1) * ((double)umts_rx0_power);
+        info.rx1RadioTuned = umts_rx1_radio_tuned;
+        info.rx1Power = (0.1) * ((double)umts_rx1_power);
+        info_vector.push_back (info);
+    }
+
+    /* LTE */
+    if (lte_in_traffic || lte_rx0_radio_tuned || lte_rx1_radio_tuned) {
+        info.radioInterface = Lte;
+        info.inTraffic = lte_in_traffic;
+        info.txPower = (0.1) * ((double)lte_tx_power);
+        info.rx0RadioRuned = lte_rx0_radio_tuned;
+        info.rx0Power = (0.1) * ((double)lte_rx0_power);
+        info.rx1RadioTuned = lte_rx1_radio_tuned;
+        info.rx1Power = (0.1) * ((double)lte_rx1_power);
+        info_vector.push_back (info);
+    }
+
+    return info_vector;
 }
 
 /*****************************************************************************/
@@ -267,6 +541,71 @@ Modem::GetPowerInfo (void)
 vector<RadioSignalInfo>
 Modem::GetSignalInfo (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    std::vector<RadioSignalInfo> info_vector;
+    RadioSignalInfo info;
+    uint32_t gsm_available;
+    uint32_t gsm_rssi;
+    uint32_t gsm_quality;
+    uint32_t umts_available;
+    uint32_t umts_rssi;
+    uint32_t umts_quality;
+    uint32_t lte_available;
+    uint32_t lte_rssi;
+    uint32_t lte_quality;
+    int ret;
+
+    request = rmf_message_get_signal_info_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_signal_info_response_parse (
+        response,
+        &status,
+        &gsm_available,
+        &gsm_rssi,
+        &gsm_quality,
+        &umts_available,
+        &umts_rssi,
+        &umts_quality,
+        &lte_available,
+        &lte_rssi,
+        &lte_quality);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    /* GSM */
+    if (gsm_available) {
+        info.radioInterface = Gsm;
+        info.rssi = (int32_t)gsm_rssi;;
+        info.quality = gsm_quality;
+        info_vector.push_back (info);
+    }
+
+    /* UMTS */
+    if (umts_available) {
+        info.radioInterface = Umts;
+        info.rssi = (int32_t)umts_rssi;;
+        info.quality = umts_quality;
+        info_vector.push_back (info);
+    }
+
+    /* LTE */
+    if (lte_available) {
+        info.radioInterface = Lte;
+        info.rssi = (int32_t)lte_rssi;;
+        info.quality = lte_quality;
+        info_vector.push_back (info);
+    }
+
+    return info_vector;
 }
 
 /*****************************************************************************/
@@ -278,6 +617,48 @@ Modem::GetRegistrationStatus (string   &operatorDescription,
                               uint16_t &lac,
                               uint32_t &cid)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t registration_status;
+    const char *operator_description;
+    uint32_t operator_mcc;
+    uint32_t operator_mnc;
+    uint32_t _lac;
+    uint32_t _cid;
+    int ret;
+
+    request = rmf_message_get_registration_status_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_registration_status_response_parse (
+        response,
+        &status,
+        &registration_status,
+        &operator_description,
+        &operator_mcc,
+        &operator_mnc,
+        &_lac,
+        &_cid);
+
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw std::runtime_error (response_status_str[status]);
+    }
+
+    operatorDescription = operator_description;
+    operatorMcc = (uint16_t)operator_mcc;
+    operatorMnc = (uint16_t)operator_mnc;
+    lac = (uint16_t)_lac;
+    cid = cid;
+
+    free (response);
+
+    return (RegistrationStatus)registration_status;
 }
 
 /*****************************************************************************/
@@ -285,7 +666,29 @@ Modem::GetRegistrationStatus (string   &operatorDescription,
 ConnectionStatus
 Modem::GetConnectionStatus (void)
 {
-    return Disconnected;
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t connection_status;
+    int ret;
+
+    request = rmf_message_get_connection_status_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_connection_status_response_parse (
+        response,
+        &status,
+        &connection_status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    return (ConnectionStatus) connection_status;
 }
 
 /*****************************************************************************/
@@ -300,7 +703,52 @@ Modem::GetConnectionStats (uint32_t &txPacketsOk,
                            uint64_t &txBytesOk,
                            uint64_t &rxBytesOk)
 {
-    return false;
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t tx_packets_ok;
+    uint32_t rx_packets_ok;
+    uint32_t tx_packets_error;
+    uint32_t rx_packets_error;
+    uint32_t tx_packets_overflow;
+    uint32_t rx_packets_overflow;
+    uint64_t tx_bytes_ok;
+    uint64_t rx_bytes_ok;
+    int ret;
+
+    request = rmf_message_get_connection_stats_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_connection_stats_response_parse (
+        response,
+        &status,
+        &tx_packets_ok,
+        &rx_packets_ok,
+        &tx_packets_error,
+        &rx_packets_error,
+        &tx_packets_overflow,
+        &rx_packets_overflow,
+        &tx_bytes_ok,
+        &rx_bytes_ok);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+
+    txPacketsOk = tx_packets_ok;
+    rxPacketsOk = rx_packets_ok;
+    txPacketsError = tx_packets_error;
+    rxPacketsError = rx_packets_error;
+    txPacketsOverflow = tx_packets_overflow;
+    rxPacketsOverflow = rx_packets_overflow;
+    txBytesOk = tx_bytes_ok;
+    rxBytesOk = rx_bytes_ok;
+
+    return true;
 }
 
 
@@ -311,6 +759,25 @@ Modem::Connect (const string apn,
                 const string user,
                 const string password)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_connect_request_new (apn.c_str(),
+                                               user.c_str(),
+                                               password.c_str());
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_connect_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
 }
 
 /*****************************************************************************/
@@ -318,4 +785,21 @@ Modem::Connect (const string apn,
 void
 Modem::Disconnect (void)
 {
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_disconnect_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_disconnect_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
 }

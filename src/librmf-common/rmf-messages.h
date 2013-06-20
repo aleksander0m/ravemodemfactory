@@ -19,6 +19,11 @@ uint32_t rmf_message_get_length (const uint8_t *message);
 uint32_t rmf_message_request_and_response_match (const uint8_t *request,
                                                  const uint8_t *response);
 
+enum {
+    RMF_RESPONSE_STATUS_OK = 0,
+    RMF_RESPONSE_STATUS_ERROR_UNKNOWN,
+};
+
 /******************************************************************************/
 /* Get Manufacturer */
 
