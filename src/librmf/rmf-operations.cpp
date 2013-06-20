@@ -37,7 +37,8 @@ enum {
     ERROR_SEND_FAILED,
     ERROR_POLL_FAILED,
     ERROR_TIMEOUT,
-    ERROR_RECV_FAILED
+    ERROR_RECV_FAILED,
+    ERROR_NO_MATCH,
 };
 
 static const char *error_strings[] = {
@@ -47,7 +48,8 @@ static const char *error_strings[] = {
     "Send failed",
     "Poll failed",
     "Timeout",
-    "Recv failed"
+    "Recv failed",
+    "Request and response didn't match"
 };
 
 static int
@@ -136,6 +138,11 @@ send_and_receive (const uint8_t  *request,
         left -= current;
         total += current;
     } while (total < 4 || total < rmf_message_get_length (buffer));
+
+    if (!rmf_message_request_and_response_match (request, buffer)) {
+        ret = ERROR_NO_MATCH;
+        goto failed;
+    }
 
 failed:
 

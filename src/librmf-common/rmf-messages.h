@@ -16,6 +16,8 @@
 
 #define RMF_MESSAGE_MAX_SIZE 4096
 uint32_t rmf_message_get_length (const uint8_t *message);
+uint32_t rmf_message_request_and_response_match (const uint8_t *request,
+                                                 const uint8_t *response);
 
 /******************************************************************************/
 /* Get Manufacturer */

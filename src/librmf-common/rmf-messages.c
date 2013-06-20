@@ -47,6 +47,19 @@ rmf_message_get_length (const uint8_t *message)
     return RMF_MESSAGE_LENGTH (message);
 }
 
+uint32_t
+rmf_message_request_and_response_match (const uint8_t *request,
+                                        const uint8_t *response)
+{
+    if (rmf_message_get_type (request) != RMF_MESSAGE_TYPE_REQUEST)
+        return 0;
+    if (rmf_message_get_type (response) != RMF_MESSAGE_TYPE_RESPONSE)
+        return 0;
+    if (rmf_message_get_command (request) != rmf_message_get_command (response))
+        return 0;
+    return 1;
+}
+
 /******************************************************************************/
 /* Get Manufacturer
  *
