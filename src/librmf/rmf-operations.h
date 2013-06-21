@@ -94,6 +94,26 @@ namespace Modem {
     void Unlock (const std::string pin);
 
     /**
+     * EnablePin:
+     * @enable: %true to enable PIN request, %false to disable it.
+     * @pin: (in) current PIN.
+     *
+     * Enables or disables PIN request.
+     */
+    void EnablePin (bool              enable,
+                    const std::string pin);
+
+    /**
+     * ChangePin:
+     * @pin: (in) current PIN.
+     * @new_pin: (in) new PIN.
+     *
+     * Changes the PIN.
+     */
+    void ChangePin (const std::string pin,
+                    const std::string new_pin);
+
+    /**
      * GetPowerStatus:
      *
      * Get radio power status.

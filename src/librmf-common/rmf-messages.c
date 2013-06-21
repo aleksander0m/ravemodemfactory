@@ -30,15 +30,17 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_GET_IMSI                = 6,
     RMF_MESSAGE_COMMAND_GET_ICCID               = 7,
     RMF_MESSAGE_COMMAND_UNLOCK                  = 8,
-    RMF_MESSAGE_COMMAND_GET_POWER_STATUS        = 9,
-    RMF_MESSAGE_COMMAND_SET_POWER_STATUS        = 10,
-    RMF_MESSAGE_COMMAND_GET_POWER_INFO          = 11,
-    RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO         = 12,
-    RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS = 13,
-    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS   = 14,
-    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS    = 15,
-    RMF_MESSAGE_COMMAND_CONNECT                 = 16,
-    RMF_MESSAGE_COMMAND_DISCONNECT              = 17,
+    RMF_MESSAGE_COMMAND_ENABLE_PIN              = 9,
+    RMF_MESSAGE_COMMAND_CHANGE_PIN              = 10,
+    RMF_MESSAGE_COMMAND_GET_POWER_STATUS        = 11,
+    RMF_MESSAGE_COMMAND_SET_POWER_STATUS        = 12,
+    RMF_MESSAGE_COMMAND_GET_POWER_INFO          = 13,
+    RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO         = 14,
+    RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS = 15,
+    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS   = 16,
+    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS    = 17,
+    RMF_MESSAGE_COMMAND_CONNECT                 = 18,
+    RMF_MESSAGE_COMMAND_DISCONNECT              = 19,
 };
 
 uint32_t
@@ -433,6 +435,96 @@ rmf_message_unlock_response_parse (const uint8_t *message,
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_UNLOCK);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+}
+
+/******************************************************************************/
+/* Enable/Disable PIN */
+
+uint8_t *
+rmf_message_enable_pin_request_new (uint32_t   enable,
+                                    const char *pin)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_ENABLE_PIN, 0);
+    rmf_message_builder_add_uint32 (builder, enable);
+    rmf_message_builder_add_string (builder, pin);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_enable_pin_response_new (uint32_t status)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_ENABLE_PIN, status);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_enable_pin_response_parse (const uint8_t *message,
+                                       uint32_t      *status)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_ENABLE_PIN);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+}
+
+/******************************************************************************/
+/* Change PIN */
+
+uint8_t *
+rmf_message_change_pin_request_new (const char *pin,
+                                    const char *new_pin)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_CHANGE_PIN, 0);
+    rmf_message_builder_add_string (builder, pin);
+    rmf_message_builder_add_string (builder, new_pin);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_change_pin_response_new (uint32_t status)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_CHANGE_PIN, status);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_change_pin_response_parse (const uint8_t *message,
+                                       uint32_t      *status)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_CHANGE_PIN);
 
     if (status)
         *status = rmf_message_get_status (message);

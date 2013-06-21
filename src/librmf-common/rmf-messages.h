@@ -103,6 +103,24 @@ void     rmf_message_unlock_response_parse (const uint8_t *message,
                                             uint32_t      *status);
 
 /******************************************************************************/
+/* Enable/Disable PIN */
+
+uint8_t *rmf_message_enable_pin_request_new    (uint32_t       enable,
+                                                const char    *pin);
+uint8_t *rmf_message_enable_pin_response_new   (uint32_t       status);
+void     rmf_message_enable_pin_response_parse (const uint8_t *message,
+                                                uint32_t      *status);
+
+/******************************************************************************/
+/* Change PIN */
+
+uint8_t *rmf_message_change_pin_request_new    (const char    *pin,
+                                                const char    *new_pin);
+uint8_t *rmf_message_change_pin_response_new   (uint32_t       status);
+void     rmf_message_change_pin_response_parse (const uint8_t *message,
+                                                uint32_t      *status);
+
+/******************************************************************************/
 /* Get Power Status */
 
 uint8_t *rmf_message_get_power_status_request_new    (void);

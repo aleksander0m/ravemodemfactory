@@ -383,6 +383,56 @@ Modem::Unlock (const string pin)
 
 /*****************************************************************************/
 
+void
+Modem::EnablePin (bool         enable,
+                  const string pin)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_enable_pin_request_new ((uint32_t)enable, pin.c_str());
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_enable_pin_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+}
+
+/*****************************************************************************/
+
+void
+Modem::ChangePin (const string pin,
+                  const string new_pin)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_change_pin_request_new (pin.c_str(), new_pin.c_str());
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_change_pin_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw std::runtime_error (response_status_str[status]);
+}
+
+/*****************************************************************************/
+
 PowerStatus
 Modem::GetPowerStatus (void)
 {
