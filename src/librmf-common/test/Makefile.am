@@ -1,7 +1,8 @@
+include $(top_srcdir)/gtester.make
 
 noinst_PROGRAMS = test-message-private test-message
 
-TESTS = $(noinst_PROGRAMS)
+TEST_PROGS += $(noinst_PROGRAMS)
 
 test_message_private_SOURCES = \
 	test-message-private.c
