@@ -94,7 +94,7 @@ namespace Modem {
         RadioInterface radioInterface;
         bool           inTraffic;
         double         txPower;
-        bool           rx0RadioRuned;
+        bool           rx0RadioTuned;
         double         rx0Power;
         bool           rx1RadioTuned;
         double         rx1Power;

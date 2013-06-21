@@ -552,7 +552,7 @@ Modem::GetPowerInfo (void)
         info.radioInterface = Gsm;
         info.inTraffic = gsm_in_traffic;
         info.txPower = (0.1) * ((double)gsm_tx_power);
-        info.rx0RadioRuned = gsm_rx0_radio_tuned;
+        info.rx0RadioTuned = gsm_rx0_radio_tuned;
         info.rx0Power = (0.1) * ((double)gsm_rx0_power);
         info.rx1RadioTuned = gsm_rx1_radio_tuned;
         info.rx1Power = (0.1) * ((double)gsm_rx1_power);
@@ -564,7 +564,7 @@ Modem::GetPowerInfo (void)
         info.radioInterface = Umts;
         info.inTraffic = umts_in_traffic;
         info.txPower = (0.1) * ((double)umts_tx_power);
-        info.rx0RadioRuned = umts_rx0_radio_tuned;
+        info.rx0RadioTuned = umts_rx0_radio_tuned;
         info.rx0Power = (0.1) * ((double)umts_rx0_power);
         info.rx1RadioTuned = umts_rx1_radio_tuned;
         info.rx1Power = (0.1) * ((double)umts_rx1_power);
@@ -576,7 +576,7 @@ Modem::GetPowerInfo (void)
         info.radioInterface = Lte;
         info.inTraffic = lte_in_traffic;
         info.txPower = (0.1) * ((double)lte_tx_power);
-        info.rx0RadioRuned = lte_rx0_radio_tuned;
+        info.rx0RadioTuned = lte_rx0_radio_tuned;
         info.rx0Power = (0.1) * ((double)lte_rx0_power);
         info.rx1RadioTuned = lte_rx1_radio_tuned;
         info.rx1Power = (0.1) * ((double)lte_rx1_power);
