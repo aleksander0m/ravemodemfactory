@@ -61,6 +61,25 @@ rmf_message_request_and_response_match (const uint8_t *request,
 }
 
 /******************************************************************************/
+/* Generic error response */
+
+uint8_t *
+rmf_message_error_response_new (uint32_t command,
+                                uint32_t status)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    assert (status != RMF_RESPONSE_STATUS_OK);
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, command, status);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+/******************************************************************************/
 /* Get Manufacturer
  *
  *  Request:
@@ -75,7 +94,7 @@ rmf_message_get_manufacturer_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_MANUFACTURER, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_MANUFACTURER, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -83,13 +102,12 @@ rmf_message_get_manufacturer_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_manufacturer_response_new (uint32_t    status,
-                                           const char *manufacturer)
+rmf_message_get_manufacturer_response_new (const char *manufacturer)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_MANUFACTURER, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_MANUFACTURER, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, manufacturer);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -122,7 +140,7 @@ rmf_message_get_model_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_MODEL, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_MODEL, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -130,13 +148,12 @@ rmf_message_get_model_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_model_response_new (uint32_t    status,
-                                    const char *model)
+rmf_message_get_model_response_new (const char *model)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_MODEL, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_MODEL, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, model);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -169,7 +186,7 @@ rmf_message_get_software_revision_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -177,13 +194,12 @@ rmf_message_get_software_revision_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_software_revision_response_new (uint32_t    status,
-                                                const char *software_revision)
+rmf_message_get_software_revision_response_new (const char *software_revision)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, software_revision);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -216,7 +232,7 @@ rmf_message_get_hardware_revision_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -224,13 +240,12 @@ rmf_message_get_hardware_revision_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_hardware_revision_response_new (uint32_t        status,
-                                                const char     *hardware_revision)
+rmf_message_get_hardware_revision_response_new (const char *hardware_revision)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, hardware_revision);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -263,7 +278,7 @@ rmf_message_get_imei_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_IMEI, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_IMEI, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -271,13 +286,12 @@ rmf_message_get_imei_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_imei_response_new (uint32_t     status,
-                                   const char *imei)
+rmf_message_get_imei_response_new (const char *imei)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_IMEI, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_IMEI, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, imei);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -310,7 +324,7 @@ rmf_message_get_imsi_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_IMSI, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_IMSI, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -318,13 +332,12 @@ rmf_message_get_imsi_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_imsi_response_new (uint32_t    status,
-                                   const char *imsi)
+rmf_message_get_imsi_response_new (const char *imsi)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_IMSI, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_IMSI, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, imsi);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -357,7 +370,7 @@ rmf_message_get_iccid_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_ICCID, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_ICCID, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -365,13 +378,12 @@ rmf_message_get_iccid_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_iccid_response_new (uint32_t    status,
-                                    const char *iccid)
+rmf_message_get_iccid_response_new (const char *iccid)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_ICCID, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_ICCID, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, iccid);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -404,7 +416,7 @@ rmf_message_unlock_request_new (const char *pin)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_UNLOCK, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_UNLOCK, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, pin);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -413,12 +425,12 @@ rmf_message_unlock_request_new (const char *pin)
 }
 
 uint8_t *
-rmf_message_unlock_response_new (uint32_t status)
+rmf_message_unlock_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_UNLOCK, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_UNLOCK, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -448,7 +460,7 @@ rmf_message_enable_pin_request_new (uint32_t   enable,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_ENABLE_PIN, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_ENABLE_PIN, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, enable);
     rmf_message_builder_add_string (builder, pin);
     message = rmf_message_builder_serialize (builder);
@@ -458,12 +470,12 @@ rmf_message_enable_pin_request_new (uint32_t   enable,
 }
 
 uint8_t *
-rmf_message_enable_pin_response_new (uint32_t status)
+rmf_message_enable_pin_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_ENABLE_PIN, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_ENABLE_PIN, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -493,7 +505,7 @@ rmf_message_change_pin_request_new (const char *pin,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_CHANGE_PIN, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_CHANGE_PIN, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, pin);
     rmf_message_builder_add_string (builder, new_pin);
     message = rmf_message_builder_serialize (builder);
@@ -503,12 +515,12 @@ rmf_message_change_pin_request_new (const char *pin,
 }
 
 uint8_t *
-rmf_message_change_pin_response_new (uint32_t status)
+rmf_message_change_pin_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_CHANGE_PIN, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_CHANGE_PIN, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -537,7 +549,7 @@ rmf_message_get_power_status_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_POWER_STATUS, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_POWER_STATUS, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -545,13 +557,12 @@ rmf_message_get_power_status_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_power_status_response_new   (uint32_t status,
-                                             uint32_t power_status)
+rmf_message_get_power_status_response_new (uint32_t power_status)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_POWER_STATUS, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_POWER_STATUS, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, power_status);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -584,7 +595,7 @@ rmf_message_set_power_status_request_new (uint32_t power_status)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_SET_POWER_STATUS, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_SET_POWER_STATUS, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, power_status);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -593,12 +604,12 @@ rmf_message_set_power_status_request_new (uint32_t power_status)
 }
 
 uint8_t *
-rmf_message_set_power_status_response_new (uint32_t status)
+rmf_message_set_power_status_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_SET_POWER_STATUS, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_SET_POWER_STATUS, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -627,7 +638,7 @@ rmf_message_get_power_info_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_POWER_INFO, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_POWER_INFO, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -635,8 +646,7 @@ rmf_message_get_power_info_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_power_info_response_new (uint32_t status,
-                                         uint32_t gsm_in_traffic,
+rmf_message_get_power_info_response_new (uint32_t gsm_in_traffic,
                                          uint32_t gsm_tx_power,
                                          uint32_t gsm_rx0_radio_tuned,
                                          uint32_t gsm_rx0_power,
@@ -658,7 +668,7 @@ rmf_message_get_power_info_response_new (uint32_t status,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_POWER_INFO, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_POWER_INFO, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, gsm_in_traffic);
     rmf_message_builder_add_uint32 (builder, gsm_tx_power);
     rmf_message_builder_add_uint32 (builder, gsm_rx0_radio_tuned);
@@ -772,7 +782,7 @@ rmf_message_get_signal_info_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -780,8 +790,7 @@ rmf_message_get_signal_info_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_signal_info_response_new (uint32_t status,
-                                          uint32_t gsm_available,
+rmf_message_get_signal_info_response_new (uint32_t gsm_available,
                                           uint32_t gsm_rssi,
                                           uint32_t gsm_quality,
                                           uint32_t umts_available,
@@ -794,7 +803,7 @@ rmf_message_get_signal_info_response_new (uint32_t status,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, gsm_available);
     rmf_message_builder_add_uint32 (builder, gsm_rssi);
     rmf_message_builder_add_uint32 (builder, gsm_quality);
@@ -872,7 +881,7 @@ rmf_message_get_registration_status_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -880,8 +889,7 @@ rmf_message_get_registration_status_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_registration_status_response_new (uint32_t    status,
-                                                  uint32_t    registration_status,
+rmf_message_get_registration_status_response_new (uint32_t    registration_status,
                                                   const char *operator_description,
                                                   uint32_t    operator_mcc,
                                                   uint32_t    operator_mnc,
@@ -891,7 +899,7 @@ rmf_message_get_registration_status_response_new (uint32_t    status,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, registration_status);
     rmf_message_builder_add_string (builder, operator_description);
     rmf_message_builder_add_uint32 (builder, operator_mcc);
@@ -953,7 +961,7 @@ rmf_message_get_connection_status_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -961,13 +969,12 @@ rmf_message_get_connection_status_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_connection_status_response_new (uint32_t status,
-                                                uint32_t connection_status)
+rmf_message_get_connection_status_response_new (uint32_t connection_status)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, connection_status);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -1003,7 +1010,7 @@ rmf_message_get_connection_stats_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -1011,8 +1018,7 @@ rmf_message_get_connection_stats_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_connection_stats_response_new (uint32_t status,
-                                               uint32_t tx_packets_ok,
+rmf_message_get_connection_stats_response_new (uint32_t tx_packets_ok,
                                                uint32_t rx_packets_ok,
                                                uint32_t tx_packets_error,
                                                uint32_t rx_packets_error,
@@ -1024,7 +1030,7 @@ rmf_message_get_connection_stats_response_new (uint32_t status,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, tx_packets_ok);
     rmf_message_builder_add_uint32 (builder, rx_packets_ok);
     rmf_message_builder_add_uint32 (builder, tx_packets_error);
@@ -1098,7 +1104,7 @@ rmf_message_connect_request_new (const char *apn,
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_CONNECT, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_CONNECT, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_string (builder, apn);
     rmf_message_builder_add_string (builder, user);
     rmf_message_builder_add_string (builder, password);
@@ -1109,12 +1115,12 @@ rmf_message_connect_request_new (const char *apn,
 }
 
 uint8_t *
-rmf_message_connect_response_new (uint32_t status)
+rmf_message_connect_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_CONNECT, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_CONNECT, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -1143,7 +1149,7 @@ rmf_message_disconnect_request_new (void)
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_DISCONNECT, 0);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_DISCONNECT, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -1151,12 +1157,12 @@ rmf_message_disconnect_request_new (void)
 }
 
 uint8_t *
-rmf_message_disconnect_response_new (uint32_t status)
+rmf_message_disconnect_response_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_DISCONNECT, status);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_DISCONNECT, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 

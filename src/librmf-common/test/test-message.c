@@ -36,10 +36,10 @@ test_get_manufacturer (void)
     g_assert (message != NULL);
     g_free (message);
 
-    message = rmf_message_get_manufacturer_response_new (25, "hello");
+    message = rmf_message_get_manufacturer_response_new ("hello");
     g_assert (message != NULL);
     rmf_message_get_manufacturer_response_parse (message, &status, &manufacturer);
-    g_assert_cmpuint (status, ==, 25);
+    g_assert_cmpuint (status, ==, RMF_RESPONSE_STATUS_OK);
     g_assert_cmpstr (manufacturer, ==, "hello");
 
     g_free (message);

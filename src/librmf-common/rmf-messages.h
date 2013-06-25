@@ -76,11 +76,16 @@ enum RmfMessageCommand {
 };
 
 /******************************************************************************/
+/* Generic error response */
+
+uint8_t *rmf_message_error_response_new (uint32_t command,
+                                         uint32_t status);
+
+/******************************************************************************/
 /* Get Manufacturer */
 
 uint8_t *rmf_message_get_manufacturer_request_new    (void);
-uint8_t *rmf_message_get_manufacturer_response_new   (uint32_t        status,
-                                                      const char     *manufacturer);
+uint8_t *rmf_message_get_manufacturer_response_new   (const char     *manufacturer);
 void     rmf_message_get_manufacturer_response_parse (const uint8_t  *message,
                                                       uint32_t       *status,
                                                       const char    **manufacturer);
@@ -89,8 +94,7 @@ void     rmf_message_get_manufacturer_response_parse (const uint8_t  *message,
 /* Get Model */
 
 uint8_t *rmf_message_get_model_request_new    (void);
-uint8_t *rmf_message_get_model_response_new   (uint32_t        status,
-                                               const char     *model);
+uint8_t *rmf_message_get_model_response_new   (const char     *model);
 void     rmf_message_get_model_response_parse (const uint8_t  *message,
                                                uint32_t       *status,
                                                const char    **model);
@@ -99,8 +103,7 @@ void     rmf_message_get_model_response_parse (const uint8_t  *message,
 /* Get Software Revision */
 
 uint8_t *rmf_message_get_software_revision_request_new    (void);
-uint8_t *rmf_message_get_software_revision_response_new   (uint32_t        status,
-                                                           const char     *software_revision);
+uint8_t *rmf_message_get_software_revision_response_new   (const char     *software_revision);
 void     rmf_message_get_software_revision_response_parse (const uint8_t  *message,
                                                            uint32_t       *status,
                                                            const char    **software_revision);
@@ -109,8 +112,7 @@ void     rmf_message_get_software_revision_response_parse (const uint8_t  *messa
 /* Get Hardware Revision */
 
 uint8_t *rmf_message_get_hardware_revision_request_new    (void);
-uint8_t *rmf_message_get_hardware_revision_response_new   (uint32_t        status,
-                                                           const char     *hardware_revision);
+uint8_t *rmf_message_get_hardware_revision_response_new   (const char     *hardware_revision);
 void     rmf_message_get_hardware_revision_response_parse (const uint8_t  *message,
                                                            uint32_t       *status,
                                                            const char    **hardware_revision);
@@ -119,8 +121,7 @@ void     rmf_message_get_hardware_revision_response_parse (const uint8_t  *messa
 /* Get IMEI */
 
 uint8_t *rmf_message_get_imei_request_new    (void);
-uint8_t *rmf_message_get_imei_response_new   (uint32_t        status,
-                                              const char     *imei);
+uint8_t *rmf_message_get_imei_response_new   (const char     *imei);
 void     rmf_message_get_imei_response_parse (const uint8_t  *message,
                                               uint32_t       *status,
                                               const char    **imei);
@@ -129,8 +130,7 @@ void     rmf_message_get_imei_response_parse (const uint8_t  *message,
 /* Get IMSI */
 
 uint8_t *rmf_message_get_imsi_request_new    (void);
-uint8_t *rmf_message_get_imsi_response_new   (uint32_t        status,
-                                              const char     *imsi);
+uint8_t *rmf_message_get_imsi_response_new   (const char     *imsi);
 void     rmf_message_get_imsi_response_parse (const uint8_t  *message,
                                               uint32_t       *status,
                                               const char    **imsi);
@@ -139,8 +139,7 @@ void     rmf_message_get_imsi_response_parse (const uint8_t  *message,
 /* Get ICCID */
 
 uint8_t *rmf_message_get_iccid_request_new    (void);
-uint8_t *rmf_message_get_iccid_response_new   (uint32_t        status,
-                                               const char     *iccid);
+uint8_t *rmf_message_get_iccid_response_new   (const char     *iccid);
 void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
                                                uint32_t       *status,
                                                const char    **iccid);
@@ -149,7 +148,7 @@ void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
 /* Unlock */
 
 uint8_t *rmf_message_unlock_request_new    (const char    *pin);
-uint8_t *rmf_message_unlock_response_new   (uint32_t       status);
+uint8_t *rmf_message_unlock_response_new   (void);
 void     rmf_message_unlock_response_parse (const uint8_t *message,
                                             uint32_t      *status);
 
@@ -158,7 +157,7 @@ void     rmf_message_unlock_response_parse (const uint8_t *message,
 
 uint8_t *rmf_message_enable_pin_request_new    (uint32_t       enable,
                                                 const char    *pin);
-uint8_t *rmf_message_enable_pin_response_new   (uint32_t       status);
+uint8_t *rmf_message_enable_pin_response_new   (void);
 void     rmf_message_enable_pin_response_parse (const uint8_t *message,
                                                 uint32_t      *status);
 
@@ -167,7 +166,7 @@ void     rmf_message_enable_pin_response_parse (const uint8_t *message,
 
 uint8_t *rmf_message_change_pin_request_new    (const char    *pin,
                                                 const char    *new_pin);
-uint8_t *rmf_message_change_pin_response_new   (uint32_t       status);
+uint8_t *rmf_message_change_pin_response_new   (void);
 void     rmf_message_change_pin_response_parse (const uint8_t *message,
                                                 uint32_t      *status);
 
@@ -175,8 +174,7 @@ void     rmf_message_change_pin_response_parse (const uint8_t *message,
 /* Get Power Status */
 
 uint8_t *rmf_message_get_power_status_request_new    (void);
-uint8_t *rmf_message_get_power_status_response_new   (uint32_t       status,
-                                                      uint32_t       power_status);
+uint8_t *rmf_message_get_power_status_response_new   (uint32_t       power_status);
 void     rmf_message_get_power_status_response_parse (const uint8_t *message,
                                                       uint32_t      *status,
                                                       uint32_t      *power_status);
@@ -185,7 +183,7 @@ void     rmf_message_get_power_status_response_parse (const uint8_t *message,
 /* Set Power Status */
 
 uint8_t *rmf_message_set_power_status_request_new    (uint32_t       power_status);
-uint8_t *rmf_message_set_power_status_response_new   (uint32_t       status);
+uint8_t *rmf_message_set_power_status_response_new   (void);
 void     rmf_message_set_power_status_response_parse (const uint8_t *message,
                                                       uint32_t      *status);
 
@@ -193,8 +191,7 @@ void     rmf_message_set_power_status_response_parse (const uint8_t *message,
 /* Get Power Info */
 
 uint8_t *rmf_message_get_power_info_request_new    (void);
-uint8_t *rmf_message_get_power_info_response_new   (uint32_t       status,
-                                                    uint32_t       gsm_in_traffic,
+uint8_t *rmf_message_get_power_info_response_new   (uint32_t       gsm_in_traffic,
                                                     uint32_t       gsm_tx_power,
                                                     uint32_t       gsm_rx0_radio_tuned,
                                                     uint32_t       gsm_rx0_power,
@@ -237,8 +234,7 @@ void     rmf_message_get_power_info_response_parse (const uint8_t *message,
 /* Get Signal Info */
 
 uint8_t *rmf_message_get_signal_info_request_new    (void);
-uint8_t *rmf_message_get_signal_info_response_new   (uint32_t       status,
-                                                     uint32_t       gsm_available,
+uint8_t *rmf_message_get_signal_info_response_new   (uint32_t       gsm_available,
                                                      uint32_t       gsm_rssi,
                                                      uint32_t       gsm_quality,
                                                      uint32_t       umts_available,
@@ -263,8 +259,7 @@ void     rmf_message_get_signal_info_response_parse (const uint8_t *message,
 /* Get Registration Status */
 
 uint8_t *rmf_message_get_registration_status_request_new    (void);
-uint8_t *rmf_message_get_registration_status_response_new   (uint32_t        status,
-                                                             uint32_t        registration_status,
+uint8_t *rmf_message_get_registration_status_response_new   (uint32_t        registration_status,
                                                              const char     *operator_description,
                                                              uint32_t        operator_mcc,
                                                              uint32_t        operator_mnc,
@@ -283,8 +278,7 @@ void     rmf_message_get_registration_status_response_parse (const uint8_t  *mes
 /* Get Connection Status */
 
 uint8_t *rmf_message_get_connection_status_request_new    (void);
-uint8_t *rmf_message_get_connection_status_response_new   (uint32_t       status,
-                                                           uint32_t       connection_status);
+uint8_t *rmf_message_get_connection_status_response_new   (uint32_t       connection_status);
 void     rmf_message_get_connection_status_response_parse (const uint8_t *message,
                                                            uint32_t      *status,
                                                            uint32_t      *connection_status);
@@ -293,8 +287,7 @@ void     rmf_message_get_connection_status_response_parse (const uint8_t *messag
 /* Get Connection Stats */
 
 uint8_t *rmf_message_get_connection_stats_request_new    (void);
-uint8_t *rmf_message_get_connection_stats_response_new   (uint32_t       status,
-                                                          uint32_t       tx_packets_ok,
+uint8_t *rmf_message_get_connection_stats_response_new   (uint32_t       tx_packets_ok,
                                                           uint32_t       rx_packets_ok,
                                                           uint32_t       tx_packets_error,
                                                           uint32_t       rx_packets_error,
@@ -319,7 +312,7 @@ void     rmf_message_get_connection_stats_response_parse (const uint8_t *message
 uint8_t *rmf_message_connect_request_new    (const char    *apn,
                                              const char    *user,
                                              const char    *password);
-uint8_t *rmf_message_connect_response_new   (uint32_t       status);
+uint8_t *rmf_message_connect_response_new   (void);
 void     rmf_message_connect_response_parse (const uint8_t *message,
                                              uint32_t      *status);
 
@@ -327,7 +320,7 @@ void     rmf_message_connect_response_parse (const uint8_t *message,
 /* Disconnect */
 
 uint8_t *rmf_message_disconnect_request_new    (void);
-uint8_t *rmf_message_disconnect_response_new   (uint32_t       status);
+uint8_t *rmf_message_disconnect_response_new   (void);
 void     rmf_message_disconnect_response_parse (const uint8_t *message,
                                                 uint32_t      *status);
 
