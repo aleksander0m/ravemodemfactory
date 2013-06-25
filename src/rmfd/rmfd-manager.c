@@ -32,6 +32,7 @@
 
 #include "rmfd-manager.h"
 #include "rmfd-processor.h"
+#include "rmfd-error.h"
 
 G_DEFINE_TYPE (RmfdManager, rmfd_manager, G_TYPE_OBJECT)
 
@@ -267,6 +268,7 @@ static void
 request_free (Request *request)
 {
     g_free (request->message);
+    g_output_stream_close (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)), NULL, NULL);
     g_object_unref (request->connection);
     g_free (request);
 }
@@ -277,17 +279,28 @@ processor_run_ready (QmiDevice *qmi_device,
                      Request *request)
 {
     const guint8 *response;
+    guint8 *response_error = NULL;
     GError *error = NULL;
 
     response = rmfd_processor_run_finish (qmi_device, result, &error);
     if (!response) {
-        g_warning ("Error processing the request: %s", error->message);
+        g_warning ("error processing the request: %s", error->message);
+        response_error = rmfd_error_message_new_from_gerror (request->message, error);
+        g_clear_error (&error);
+    }
+
+    if (!g_output_stream_write_all (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)),
+                                    response_error ? response_error : response,
+                                    rmf_message_get_length (response_error ? response_error : response),
+                                    NULL,
+                                    NULL, /* cancellable */
+                                    &error)) {
+        g_warning ("error writing to output stream: %s", error->message);
         g_error_free (error);
     }
 
-    /* TODO return response */
-
     request_free (request);
+    g_free (response_error);
 }
 
 static void
