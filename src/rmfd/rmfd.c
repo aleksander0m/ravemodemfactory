@@ -34,11 +34,14 @@
 
 #include <libqmi-glib.h>
 
+#include "rmfd-manager.h"
+
 #define PROGRAM_NAME    "rmfd"
 #define PROGRAM_VERSION PACKAGE_VERSION
 
 /* Globals */
 static GMainLoop *loop;
+RmfdManager *manager;
 
 /* Context */
 static gboolean verbose_flag;
@@ -147,6 +150,9 @@ main (int argc, char *argv[])
     g_unix_signal_add (SIGTERM, quit_cb, NULL);
     g_unix_signal_add (SIGINT, quit_cb, NULL);
 
+    /* Create manager */
+    manager = rmfd_manager_new ();
+
     /* Go into the main loop */
     loop = g_main_loop_new (NULL, FALSE);
     g_main_loop_run (loop);
@@ -154,6 +160,7 @@ main (int argc, char *argv[])
     g_debug (PROGRAM_NAME " is shut down");
 
     g_main_loop_unref (loop);
+    g_object_unref (manager);
 
     return 0;
 }

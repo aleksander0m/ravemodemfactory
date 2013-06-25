@@ -27,6 +27,11 @@ PKG_CHECK_MODULES(QMI, qmi-glib >= 1.4)
 AC_SUBST(QMI_CFLAGS)
 AC_SUBST(QMI_LIBS)
 
+dnl Require gudev
+PKG_CHECK_MODULES(GUDEV, gudev-1.0 >= 147)
+AC_SUBST(GUDEV_CFLAGS)
+AC_SUBST(GUDEV_LIBS)
+
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/librmf-common/Makefile
