@@ -36,6 +36,18 @@ rmf_message_get_length (const uint8_t *message)
 }
 
 uint32_t
+rmf_message_get_type (const uint8_t *message)
+{
+    return RMF_MESSAGE_TYPE (message);
+}
+
+uint32_t
+rmf_message_get_command (const uint8_t *message)
+{
+    return RMF_MESSAGE_COMMAND (message);
+}
+
+uint32_t
 rmf_message_request_and_response_match (const uint8_t *request,
                                         const uint8_t *response)
 {

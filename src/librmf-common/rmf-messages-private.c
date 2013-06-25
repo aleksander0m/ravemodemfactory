@@ -162,18 +162,6 @@ rmf_message_builder_serialize (RmfMessageBuilder *builder)
 /* Message reader */
 
 uint32_t
-rmf_message_get_type (const uint8_t *buffer)
-{
-    return ((struct RmfMessageHeader *)buffer)->type;
-}
-
-uint32_t
-rmf_message_get_command (const uint8_t *buffer)
-{
-    return ((struct RmfMessageHeader *)buffer)->command;
-}
-
-uint32_t
 rmf_message_get_status (const uint8_t *buffer)
 {
     return ((struct RmfMessageHeader *)buffer)->status;

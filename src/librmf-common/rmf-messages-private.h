@@ -38,7 +38,9 @@ struct RmfMessageHeader {
     uint32_t variable_size;
 }  __attribute__((packed));
 
-#define RMF_MESSAGE_LENGTH(buffer) ((struct RmfMessageHeader *)buffer)->length
+#define RMF_MESSAGE_LENGTH(buffer)  ((struct RmfMessageHeader *)buffer)->length
+#define RMF_MESSAGE_TYPE(buffer)    ((struct RmfMessageHeader *)buffer)->type
+#define RMF_MESSAGE_COMMAND(buffer) ((struct RmfMessageHeader *)buffer)->command
 
 /******************************************************************************/
 /* Message builder */
@@ -59,8 +61,6 @@ uint8_t *rmf_message_builder_serialize (RmfMessageBuilder *builder);
 /******************************************************************************/
 /* Message reader */
 
-uint32_t rmf_message_get_type (const uint8_t *buffer);
-uint32_t rmf_message_get_command (const uint8_t *buffer);
 uint32_t rmf_message_get_status (const uint8_t *buffer);
 uint32_t rmf_message_read_uint32 (const uint8_t *buffer,
                                   uint32_t      *relative_fixed_offset);
