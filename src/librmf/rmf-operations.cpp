@@ -76,7 +76,7 @@ static const char *error_strings[] = {
 
 static int
 send_and_receive (const uint8_t  *request,
-                  uint32_t        timeout_ms,
+                  uint32_t        timeout_s,
                   uint8_t       **response)
 {
     int ret = ERROR_NONE;
@@ -131,7 +131,7 @@ send_and_receive (const uint8_t  *request,
     fds[0].fd = fd;
     fds[0].events= POLLIN | POLLPRI;
 
-    switch (poll (fds, 1, timeout_ms)) {
+    switch (poll (fds, 1, 1000 * timeout_s)) {
     case -1:
         ret =  ERROR_POLL_FAILED;
         goto failed;
