@@ -356,14 +356,16 @@ incoming_cb (GSocketService    *service,
              GSocketConnection *connection,
              RmfdManager       *self)
 {
-    guint8 buffer[RMF_MESSAGE_MAX_SIZE];
+    guint32 message_size;
     GError *error = NULL;
     gsize bytes_read = 0;
+    Request *request;
 
+    /* First, read message size (first 4 bytes) */
     if (!g_input_stream_read_all (g_io_stream_get_input_stream (G_IO_STREAM (connection)),
-                                  buffer,
-                                  RMF_MESSAGE_MAX_SIZE,
-                                  &bytes_read,
+                                  &message_size,
+                                  4,
+                                  NULL,
                                   NULL, /* cancellable */
                                   &error)) {
         g_warning ("error reading from input stream: %s", error->message);
@@ -371,39 +373,29 @@ incoming_cb (GSocketService    *service,
         return;
     }
 
-    if (bytes_read > 0)
-        g_byte_array_append (self->priv->socket_buffer, buffer, bytes_read);
+    /* Create request */
+    request = g_new (Request, 1);
+    request->connection = g_object_ref (connection);
+    request->message = g_malloc (message_size);
+    memcpy (&request->message[0], &message_size, 4);
 
-    while (TRUE) {
-        guint16 message_size;
-        Request *request;
-
-        /* First 2 bytes in the stream specifies length of message. If not even
-         * 2 bytes read, just return */
-        if (self->priv->socket_buffer->len < 2)
-            return;
-
-        /* If not the whole message read, just return */
-        memcpy (&message_size, self->priv->socket_buffer->data, 2);
-        message_size = GUINT16_FROM_LE (message_size);
-        if (message_size > self->priv->socket_buffer->len)
-            return;
-
-        /* Create request */
-        request = g_new (Request, 1);
-        request->connection = g_object_ref (connection);
-        request->message = g_malloc (message_size);
-        memcpy (request->message, self->priv->socket_buffer->data, message_size);
-        g_byte_array_remove_range (self->priv->socket_buffer, 0, message_size);
-
-        /* Push request */
-        self->priv->requests = g_list_append (self->priv->requests, request);
-
-        /* Schedule request */
-        requests_schedule (self);
+    if (!g_input_stream_read_all (g_io_stream_get_input_stream (G_IO_STREAM (connection)),
+                                  &request->message[4],
+                                  message_size - 4,
+                                  NULL,
+                                  NULL, /* cancellable */
+                                  &error)) {
+        g_warning ("error reading from input stream: %s", error->message);
+        g_error_free (error);
+        request_free (request);
+        return;
     }
 
-    g_assert_not_reached ();
+    /* Push request */
+    self->priv->requests = g_list_append (self->priv->requests, request);
+
+    /* Schedule request */
+    requests_schedule (self);
 }
 
 static void
