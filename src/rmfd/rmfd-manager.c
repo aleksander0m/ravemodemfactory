@@ -31,6 +31,7 @@
 #include <rmf-messages.h>
 
 #include "rmfd-manager.h"
+#include "rmfd-processor.h"
 
 G_DEFINE_TYPE (RmfdManager, rmfd_manager, G_TYPE_OBJECT)
 
@@ -271,10 +272,32 @@ request_free (Request *request)
 }
 
 static void
-request_process (RmfdManager   *self,
-                 Request *request)
+processor_run_ready (QmiDevice *qmi_device,
+                     GAsyncResult *result,
+                     Request *request)
 {
+    const guint8 *response;
+    GError *error = NULL;
+
+    response = rmfd_processor_run_finish (qmi_device, result, &error);
+    if (!response) {
+        g_warning ("Error processing the request: %s", error->message);
+        g_error_free (error);
+    }
+
+    /* TODO return response */
+
     request_free (request);
+}
+
+static void
+request_process (RmfdManager *self,
+                 Request     *request)
+{
+    rmfd_processor_run (self->priv->qmi_device,
+                        request->message,
+                        (GAsyncReadyCallback)processor_run_ready,
+                        request);
 }
 
 static void requests_schedule (RmfdManager *self);

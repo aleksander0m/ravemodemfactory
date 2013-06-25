@@ -12,7 +12,9 @@ rmfd_CPPFLAGS = \
 rmfd_SOURCES = \
 	rmfd.c \
 	rmfd-manager.h \
-	rmfd-manager.c
+	rmfd-manager.c \
+	rmfd-processor.h \
+	rmfd-processor.c
 
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
