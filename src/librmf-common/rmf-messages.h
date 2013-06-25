@@ -44,6 +44,8 @@ uint32_t rmf_message_request_and_response_match (const uint8_t *request,
 enum {
     RMF_RESPONSE_STATUS_OK = 0,
     RMF_RESPONSE_STATUS_ERROR_UNKNOWN,
+    RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST,
+    RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND,
 };
 
 enum RmfMessageType {

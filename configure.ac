@@ -32,7 +32,12 @@ PKG_CHECK_MODULES(GUDEV, gudev-1.0 >= 147)
 AC_SUBST(GUDEV_CFLAGS)
 AC_SUBST(GUDEV_LIBS)
 
+# Some required utilities
+GLIB_MKENUMS=`$PKG_CONFIG --variable=glib_mkenums glib-2.0`
+AC_SUBST(GLIB_MKENUMS)
+
 AC_CONFIG_FILES([Makefile
+                 build-aux/Makefile
                  src/Makefile
                  src/librmf-common/Makefile
                  src/librmf-common/test/Makefile

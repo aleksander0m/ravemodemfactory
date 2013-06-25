@@ -22,6 +22,8 @@
  */
 
 #include "rmfd-processor.h"
+#include "rmfd-error.h"
+#include "rmfd-error-types.h"
 
 const guint8 *
 rmfd_processor_run_finish (QmiDevice     *device,
@@ -45,7 +47,8 @@ rmfd_processor_run (QmiDevice           *device,
             G_OBJECT (device),
             callback,
             user_data,
-            0, 0,
+            RMFD_ERROR,
+            RMFD_ERROR_INVALID_REQUEST,
             "Received message is not a request");
         return;
     }
@@ -54,7 +57,8 @@ rmfd_processor_run (QmiDevice           *device,
         G_OBJECT (device),
         callback,
         user_data,
-        0, 0,
+        RMFD_ERROR,
+        RMFD_ERROR_UNKNOWN_COMMAND,
         "Unknown command received (0x%X)",
         rmf_message_get_command (request));
 }

@@ -1,6 +1,13 @@
 
 sbin_PROGRAMS = rmfd
 
+BUILT_SOURCES = \
+	rmfd-error-types.h \
+	rmfd-error-types.c
+
+CLEANFILES = $(BUILT_SOURCES)
+
+# rmfd daemon
 rmfd_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_srcdir)/src/librmf-common \
@@ -14,7 +21,11 @@ rmfd_SOURCES = \
 	rmfd-manager.h \
 	rmfd-manager.c \
 	rmfd-processor.h \
-	rmfd-processor.c
+	rmfd-processor.c \
+	rmfd-error.h \
+	rmfd-error.c \
+	rmfd-error-types.h \
+	rmfd-error-types.c
 
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
@@ -22,3 +33,17 @@ rmfd_LDADD = \
 	$(GLIB_LIBS) \
 	$(QMI_LIBS) \
 	$(GUDEV_LIBS)
+
+# Error types & quarks
+rmfd-error-types.h: Makefile.am rmfd-error.h $(top_srcdir)/build-aux/rmfd-error-types-template.h
+	$(AM_V_GEN) $(GLIB_MKENUMS) \
+		--fhead "#ifndef __RMFD_ERROR_TYPES_H__\n#define __RMFD_ERROR_TYPES_H__\n" \
+		--template $(top_srcdir)/build-aux/rmfd-error-types-template.h \
+		--ftail "#endif /* __RMFD_ERROR_TYPES_H__ */\n" \
+		rmfd-error.h > $@
+
+rmfd-error-types.c: Makefile.am rmfd-error.h $(top_srcdir)/build-aux/rmfd-error-types-template.c rmfd-error-types.h
+	$(AM_V_GEN) $(GLIB_MKENUMS) \
+		--fhead "#include \"rmfd-error.h\"\n#include \"rmfd-error-types.h\"\n" \
+		--template $(top_srcdir)/build-aux/rmfd-error-types-template.c \
+		rmfd-error.h > $@
