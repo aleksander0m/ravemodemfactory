@@ -25,6 +25,7 @@
 #include <ctype.h>
 
 #include <gudev/gudev.h>
+#include <libqmi-glib.h>
 
 #include <rmf-messages.h>
 
@@ -40,6 +41,9 @@ struct _RmfdManagerPrivate {
     /* QMI and net ports */
     GUdevDevice *qmi;
     GUdevDevice *wwan;
+
+    /* QMI device */
+    QmiDevice *qmi_device;
 };
 
 /*****************************************************************************/
@@ -78,6 +82,73 @@ filter_usb_device (GUdevDevice *device)
 }
 
 static void
+device_open_ready (QmiDevice    *qmi_device,
+                   GAsyncResult *res,
+                   RmfdManager  *self)
+{
+    GError *error = NULL;
+
+    /* 'self' is a full reference */
+
+    if (!qmi_device_open_finish (qmi_device, res, &error)) {
+        g_warning ("error opening QmiDevice: %s", error->message);
+        g_error_free (error);
+    } else
+        g_debug ("QmiDevice opened: %s", qmi_device_get_path (self->priv->qmi_device));
+
+    g_object_unref (self);
+}
+
+static void
+device_new_ready (GObject      *source,
+                  GAsyncResult *res,
+                  RmfdManager  *self)
+{
+    GError *error = NULL;
+
+    /* 'self' is a full reference */
+
+    self->priv->qmi_device = qmi_device_new_finish (res, &error);
+    if (!self->priv->qmi_device) {
+        g_warning ("error creating QmiDevice: %s", error->message);
+        g_error_free (error);
+        g_object_unref (self);
+        return;
+    }
+
+    g_debug ("QmiDevice created: %s", qmi_device_get_path (self->priv->qmi_device));
+
+    /* Open the QMI port */
+    qmi_device_open (self->priv->qmi_device,
+                     (QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
+                      QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
+                      QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER),
+                     10,
+                     NULL, /* cancellable */
+                     (GAsyncReadyCallback) device_open_ready,
+                     self);
+}
+
+static void
+create_qmi_device (RmfdManager *self)
+{
+    gchar *qmi_file_path;
+    GFile *qmi_file;
+
+    qmi_file_path = g_strdup_printf ("/dev/%s", g_udev_device_get_name (self->priv->qmi));
+    qmi_file = g_file_new_for_path (qmi_file_path);
+
+    /* Launch device creation */
+    qmi_device_new (qmi_file,
+                    NULL, /* cancellable */
+                    (GAsyncReadyCallback) device_new_ready,
+                    g_object_ref (self));
+
+    g_object_unref (qmi_file);
+    g_free (qmi_file_path);
+}
+
+static void
 port_added (RmfdManager *self,
             GUdevDevice *device)
 {
@@ -98,11 +169,15 @@ port_added (RmfdManager *self,
                 g_debug ("Replacing QMI port '%s' with %s",
                          name,
                          g_udev_device_get_name (self->priv->qmi));
+            g_clear_object (&self->priv->qmi_device);
             g_clear_object (&self->priv->qmi);
         } else
             g_debug ("QMI port added: /dev/%s", name);
 
         self->priv->qmi = g_object_ref (device);
+
+        /* Create QmiDevice */
+        create_qmi_device (self);
         return;
     }
 
@@ -133,6 +208,7 @@ port_removed (RmfdManager *self,
         g_str_equal (g_udev_device_get_name (device),
                      g_udev_device_get_name (self->priv->qmi))) {
         g_debug ("QMI port removed: /dev/%s", g_udev_device_get_name (self->priv->qmi));
+        g_clear_object (&self->priv->qmi_device);
         g_clear_object (&self->priv->qmi);
     }
 
@@ -239,6 +315,17 @@ dispose (GObject *object)
         priv->initial_scan_id = 0;
     }
 
+    if (priv->qmi_device && qmi_device_is_open (priv->qmi_device)) {
+        GError *error = NULL;
+
+        if (!qmi_device_close (priv->qmi_device, &error)) {
+            g_warning ("error closing QMI device: %s", error->message);
+            g_error_free (error);
+        } else
+            g_debug ("QmiDevice closed: %s", qmi_device_get_path (priv->qmi_device));
+    }
+
+    g_clear_object (&priv->qmi_device);
     g_clear_object (&priv->qmi);
     g_clear_object (&priv->wwan);
     g_clear_object (&priv->udev_client);
