@@ -50,8 +50,6 @@ static const char *response_status_str[] = {
 
 /*****************************************************************************/
 
-#define SOCKET_PATH "/tmp/rmf-server"
-
 enum {
     ERROR_NONE,
     ERROR_SOCKET_FAILED,
@@ -91,11 +89,11 @@ send_and_receive (const uint8_t  *request,
 
     assert (request != NULL);
     assert (response != NULL);
-    assert (strlen (SOCKET_PATH) < sizeof (address.sun_path));
+    assert (strlen (RMFD_SOCKET_PATH) < sizeof (address.sun_path));
 
     /* Setup address */
     address.sun_family = AF_UNIX;
-    strcpy (address.sun_path, SOCKET_PATH);
+    strcpy (address.sun_path, RMFD_SOCKET_PATH);
 
     /* 1st step: socket(). Create communication endpoint. */
     if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
