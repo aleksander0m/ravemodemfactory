@@ -45,3 +45,7 @@ src/librmf/.libs
 src/rmfcli/rmfcli
 src/rmfcli/.deps
 src/rmfcli/.libs
+
+src/rmfd/rmfd
+src/rmfd/.deps
+src/rmfd/.libs
