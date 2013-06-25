@@ -26,6 +26,7 @@
 
 #include <gudev/gudev.h>
 #include <libqmi-glib.h>
+#include <gio/gunixsocketaddress.h>
 
 #include <rmf-messages.h>
 
@@ -44,6 +45,14 @@ struct _RmfdManagerPrivate {
 
     /* QMI device */
     QmiDevice *qmi_device;
+
+    /* Unix socket service */
+    GSocketService *socket_service;
+    GByteArray *socket_buffer;
+
+    /* Pending requests to process */
+    GList *requests;
+    guint requests_idle_id;
 };
 
 /*****************************************************************************/
@@ -246,6 +255,151 @@ uevent_cb (GUdevClient *client,
     /* Ignore other actions */
 }
 
+/*****************************************************************************/
+
+typedef struct {
+    GSocketConnection *connection;
+    guint8 *message;
+} Request;
+
+static void
+request_free (Request *request)
+{
+    g_free (request->message);
+    g_object_unref (request->connection);
+    g_free (request);
+}
+
+static void
+request_process (RmfdManager   *self,
+                 Request *request)
+{
+    request_free (request);
+}
+
+static void requests_schedule (RmfdManager *self);
+
+static gboolean
+requests_idle_cb (RmfdManager *self)
+{
+    Request *request;
+
+    g_assert (self->priv->requests != NULL);
+
+    self->priv->requests_idle_id = 0;
+
+    /* Get the first request to process */
+    request = self->priv->requests->data;
+    self->priv->requests = g_list_remove (self->priv->requests, request);
+
+    /* Process (takes ownership) */
+    request_process (self, request);
+
+    /* Re-schedule if needed */
+    requests_schedule (self);
+
+    return FALSE;
+}
+
+static void
+requests_schedule (RmfdManager *self)
+{
+    if (!self->priv->requests)
+        return;
+
+    if (self->priv->requests_idle_id)
+        return;
+
+    self->priv->requests_idle_id = g_idle_add ((GSourceFunc)requests_idle_cb, self);
+}
+
+/*****************************************************************************/
+
+static void
+incoming_cb (GSocketService    *service,
+             GSocketConnection *connection,
+             RmfdManager       *self)
+{
+    guint8 buffer[RMF_MESSAGE_MAX_SIZE];
+    GError *error = NULL;
+    gsize bytes_read = 0;
+
+    if (!g_input_stream_read_all (g_io_stream_get_input_stream (G_IO_STREAM (connection)),
+                                  buffer,
+                                  RMF_MESSAGE_MAX_SIZE,
+                                  &bytes_read,
+                                  NULL, /* cancellable */
+                                  &error)) {
+        g_warning ("error reading from input stream: %s", error->message);
+        g_error_free (error);
+        return;
+    }
+
+    if (bytes_read > 0)
+        g_byte_array_append (self->priv->socket_buffer, buffer, bytes_read);
+
+    while (TRUE) {
+        guint16 message_size;
+        Request *request;
+
+        /* First 2 bytes in the stream specifies length of message. If not even
+         * 2 bytes read, just return */
+        if (self->priv->socket_buffer->len < 2)
+            return;
+
+        /* If not the whole message read, just return */
+        memcpy (&message_size, self->priv->socket_buffer->data, 2);
+        message_size = GUINT16_FROM_LE (message_size);
+        if (message_size > self->priv->socket_buffer->len)
+            return;
+
+        /* Create request */
+        request = g_new (Request, 1);
+        request->connection = g_object_ref (connection);
+        request->message = g_malloc (message_size);
+        memcpy (request->message, self->priv->socket_buffer->data, message_size);
+        g_byte_array_remove_range (self->priv->socket_buffer, 0, message_size);
+
+        /* Push request */
+        self->priv->requests = g_list_append (self->priv->requests, request);
+
+        /* Schedule request */
+        requests_schedule (self);
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+setup_socket_service (RmfdManager *self)
+{
+    GSocketAddress *socket_address;
+    GError *error = NULL;
+
+    g_debug ("creating UNIX socket service...");
+
+    /* Remove any previously existing socket file */
+    g_unlink (RMFD_SOCKET_PATH);
+
+    /* Create socket address */
+    socket_address = g_unix_socket_address_new (RMFD_SOCKET_PATH);
+    if (!g_socket_listener_add_address (G_SOCKET_LISTENER (self->priv->socket_service),
+                                        socket_address,
+                                        G_SOCKET_TYPE_STREAM,
+                                        G_SOCKET_PROTOCOL_DEFAULT,
+                                        G_OBJECT (self),
+                                        NULL, /* effective_address */
+                                        &error)) {
+        g_warning ("error adding address to socket service: %s", error->message);
+        g_error_free (error);
+    } else {
+        g_debug ("starting UNIX socket service...");
+        g_socket_service_start (self->priv->socket_service);
+    }
+
+    g_object_unref (socket_address);
+}
+
 static gboolean
 initial_scan_cb (RmfdManager *self)
 {
@@ -276,6 +430,9 @@ initial_scan_cb (RmfdManager *self)
     }
     g_list_free (devices);
 
+    /* Setup socket service after the initial scan */
+    setup_socket_service (self);
+
     return FALSE;
 }
 
@@ -301,14 +458,31 @@ rmfd_manager_init (RmfdManager *self)
     self->priv->udev_client = g_udev_client_new (subsys);
     g_signal_connect (self->priv->udev_client, "uevent", G_CALLBACK (uevent_cb), self);
 
+    /* Create socket service */
+    self->priv->socket_service = g_socket_service_new ();
+    g_signal_connect (self->priv->socket_service, "incoming", G_CALLBACK (incoming_cb), NULL);
+
     /* Setup initial scan */
     self->priv->initial_scan_id = g_idle_add ((GSourceFunc) initial_scan_cb, self);
+
+    /* Socket service started after initial scan */
+    self->priv->socket_buffer = g_byte_array_sized_new (RMF_MESSAGE_MAX_SIZE);
 }
 
 static void
 dispose (GObject *object)
 {
     RmfdManagerPrivate *priv = RMFD_MANAGER (object)->priv;
+
+    if (priv->requests_idle_id != 0) {
+        g_source_remove (priv->requests_idle_id);
+        priv->requests_idle_id = 0;
+    }
+
+    if (priv->requests) {
+        g_list_free_full (priv->requests, (GDestroyNotify) request_free);
+        priv->requests = NULL;
+    }
 
     if (priv->initial_scan_id != 0) {
         g_source_remove (priv->initial_scan_id);
@@ -325,6 +499,17 @@ dispose (GObject *object)
             g_debug ("QmiDevice closed: %s", qmi_device_get_path (priv->qmi_device));
     }
 
+    if (priv->socket_service && g_socket_service_is_active (priv->socket_service)) {
+        g_socket_service_stop (priv->socket_service);
+        g_debug ("UNIX socket service stopped");
+    }
+
+    if (priv->socket_buffer) {
+        g_byte_array_unref (priv->socket_buffer);
+        priv->socket_buffer = NULL;
+    }
+
+    g_clear_object (&priv->socket_service);
     g_clear_object (&priv->qmi_device);
     g_clear_object (&priv->qmi);
     g_clear_object (&priv->wwan);
