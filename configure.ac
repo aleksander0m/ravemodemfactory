@@ -22,6 +22,11 @@ PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.32 gio-2.0 gio-unix-2.0)
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
+dnl Require libqmi
+PKG_CHECK_MODULES(QMI, qmi-glib >= 1.4)
+AC_SUBST(QMI_CFLAGS)
+AC_SUBST(QMI_LIBS)
+
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/librmf-common/Makefile

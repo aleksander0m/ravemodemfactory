@@ -32,6 +32,8 @@
 #include <gio/gio.h>
 #include <glib-unix.h>
 
+#include <libqmi-glib.h>
+
 #define PROGRAM_NAME    "rmfd"
 #define PROGRAM_VERSION PACKAGE_VERSION
 
@@ -133,8 +135,11 @@ main (int argc, char *argv[])
         print_version_and_exit ();
 
     /* Setup logging if running in verbose mode */
-    if (verbose_flag)
+    if (verbose_flag) {
         g_log_set_handler (G_LOG_DOMAIN, G_LOG_LEVEL_MASK, log_handler, NULL);
+        qmi_utils_set_traces_enabled (TRUE);
+        g_log_set_handler ("Qmi", G_LOG_LEVEL_MASK, log_handler, NULL);
+    }
 
     g_debug (PROGRAM_NAME " starting...");
 
