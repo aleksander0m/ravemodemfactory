@@ -127,6 +127,10 @@ rmf_message_get_manufacturer_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (manufacturer)
         *manufacturer = rmf_message_read_string (message, &offset);
 }
@@ -173,6 +177,10 @@ rmf_message_get_model_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (model)
         *model = rmf_message_read_string (message, &offset);
 }
@@ -219,6 +227,10 @@ rmf_message_get_software_revision_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (software_revision)
         *software_revision = rmf_message_read_string (message, &offset);
 }
@@ -265,6 +277,10 @@ rmf_message_get_hardware_revision_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (hardware_revision)
         *hardware_revision = rmf_message_read_string (message, &offset);
 }
@@ -311,6 +327,10 @@ rmf_message_get_imei_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (imei)
         *imei = rmf_message_read_string (message, &offset);
 }
@@ -357,6 +377,10 @@ rmf_message_get_imsi_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (imsi)
         *imsi = rmf_message_read_string (message, &offset);
 }
@@ -403,6 +427,10 @@ rmf_message_get_iccid_response_parse (const uint8_t  *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (iccid)
         *iccid = rmf_message_read_string (message, &offset);
 }
@@ -582,6 +610,10 @@ rmf_message_get_power_status_response_parse (const uint8_t *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     if (power_status)
         *power_status = rmf_message_read_uint32 (message, &offset);
 }
@@ -724,6 +756,9 @@ rmf_message_get_power_info_response_parse (const uint8_t *message,
     if (status)
         *status = rmf_message_get_status (message);
 
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     value = rmf_message_read_uint32 (message, &offset);
     if (gsm_in_traffic)
         *gsm_in_traffic = value;
@@ -841,6 +876,9 @@ rmf_message_get_signal_info_response_parse (const uint8_t *message,
     if (status)
         *status = rmf_message_get_status (message);
 
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     value = rmf_message_read_uint32 (message, &offset);
     if (gsm_available)
         *gsm_available = value;
@@ -932,6 +970,9 @@ rmf_message_get_registration_status_response_parse (const uint8_t  *message,
     if (status)
         *status = rmf_message_get_status (message);
 
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
     value = rmf_message_read_uint32 (message, &offset);
     if (registration_status)
         *registration_status = value;
@@ -995,6 +1036,9 @@ rmf_message_get_connection_status_response_parse (const uint8_t *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
 
     value = rmf_message_read_uint32 (message, &offset);
     if (connection_status)
@@ -1066,6 +1110,9 @@ rmf_message_get_connection_stats_response_parse (const uint8_t *message,
 
     if (status)
         *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
 
     value = rmf_message_read_uint32 (message, &offset);
     if (tx_packets_ok)
