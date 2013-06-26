@@ -125,6 +125,51 @@ get_manufacturer (const guint8 *request,
                                      ctx);
 }
 
+static void
+dms_get_model_ready (QmiClientDms *client,
+                     GAsyncResult *res,
+                     RunContext   *ctx)
+{
+    QmiMessageDmsGetModelOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_get_model_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_get_model_output_get_result (output, &error)) {
+        g_prefix_error (&error, "Couldn't get Model: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        const gchar *str;
+        guint8 *response;
+
+        qmi_message_dms_get_model_output_get_model (output, &str, NULL);
+
+        response = rmf_message_get_model_response_new (str);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   response,
+                                                   (GDestroyNotify)g_free);
+    }
+
+    if (output)
+        qmi_message_dms_get_model_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_model (const guint8 *request,
+           RunContext   *ctx)
+{
+    qmi_client_dms_get_model (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                              NULL,
+                              5,
+                              NULL,
+                              (GAsyncReadyCallback) dms_get_model_ready,
+                              ctx);
+}
+
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     const guint8        *request,
@@ -152,6 +197,9 @@ rmfd_processor_run (RmfdProcessor       *self,
     switch (rmf_message_get_command (request)) {
     case RMF_MESSAGE_COMMAND_GET_MANUFACTURER:
         get_manufacturer (request, ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_MODEL:
+        get_model (request, ctx);
         return;
     default:
         break;
