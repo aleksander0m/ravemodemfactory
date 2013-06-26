@@ -55,6 +55,20 @@ struct _RmfdProcessorPrivate {
 /*****************************************************************************/
 /* Process an action */
 
+typedef struct {
+    RmfdProcessor *self;
+    GSimpleAsyncResult *result;
+} RunContext;
+
+static void
+run_context_complete_and_free (RunContext *ctx)
+{
+    g_simple_async_result_complete_in_idle (ctx->result);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->self);
+    g_slice_free (RunContext, ctx);
+}
+
 const guint8 *
 rmfd_processor_run_finish (RmfdProcessor *self,
                            GAsyncResult  *res,
@@ -66,31 +80,89 @@ rmfd_processor_run_finish (RmfdProcessor *self,
     return g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res));
 }
 
+static void
+dms_get_manufacturer_ready (QmiClientDms *client,
+                            GAsyncResult *res,
+                            RunContext   *ctx)
+{
+    QmiMessageDmsGetManufacturerOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_get_manufacturer_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_get_manufacturer_output_get_result (output, &error)) {
+        g_prefix_error (&error, "Couldn't get Manufacturer: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        const gchar *str;
+        guint8 *response;
+
+        qmi_message_dms_get_manufacturer_output_get_manufacturer (output, &str, NULL);
+
+        response = rmf_message_get_manufacturer_response_new (str);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   response,
+                                                   (GDestroyNotify)g_free);
+    }
+
+    if (output)
+        qmi_message_dms_get_manufacturer_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_manufacturer (const guint8 *request,
+                  RunContext   *ctx)
+{
+    qmi_client_dms_get_manufacturer (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                     NULL,
+                                     5,
+                                     NULL,
+                                     (GAsyncReadyCallback) dms_get_manufacturer_ready,
+                                     ctx);
+}
+
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     const guint8        *request,
                     GAsyncReadyCallback  callback,
                     gpointer             user_data)
 {
+    RunContext *ctx;
+
+    ctx = g_slice_new (RunContext);
+    ctx->self = g_object_ref (self);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             rmfd_processor_run);
+
     if (rmf_message_get_type (request) != RMF_MESSAGE_TYPE_REQUEST) {
-        g_simple_async_report_error_in_idle (
-            G_OBJECT (self),
-            callback,
-            user_data,
-            RMFD_ERROR,
-            RMFD_ERROR_INVALID_REQUEST,
-            "Received message is not a request");
+        g_simple_async_result_set_error (ctx->result,
+                                         RMFD_ERROR,
+                                         RMFD_ERROR_INVALID_REQUEST,
+                                         "Received message is not a request");
+        run_context_complete_and_free (ctx);
         return;
     }
 
-    g_simple_async_report_error_in_idle (
-        G_OBJECT (self),
-        callback,
-        user_data,
-        RMFD_ERROR,
-        RMFD_ERROR_UNKNOWN_COMMAND,
-        "Unknown command received (0x%X)",
-        rmf_message_get_command (request));
+    switch (rmf_message_get_command (request)) {
+    case RMF_MESSAGE_COMMAND_GET_MANUFACTURER:
+        get_manufacturer (request, ctx);
+        return;
+    default:
+        break;
+    }
+
+    g_simple_async_result_set_error (ctx->result,
+                                     RMFD_ERROR,
+                                     RMFD_ERROR_UNKNOWN_COMMAND,
+                                     "Unknown command received (0x%X)",
+                                     rmf_message_get_command (request));
+    run_context_complete_and_free (ctx);
 }
 
 /*****************************************************************************/
