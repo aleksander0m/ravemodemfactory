@@ -46,6 +46,10 @@ struct _RmfdProcessorPrivate {
     GFile *file;
     /* QMI device */
     QmiDevice *qmi_device;
+    /* QMI clients */
+    QmiClient *dms;
+    QmiClient *nas;
+    QmiClient *wds;
 };
 
 /*****************************************************************************/
@@ -115,6 +119,73 @@ initable_init_finish (GAsyncInitable  *initable,
 }
 
 static void
+allocate_wds_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->wds = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->wds) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("Qmi WDS client created");
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    init_context_complete_and_free (ctx);
+}
+
+static void
+allocate_nas_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->nas = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->nas) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("Qmi NAS client created");
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_WDS,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_wds_client_ready,
+                                ctx);
+}
+
+static void
+allocate_dms_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->dms = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->dms) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("Qmi DMS client created");
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_NAS,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_nas_client_ready,
+                                ctx);
+}
+
+static void
 device_open_ready (QmiDevice    *qmi_device,
                    GAsyncResult *res,
                    InitContext  *ctx)
@@ -128,8 +199,13 @@ device_open_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QmiDevice opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_DMS,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_dms_client_ready,
+                                ctx);
 }
 
 static void
@@ -269,8 +345,24 @@ dispose (GObject *object)
 {
     RmfdProcessorPrivate *priv = RMFD_PROCESSOR (object)->priv;
 
-    if (priv->qmi_device && qmi_device_is_open (priv->qmi_device)) {
+    if (priv->qmi_device  && qmi_device_is_open (priv->qmi_device)) {
         GError *error = NULL;
+
+        if (priv->dms)
+            qmi_device_release_client (priv->qmi_device,
+                                       priv->dms,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
+        if (priv->nas)
+            qmi_device_release_client (priv->qmi_device,
+                                       priv->nas,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
+        if (priv->wds)
+            qmi_device_release_client (priv->qmi_device,
+                                       priv->wds,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
 
         if (!qmi_device_close (priv->qmi_device, &error)) {
             g_warning ("error closing QMI device: %s", error->message);
@@ -279,6 +371,9 @@ dispose (GObject *object)
             g_debug ("QmiDevice closed: %s", qmi_device_get_path (priv->qmi_device));
     }
 
+    g_clear_object (&priv->dms);
+    g_clear_object (&priv->nas);
+    g_clear_object (&priv->wds);
     g_clear_object (&priv->qmi_device);
     g_clear_object (&priv->file);
 
