@@ -582,7 +582,7 @@ main (int argc, char **argv)
         { "get-connection-status",   no_argument,       0, 'c' },
         { "get-connection-stats",    no_argument,       0, 'x' },
         { "connect",                 required_argument, 0, 'C' },
-        { "disconnect",              required_argument, 0, 'D' },
+        { "disconnect",              no_argument      , 0, 'D' },
         { 0,                         0,                 0, 0   },
     };
 
@@ -595,7 +595,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeioU:E:G:C:pP:asrcxC:D:", longopts, &index);
+        iarg = getopt_long (argc, argv, "vhfdjkeioU:E:G:C:pP:asrcxC:D", longopts, &index);
 
         switch (iarg) {
         case 'h':
