@@ -25,7 +25,6 @@
 #include <ctype.h>
 
 #include <gudev/gudev.h>
-#include <libqmi-glib.h>
 #include <gio/gunixsocketaddress.h>
 
 #include <rmf-messages.h>
@@ -45,8 +44,8 @@ struct _RmfdManagerPrivate {
     GUdevDevice *qmi;
     GUdevDevice *wwan;
 
-    /* QMI device */
-    QmiDevice *qmi_device;
+    /* Processor */
+    RmfdProcessor *processor;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -93,70 +92,21 @@ filter_usb_device (GUdevDevice *device)
 }
 
 static void
-device_open_ready (QmiDevice    *qmi_device,
-                   GAsyncResult *res,
-                   RmfdManager  *self)
+processor_new_ready (GObject      *source,
+                     GAsyncResult *res,
+                     RmfdManager  *self)
 {
     GError *error = NULL;
 
     /* 'self' is a full reference */
 
-    if (!qmi_device_open_finish (qmi_device, res, &error)) {
-        g_warning ("error opening QmiDevice: %s", error->message);
+    self->priv->processor = rmfd_processor_new_finish (res, &error);
+    if (!self->priv->processor) {
+        g_warning ("couldn't create processor: %s", error->message);
         g_error_free (error);
-    } else
-        g_debug ("QmiDevice opened: %s", qmi_device_get_path (self->priv->qmi_device));
-
-    g_object_unref (self);
-}
-
-static void
-device_new_ready (GObject      *source,
-                  GAsyncResult *res,
-                  RmfdManager  *self)
-{
-    GError *error = NULL;
-
-    /* 'self' is a full reference */
-
-    self->priv->qmi_device = qmi_device_new_finish (res, &error);
-    if (!self->priv->qmi_device) {
-        g_warning ("error creating QmiDevice: %s", error->message);
-        g_error_free (error);
-        g_object_unref (self);
-        return;
     }
 
-    g_debug ("QmiDevice created: %s", qmi_device_get_path (self->priv->qmi_device));
-
-    /* Open the QMI port */
-    qmi_device_open (self->priv->qmi_device,
-                     (QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
-                      QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
-                      QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER),
-                     10,
-                     NULL, /* cancellable */
-                     (GAsyncReadyCallback) device_open_ready,
-                     self);
-}
-
-static void
-create_qmi_device (RmfdManager *self)
-{
-    gchar *qmi_file_path;
-    GFile *qmi_file;
-
-    qmi_file_path = g_strdup_printf ("/dev/%s", g_udev_device_get_name (self->priv->qmi));
-    qmi_file = g_file_new_for_path (qmi_file_path);
-
-    /* Launch device creation */
-    qmi_device_new (qmi_file,
-                    NULL, /* cancellable */
-                    (GAsyncReadyCallback) device_new_ready,
-                    g_object_ref (self));
-
-    g_object_unref (qmi_file);
-    g_free (qmi_file_path);
+    g_object_unref (self);
 }
 
 static void
@@ -175,20 +125,29 @@ port_added (RmfdManager *self,
 
     /* Store the QMI port */
     if (g_str_has_prefix (subsystem, "usb")) {
+        GFile *file;
+        gchar *path;
+
         if (self->priv->qmi) {
             if (!g_str_equal (name, g_udev_device_get_name (self->priv->qmi)))
                 g_debug ("Replacing QMI port '%s' with %s",
-                         name,
-                         g_udev_device_get_name (self->priv->qmi));
-            g_clear_object (&self->priv->qmi_device);
+                         g_udev_device_get_name (self->priv->qmi),
+                         name);
+            g_clear_object (&self->priv->processor);
             g_clear_object (&self->priv->qmi);
         } else
             g_debug ("QMI port added: /dev/%s", name);
 
         self->priv->qmi = g_object_ref (device);
 
-        /* Create QmiDevice */
-        create_qmi_device (self);
+        path = g_strdup_printf ("/dev/%s", name);
+        file = g_file_new_for_path (path);
+        g_free (path);
+
+        /* Create Processor */
+        rmfd_processor_new (file,
+                            (GAsyncReadyCallback) processor_new_ready,
+                            g_object_ref (self));
         return;
     }
 
@@ -219,7 +178,7 @@ port_removed (RmfdManager *self,
         g_str_equal (g_udev_device_get_name (device),
                      g_udev_device_get_name (self->priv->qmi))) {
         g_debug ("QMI port removed: /dev/%s", g_udev_device_get_name (self->priv->qmi));
-        g_clear_object (&self->priv->qmi_device);
+        g_clear_object (&self->priv->processor);
         g_clear_object (&self->priv->qmi);
     }
 
@@ -274,15 +233,15 @@ request_free (Request *request)
 }
 
 static void
-processor_run_ready (QmiDevice *qmi_device,
-                     GAsyncResult *result,
-                     Request *request)
+processor_run_ready (RmfdProcessor *processor,
+                     GAsyncResult  *result,
+                     Request       *request)
 {
     const guint8 *response;
     guint8 *response_error = NULL;
     GError *error = NULL;
 
-    response = rmfd_processor_run_finish (qmi_device, result, &error);
+    response = rmfd_processor_run_finish (processor, result, &error);
     if (!response) {
         g_warning ("error processing the request: %s", error->message);
         response_error = rmfd_error_message_new_from_gerror (request->message, error);
@@ -307,7 +266,7 @@ static void
 request_process (RmfdManager *self,
                  Request     *request)
 {
-    rmfd_processor_run (self->priv->qmi_device,
+    rmfd_processor_run (self->priv->processor,
                         request->message,
                         (GAsyncReadyCallback)processor_run_ready,
                         request);
@@ -517,16 +476,6 @@ dispose (GObject *object)
         priv->initial_scan_id = 0;
     }
 
-    if (priv->qmi_device && qmi_device_is_open (priv->qmi_device)) {
-        GError *error = NULL;
-
-        if (!qmi_device_close (priv->qmi_device, &error)) {
-            g_warning ("error closing QMI device: %s", error->message);
-            g_error_free (error);
-        } else
-            g_debug ("QmiDevice closed: %s", qmi_device_get_path (priv->qmi_device));
-    }
-
     if (priv->socket_service && g_socket_service_is_active (priv->socket_service)) {
         g_socket_service_stop (priv->socket_service);
         g_debug ("UNIX socket service stopped");
@@ -538,7 +487,7 @@ dispose (GObject *object)
     }
 
     g_clear_object (&priv->socket_service);
-    g_clear_object (&priv->qmi_device);
+    g_clear_object (&priv->processor);
     g_clear_object (&priv->qmi);
     g_clear_object (&priv->wwan);
     g_clear_object (&priv->udev_client);
