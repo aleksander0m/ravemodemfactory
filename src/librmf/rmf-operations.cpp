@@ -49,6 +49,9 @@ static const char *response_status_str[] = {
     "Invalid request", /* RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST */
     "Unknown command", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
     "No modem", /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
+    "PIN required", /* RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED */
+    "PUK required", /* RMF_RESPONSE_STATUS_ERROR_PUK_REQUIRED */
+    "SIM error", /* RMF_RESPONSE_STATUS_ERROR_SIM_ERROR */
 };
 
 /*****************************************************************************/

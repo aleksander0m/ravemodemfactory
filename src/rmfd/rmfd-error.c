@@ -24,6 +24,7 @@
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
+#include <libqmi-glib.h>
 #include <rmf-messages.h>
 
 guint8 *
@@ -48,6 +49,21 @@ rmfd_error_message_new_from_gerror (const guint8 *request,
             break;
         default:
             g_assert_not_reached ();
+        }
+    } else if (error->domain == QMI_PROTOCOL_ERROR) {
+        switch (error->code) {
+        case QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED:
+            status = RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED;
+            break;
+        case QMI_PROTOCOL_ERROR_PIN_BLOCKED:
+            status = RMF_RESPONSE_STATUS_ERROR_PUK_REQUIRED;
+            break;
+        case QMI_PROTOCOL_ERROR_NO_SIM:
+        case QMI_PROTOCOL_ERROR_PIN_ALWAYS_BLOCKED:
+            status = RMF_RESPONSE_STATUS_ERROR_SIM_ERROR;
+            break;
+        default:
+            status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
         }
     } else
         status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
