@@ -49,6 +49,5 @@ rmfd_error_message_new_from_gerror (const guint8 *request,
     } else
         status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
 
-    return rmf_message_error_response_new (rmf_message_get_command (request),
-                                           RMF_RESPONSE_STATUS_ERROR_UNKNOWN);
+    return rmf_message_error_response_new (rmf_message_get_command (request), status);
 }
