@@ -350,6 +350,51 @@ get_imsi (const guint8 *request,
                                  ctx);
 }
 
+static void
+dms_uim_get_iccid_ready (QmiClientDms *client,
+                         GAsyncResult *res,
+                         RunContext   *ctx)
+{
+    QmiMessageDmsUimGetIccidOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_uim_get_iccid_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_uim_get_iccid_output_get_result (output, &error)) {
+        g_prefix_error (&error, "Couldn't get ICCID: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        const gchar *str;
+        guint8 *response;
+
+        qmi_message_dms_uim_get_iccid_output_get_iccid (output, &str, NULL);
+
+        response = rmf_message_get_iccid_response_new (str);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   response,
+                                                   (GDestroyNotify)g_free);
+    }
+
+    if (output)
+        qmi_message_dms_uim_get_iccid_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_iccid (const guint8 *request,
+           RunContext   *ctx)
+{
+    qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                  NULL,
+                                  5,
+                                  NULL,
+                                  (GAsyncReadyCallback) dms_uim_get_iccid_ready,
+                                  ctx);
+}
+
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     const guint8        *request,
@@ -392,6 +437,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_IMSI:
         get_imsi (request, ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_ICCID:
+        get_iccid (request, ctx);
         return;
     default:
         break;
