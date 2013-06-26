@@ -48,6 +48,7 @@ static const char *response_status_str[] = {
     "Unknown error", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
     "Invalid request", /* RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST */
     "Unknown command", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
+    "No modem", /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
 };
 
 /*****************************************************************************/

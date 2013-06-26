@@ -32,6 +32,7 @@
 #include "rmfd-manager.h"
 #include "rmfd-processor.h"
 #include "rmfd-error.h"
+#include "rmfd-error-types.h"
 
 G_DEFINE_TYPE (RmfdManager, rmfd_manager, G_TYPE_OBJECT)
 
@@ -229,7 +230,24 @@ request_free (Request *request)
     g_free (request->message);
     g_output_stream_close (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)), NULL, NULL);
     g_object_unref (request->connection);
-    g_free (request);
+    g_slice_free (Request, request);
+}
+
+static void
+request_complete (const Request *request,
+                  const guint8  *response)
+{
+    GError *error = NULL;
+
+    if (!g_output_stream_write_all (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)),
+                                    response,
+                                    rmf_message_get_length (response),
+                                    NULL,
+                                    NULL, /* cancellable */
+                                    &error)) {
+        g_warning ("error writing to output stream: %s", error->message);
+        g_error_free (error);
+    }
 }
 
 static void
@@ -245,19 +263,10 @@ processor_run_ready (RmfdProcessor *processor,
     if (!response) {
         g_warning ("error processing the request: %s", error->message);
         response_error = rmfd_error_message_new_from_gerror (request->message, error);
-        g_clear_error (&error);
-    }
-
-    if (!g_output_stream_write_all (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)),
-                                    response_error ? response_error : response,
-                                    rmf_message_get_length (response_error ? response_error : response),
-                                    NULL,
-                                    NULL, /* cancellable */
-                                    &error)) {
-        g_warning ("error writing to output stream: %s", error->message);
         g_error_free (error);
     }
 
+    request_complete (request, response_error ? response_error : response);
     request_free (request);
     g_free (response_error);
 }
@@ -266,6 +275,20 @@ static void
 request_process (RmfdManager *self,
                  Request     *request)
 {
+    if (!self->priv->processor) {
+        guint8 *response;
+        GError *error;
+
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_NO_MODEM, "No modem");
+        response = rmfd_error_message_new_from_gerror (request->message, error);
+        g_error_free (error);
+
+        request_complete (request, response);
+        request_free (request);
+        g_free (response);
+        return;
+    }
+
     rmfd_processor_run (self->priv->processor,
                         request->message,
                         (GAsyncReadyCallback)processor_run_ready,
@@ -333,7 +356,7 @@ incoming_cb (GSocketService    *service,
     }
 
     /* Create request */
-    request = g_new (Request, 1);
+    request = g_slice_new0 (Request);
     request->connection = g_object_ref (connection);
     request->message = g_malloc (message_size);
     memcpy (&request->message[0], &message_size, 4);

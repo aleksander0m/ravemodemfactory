@@ -43,6 +43,9 @@ rmfd_error_message_new_from_gerror (const guint8 *request,
         case RMFD_ERROR_UNKNOWN_COMMAND:
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND;
             break;
+        case RMFD_ERROR_NO_MODEM:
+            status = RMF_RESPONSE_STATUS_ERROR_NO_MODEM;
+            break;
         default:
             g_assert_not_reached ();
         }
