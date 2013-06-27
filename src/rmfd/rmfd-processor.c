@@ -390,6 +390,140 @@ get_iccid (RunContext *ctx)
                                   ctx);
 }
 
+static void
+dms_uim_verify_pin_ready (QmiClientDms *client,
+                          GAsyncResult *res,
+                          RunContext   *ctx)
+{
+    QmiMessageDmsUimVerifyPinOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_uim_verify_pin_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_uim_verify_pin_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't verify PIN: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint8 *response;
+
+        response = rmf_message_unlock_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_dms_uim_verify_pin_output_unref (output);
+    run_context_complete_and_free (ctx);
+}
+
+static void
+dms_uim_get_pin_status_ready (QmiClientDms *client,
+                              GAsyncResult *res,
+                              RunContext   *ctx)
+{
+    QmiMessageDmsUimGetPinStatusOutput *output = NULL;
+    GError *error = NULL;
+    QmiDmsUimPinStatus current_status;
+
+    output = qmi_client_dms_uim_get_pin_status_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_uim_get_pin_status_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get PIN status: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
+                   output,
+                   &current_status,
+                   NULL, /* verify_retries_left */
+                   NULL, /* unblock_retries_left */
+                   &error)) {
+        g_prefix_error (&error, "couldn't get PIN1 status: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        switch (current_status) {
+        case QMI_DMS_UIM_PIN_STATUS_CHANGED:
+            /* This state is possibly given when after an ChangePin() operation has been performed. */
+        case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
+            /* This state is possibly given when after an Unblock() operation has been performed. */
+        case QMI_DMS_UIM_PIN_STATUS_DISABLED:
+        case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED: {
+            guint8 *response;
+
+            response = rmf_message_unlock_response_new ();
+            g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                       (GDestroyNotify)g_byte_array_unref);
+            break;
+        }
+
+        case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
+            g_simple_async_result_set_error (ctx->result,
+                                             QMI_PROTOCOL_ERROR,
+                                             QMI_PROTOCOL_ERROR_PIN_BLOCKED,
+                                             "PIN blocked (PUK required)");
+            break;
+
+        case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
+            g_simple_async_result_set_error (ctx->result,
+                                             QMI_PROTOCOL_ERROR,
+                                             QMI_PROTOCOL_ERROR_PIN_ALWAYS_BLOCKED,
+                                             "PIN/PUK always blocked");
+            break;
+
+        case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
+        case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED: {
+            QmiMessageDmsUimVerifyPinInput *input;
+            const gchar *pin;
+
+            /* Send PIN */
+            rmf_message_unlock_request_parse (ctx->request->data, &pin);
+            input = qmi_message_dms_uim_verify_pin_input_new ();
+            qmi_message_dms_uim_verify_pin_input_set_info (
+                input,
+                QMI_DMS_UIM_PIN_ID_PIN,
+                pin,
+                NULL);
+            qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                           input,
+                                           5,
+                                           NULL,
+                                           (GAsyncReadyCallback)dms_uim_verify_pin_ready,
+                                           ctx);
+            qmi_message_dms_uim_verify_pin_input_unref (input);
+            return;
+        }
+
+        default:
+            g_simple_async_result_set_error (ctx->result,
+                                             RMFD_ERROR,
+                                             RMFD_ERROR_UNKNOWN,
+                                             "Unknown lock status");
+            break;
+        }
+    }
+
+    if (output)
+        qmi_message_dms_uim_get_pin_status_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+unlock (RunContext *ctx)
+{
+    /* First, check current lock status */
+    qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                       NULL,
+                                       5,
+                                       NULL,
+                                       (GAsyncReadyCallback)dms_uim_get_pin_status_ready,
+                                       ctx);
+}
+
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     GByteArray          *request,
@@ -436,6 +570,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_ICCID:
         get_iccid (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_UNLOCK:
+        unlock (ctx);
         return;
     default:
         break;
