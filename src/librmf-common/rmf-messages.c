@@ -831,6 +831,9 @@ rmf_message_get_power_info_response_parse (const uint8_t *message,
     if (gsm_rx0_power)
         *gsm_rx0_power = value;
     value = rmf_message_read_uint32 (message, &offset);
+    if (gsm_rx1_radio_tuned)
+        *gsm_rx1_radio_tuned = value;
+    value = rmf_message_read_uint32 (message, &offset);
     if (gsm_rx1_power)
         *gsm_rx1_power = value;
 
@@ -847,6 +850,9 @@ rmf_message_get_power_info_response_parse (const uint8_t *message,
     if (umts_rx0_power)
         *umts_rx0_power = value;
     value = rmf_message_read_uint32 (message, &offset);
+    if (umts_rx1_radio_tuned)
+        *umts_rx1_radio_tuned = value;
+    value = rmf_message_read_uint32 (message, &offset);
     if (umts_rx1_power)
         *umts_rx1_power = value;
 
@@ -862,6 +868,9 @@ rmf_message_get_power_info_response_parse (const uint8_t *message,
     value = rmf_message_read_uint32 (message, &offset);
     if (lte_rx0_power)
         *lte_rx0_power = value;
+    value = rmf_message_read_uint32 (message, &offset);
+    if (lte_rx1_radio_tuned)
+        *lte_rx1_radio_tuned = value;
     value = rmf_message_read_uint32 (message, &offset);
     if (lte_rx1_power)
         *lte_rx1_power = value;
