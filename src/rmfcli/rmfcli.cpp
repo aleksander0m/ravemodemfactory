@@ -432,9 +432,10 @@ getRegistrationStatus (void)
     }
 
     if (registrationStatus == Modem::Home || registrationStatus == Modem::Roaming) {
-        std::cout << "MCCMNC: " << operatorMcc << operatorMnc << std::endl;
-        std::cout << "LAC: " << lac << std::endl;
-        std::cout << "cid: " << cid << std::endl;
+        std::cout << "MCC: " << operatorMcc << std::endl;
+        std::cout << "MNC: " << operatorMnc << std::endl;
+        std::cout << "Location Area code: " << lac << std::endl;
+        std::cout << "Cell ID: " << cid << std::endl;
     }
 
     return 0;
