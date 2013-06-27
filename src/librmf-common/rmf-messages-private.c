@@ -81,6 +81,22 @@ rmf_message_builder_add_uint32 (RmfMessageBuilder *builder,
 }
 
 void
+rmf_message_builder_add_int32 (RmfMessageBuilder *builder,
+                               int32_t            value)
+{
+    uint32_t original_fixed_size;
+
+    /* Integers are added directly to the fixed size chunk, in host-byte
+     * order, whatever it is */
+
+    original_fixed_size = builder->header.fixed_size;
+    builder->header.fixed_size += 4;
+    builder->fixed = realloc (builder->fixed, builder->header.fixed_size);
+    memcpy (&builder->fixed[original_fixed_size], &value, 4);
+    builder->header.length += 4;
+}
+
+void
 rmf_message_builder_add_uint64 (RmfMessageBuilder *builder,
                                 uint64_t           value)
 {
@@ -170,6 +186,19 @@ rmf_message_get_status (const uint8_t *buffer)
 uint32_t
 rmf_message_read_uint32 (const uint8_t *buffer,
                          uint32_t      *relative_fixed_offset)
+{
+    uint32_t absolute_fixed_offset;
+
+    absolute_fixed_offset = sizeof (struct RmfMessageHeader) + *relative_fixed_offset;
+
+    *relative_fixed_offset += 4;
+
+    return *((int32_t *)(&buffer[absolute_fixed_offset]));
+}
+
+int32_t
+rmf_message_read_int32 (const uint8_t *buffer,
+                        uint32_t      *relative_fixed_offset)
 {
     uint32_t absolute_fixed_offset;
 

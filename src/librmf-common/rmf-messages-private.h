@@ -52,6 +52,8 @@ RmfMessageBuilder *rmf_message_builder_new (uint32_t type,
                                             uint32_t status);
 void rmf_message_builder_add_uint32 (RmfMessageBuilder *builder,
                                      uint32_t           value);
+void rmf_message_builder_add_int32  (RmfMessageBuilder *builder,
+                                     int32_t            value);
 void rmf_message_builder_add_uint64 (RmfMessageBuilder *builder,
                                      uint64_t           value);
 void rmf_message_builder_add_string (RmfMessageBuilder *builder,
@@ -63,6 +65,8 @@ uint8_t *rmf_message_builder_serialize (RmfMessageBuilder *builder);
 
 uint32_t rmf_message_get_status (const uint8_t *buffer);
 uint32_t rmf_message_read_uint32 (const uint8_t *buffer,
+                                  uint32_t      *relative_fixed_offset);
+int32_t  rmf_message_read_int32  (const uint8_t *buffer,
                                   uint32_t      *relative_fixed_offset);
 uint64_t rmf_message_read_uint64 (const uint8_t *buffer,
                                   uint32_t      *relative_fixed_offset);
