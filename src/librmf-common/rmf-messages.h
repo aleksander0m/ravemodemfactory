@@ -83,6 +83,34 @@ enum RmfMessageCommand {
 };
 
 /******************************************************************************/
+/* Additional enums, same as the ones in the librmf interface */
+
+typedef enum  {
+    RMF_REGISTRATION_STATUS_IDLE,
+    RMF_REGISTRATION_STATUS_SEARCHING,
+    RMF_REGISTRATION_STATUS_HOME,
+    RMF_REGISTRATION_STATUS_ROAMING,
+} RmfRegistrationStatus;
+
+typedef enum {
+    RMF_CONNECTION_STATUS_DISCONNECTED,
+    RMF_CONNECTION_STATUS_DISCONNECTING,
+    RMF_CONNECTION_STATUS_CONNECTING,
+    RMF_CONNECTION_STATUS_CONNECTED,
+} RmfConnectionStatus;
+
+typedef enum {
+    RMF_POWER_STATUS_FULL,
+    RMF_POWER_STATUS_LOW,
+} RmfPowerStatus;
+
+typedef enum {
+    RMF_RADIO_INTERFACE_GSM,
+    RMF_RADIO_INTERFACE_UMTS,
+    RMF_RADIO_INTERFACE_LTE
+} RmfRadioInterface;
+
+/******************************************************************************/
 /* Generic error response */
 
 uint8_t *rmf_message_error_response_new (uint32_t command,
