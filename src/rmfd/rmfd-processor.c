@@ -1069,6 +1069,79 @@ get_power_info (RunContext *ctx)
 }
 
 /**********************/
+/* Get signal info */
+
+/* Limit the value betweeen [-113,-51] and scale it to a percentage */
+#define STRENGTH_TO_QUALITY(strength)                                   \
+    (guint8)(100 - ((CLAMP (strength, -113, -51) + 51) * 100 / (-113 + 51)))
+
+static void
+nas_get_signal_info_ready (QmiClientNas *client,
+                           GAsyncResult *res,
+                           RunContext   *ctx)
+{
+    QmiMessageNasGetSignalInfoOutput *output;
+    GError *error = NULL;
+    guint quality = 0;
+
+    output = qmi_client_nas_get_signal_info_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_nas_get_signal_info_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get signal info: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint8 *response;
+        gboolean gsm_available = FALSE;
+        gint8 gsm_rssi = -125;
+        guint32 gsm_quality = 0;
+        guint32 umts_available = FALSE;
+        gint8 umts_rssi = -125;
+        guint32 umts_quality = 0;
+        guint32 lte_available = FALSE;
+        gint8 lte_rssi = -125;
+        guint32 lte_quality = 0;
+
+        if (qmi_message_nas_get_signal_info_output_get_gsm_signal_strength (output, &gsm_rssi, NULL)) {
+            gsm_available = TRUE;
+            gsm_quality = STRENGTH_TO_QUALITY (gsm_rssi);
+        }
+        if (qmi_message_nas_get_signal_info_output_get_wcdma_signal_strength (output, &umts_rssi, NULL, NULL)) {
+            umts_available = TRUE;
+            umts_quality = STRENGTH_TO_QUALITY (umts_rssi);
+        }
+        if (qmi_message_nas_get_signal_info_output_get_lte_signal_strength (output, &lte_rssi, NULL, NULL, NULL, NULL)) {
+            lte_available = TRUE;
+            lte_quality = STRENGTH_TO_QUALITY (lte_rssi);
+        }
+
+        response = rmf_message_get_signal_info_response_new (gsm_available, gsm_rssi, gsm_quality,
+                                                             umts_available, umts_rssi, umts_quality,
+                                                             lte_available, lte_rssi, lte_quality);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_nas_get_signal_info_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_signal_info (RunContext *ctx)
+{
+    qmi_client_nas_get_signal_info (QMI_CLIENT_NAS (ctx->self->priv->nas),
+                                    NULL,
+                                    10,
+                                    NULL,
+                                    (GAsyncReadyCallback)nas_get_signal_info_ready,
+                                    ctx);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -1134,6 +1207,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_POWER_INFO:
         get_power_info (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO:
+        get_signal_info (ctx);
         return;
     default:
         break;
