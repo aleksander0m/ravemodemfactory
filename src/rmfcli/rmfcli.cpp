@@ -386,7 +386,7 @@ getSignalInfo (void)
         }
 
         std::cout << "\tRSSI: " << it->rssi << " dBm" << std::endl;
-        std::cout << "\tQuality: " << it->rssi << "%" << std::endl;
+        std::cout << "\tQuality: " << it->quality << "%" << std::endl;
     }
 
     return 0;
