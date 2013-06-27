@@ -59,6 +59,8 @@ typedef struct {
     RmfdProcessor *self;
     GSimpleAsyncResult *result;
     GByteArray *request;
+    gpointer additional_context;
+    GDestroyNotify additional_context_free;
 } RunContext;
 
 static void
@@ -66,9 +68,21 @@ run_context_complete_and_free (RunContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    if (ctx->additional_context && ctx->additional_context_free)
+        ctx->additional_context_free (ctx->additional_context);
     g_byte_array_unref (ctx->request);
     g_object_unref (ctx->self);
     g_slice_free (RunContext, ctx);
+}
+
+static void
+run_context_set_additional_context (RunContext     *ctx,
+                                    gpointer        additional_context,
+                                    GDestroyNotify  additional_context_free)
+{
+    g_assert (ctx != NULL);
+    ctx->additional_context = additional_context;
+    ctx->additional_context_free = additional_context_free;
 }
 
 GByteArray *
@@ -841,6 +855,220 @@ set_power_status (RunContext *ctx)
 }
 
 /**********************/
+/* Get power info */
+
+typedef struct {
+    gboolean gsm_run;
+    guint32 gsm_in_traffic;
+    gint32 gsm_tx_power;
+    guint32 gsm_rx0_radio_tuned;
+    gint32 gsm_rx0_power;
+    guint32 gsm_rx1_radio_tuned;
+    gint32 gsm_rx1_power;
+    gboolean umts_run;
+    guint32 umts_in_traffic;
+    gint32 umts_tx_power;
+    guint32 umts_rx0_radio_tuned;
+    gint32 umts_rx0_power;
+    guint32 umts_rx1_radio_tuned;
+    gint32 umts_rx1_power;
+    gboolean lte_run;
+    guint32 lte_in_traffic;
+    gint32 lte_tx_power;
+    guint32 lte_rx0_radio_tuned;
+    gint32 lte_rx0_power;
+    guint32 lte_rx1_radio_tuned;
+    gint32 lte_rx1_power;
+} GetPowerInfoContext;
+
+static void
+get_power_info_context_free (GetPowerInfoContext *ctx)
+{
+    g_slice_free (GetPowerInfoContext, ctx);
+}
+
+static void get_next_power_info (RunContext *ctx);
+
+static void
+nas_get_tx_rx_info_ready (QmiClientNas *client,
+                          GAsyncResult *res,
+                          RunContext   *ctx)
+{
+    GetPowerInfoContext *additional_context;
+    QmiMessageNasGetTxRxInfoOutput *output;
+    GError *error = NULL;
+    gboolean is_radio_tuned;
+    gboolean is_in_traffic;
+    gint32 power;
+
+    additional_context = (GetPowerInfoContext *)ctx->additional_context;
+
+    output = qmi_client_nas_get_tx_rx_info_finish (client, res, &error);
+    if (output && qmi_message_nas_get_tx_rx_info_output_get_result (output, NULL)) {
+        /* RX Channel 0 */
+        if (qmi_message_nas_get_tx_rx_info_output_get_rx_chain_0_info (
+                output,
+                &is_radio_tuned,
+                &power,
+                NULL,
+                NULL,
+                NULL,
+                NULL,
+                NULL)) {
+            if (!additional_context->gsm_run) {
+                additional_context->gsm_rx0_radio_tuned = is_radio_tuned;
+                if (additional_context->gsm_rx0_radio_tuned)
+                    additional_context->gsm_rx0_power = power;
+            } else if (!additional_context->umts_run) {
+                additional_context->umts_rx0_radio_tuned = is_radio_tuned;
+                if (additional_context->umts_rx0_radio_tuned)
+                    additional_context->umts_rx0_power = power;
+            } else if (!additional_context->lte_run) {
+                additional_context->lte_rx0_radio_tuned = is_radio_tuned;
+                if (additional_context->lte_rx0_radio_tuned)
+                    additional_context->lte_rx0_power = power;
+            } else
+                g_assert_not_reached ();
+        }
+
+        /* RX Channel 1 */
+        if (qmi_message_nas_get_tx_rx_info_output_get_rx_chain_1_info (
+                output,
+                &is_radio_tuned,
+                &power,
+                NULL,
+                NULL,
+                NULL,
+                NULL,
+                NULL)) {
+            if (!additional_context->gsm_run) {
+                additional_context->gsm_rx1_radio_tuned = is_radio_tuned;
+                if (additional_context->gsm_rx1_radio_tuned)
+                    additional_context->gsm_rx1_power = power;
+            } else if (!additional_context->umts_run) {
+                additional_context->umts_rx1_radio_tuned = is_radio_tuned;
+                if (additional_context->umts_rx1_radio_tuned)
+                    additional_context->umts_rx1_power = power;
+            } else if (!additional_context->lte_run) {
+                additional_context->lte_rx1_radio_tuned = is_radio_tuned;
+                if (additional_context->lte_rx1_radio_tuned)
+                    additional_context->lte_rx1_power = power;
+            } else
+                g_assert_not_reached ();
+        }
+
+        /* TX Channel */
+        if (qmi_message_nas_get_tx_rx_info_output_get_tx_info (
+                output,
+                &is_in_traffic,
+                &power,
+                NULL)) {
+            if (!additional_context->gsm_run) {
+                additional_context->gsm_in_traffic = is_in_traffic;
+                if (additional_context->gsm_in_traffic)
+                    additional_context->gsm_tx_power = power;
+            } else if (!additional_context->umts_run) {
+                additional_context->umts_in_traffic = is_in_traffic;
+                if (additional_context->umts_in_traffic)
+                    additional_context->umts_tx_power = power;
+            } else if (!additional_context->lte_run) {
+                additional_context->lte_in_traffic = is_in_traffic;
+                if (additional_context->lte_in_traffic)
+                    additional_context->lte_tx_power = power;
+            } else
+                g_assert_not_reached ();
+        }
+    }
+
+    if (!additional_context->gsm_run)
+        additional_context->gsm_run = TRUE;
+    else if (!additional_context->umts_run)
+        additional_context->umts_run = TRUE;
+    else if (!additional_context->lte_run)
+        additional_context->lte_run = TRUE;
+    else
+        g_assert_not_reached ();
+
+    if (output)
+        qmi_message_nas_get_tx_rx_info_output_unref (output);
+
+    get_next_power_info (ctx);
+}
+
+static void
+get_next_power_info (RunContext *ctx)
+{
+    GetPowerInfoContext *additional_context;
+    QmiNasRadioInterface interface;
+    guint8 *response;
+
+    additional_context = (GetPowerInfoContext *)ctx->additional_context;
+
+    if (!additional_context->gsm_run)
+        interface = QMI_NAS_RADIO_INTERFACE_GSM;
+    else if (!additional_context->umts_run)
+        interface = QMI_NAS_RADIO_INTERFACE_UMTS;
+    else if (!additional_context->lte_run)
+        interface = QMI_NAS_RADIO_INTERFACE_LTE;
+    else
+        interface = QMI_NAS_RADIO_INTERFACE_UNKNOWN;
+
+    /* Request next */
+    if (interface != QMI_NAS_RADIO_INTERFACE_UNKNOWN) {
+        QmiMessageNasGetTxRxInfoInput *input;
+
+        input = qmi_message_nas_get_tx_rx_info_input_new ();
+        qmi_message_nas_get_tx_rx_info_input_set_radio_interface (input, interface, NULL);
+        qmi_client_nas_get_tx_rx_info (QMI_CLIENT_NAS (ctx->self->priv->nas),
+                                       input,
+                                       10,
+                                       NULL,
+                                       (GAsyncReadyCallback)nas_get_tx_rx_info_ready,
+                                       ctx);
+        qmi_message_nas_get_tx_rx_info_input_unref (input);
+        return;
+    }
+
+    /* All done */
+    response = (rmf_message_get_power_info_response_new (
+                    additional_context->gsm_in_traffic,
+                    additional_context->gsm_tx_power,
+                    additional_context->gsm_rx0_radio_tuned,
+                    additional_context->gsm_rx0_power,
+                    additional_context->gsm_rx1_radio_tuned,
+                    additional_context->gsm_rx1_power,
+                    additional_context->umts_in_traffic,
+                    additional_context->umts_tx_power,
+                    additional_context->umts_rx0_radio_tuned,
+                    additional_context->umts_rx0_power,
+                    additional_context->umts_rx1_radio_tuned,
+                    additional_context->umts_rx1_power,
+                    additional_context->lte_in_traffic,
+                    additional_context->lte_tx_power,
+                    additional_context->lte_rx0_radio_tuned,
+                    additional_context->lte_rx0_power,
+                    additional_context->lte_rx1_radio_tuned,
+                    additional_context->lte_rx1_power));
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_power_info (RunContext *ctx)
+{
+    GetPowerInfoContext *additional_context;
+
+    additional_context = g_slice_new0 (GetPowerInfoContext);
+    run_context_set_additional_context (ctx,
+                                        additional_context,
+                                        (GDestroyNotify)get_power_info_context_free);
+
+    get_next_power_info (ctx);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -903,6 +1131,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_SET_POWER_STATUS:
         set_power_status (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_POWER_INFO:
+        get_power_info (ctx);
         return;
     default:
         break;
