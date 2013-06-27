@@ -65,31 +65,36 @@ filter_usb_device (GUdevDevice *device)
     const gchar *subsystem;
     const gchar *name;
     const gchar *driver;
+    GUdevDevice *parent = NULL;
+    gboolean filtered = TRUE;
 
     /* Subsystems: 'usb', 'usbmisc' or 'net' */
     subsystem = g_udev_device_get_subsystem (device);
     if (!subsystem || (!g_str_has_prefix (subsystem, "usb") && !g_str_has_prefix (subsystem, "net")))
-        return TRUE;
+        goto out;
 
     /* Names: if 'usb' or 'usbmisc' only 'cdc-wdm' prefixed names allowed */
     name = g_udev_device_get_name (device);
     if (!name || (g_str_has_prefix (subsystem, "usb") && !g_str_has_prefix (name, "cdc-wdm")))
-        return TRUE;
+        goto out;
 
     /* Drivers: 'qmi_wwan' only */
     driver = g_udev_device_get_driver (device);
     if (!driver) {
-        GUdevDevice *parent;
-
         parent = g_udev_device_get_parent (device);
         if (parent)
             driver = g_udev_device_get_driver (parent);
     }
     if (!driver || !g_str_equal (driver, "qmi_wwan"))
-        return TRUE;
+        goto out;
 
     /* Not filtered! */
-    return FALSE;
+    filtered = FALSE;
+
+ out:
+    if (parent)
+        g_object_unref (parent);
+    return filtered;
 }
 
 static void
