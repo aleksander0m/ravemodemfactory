@@ -64,6 +64,9 @@ rmfd_error_message_new_from_error (const GByteArray *request,
         case QMI_PROTOCOL_ERROR_PIN_ALWAYS_BLOCKED:
             status = RMF_RESPONSE_STATUS_ERROR_SIM_ERROR;
             break;
+        case QMI_PROTOCOL_ERROR_INCORRECT_PIN:
+            status = RMF_RESPONSE_STATUS_ERROR_INVALID_PIN;
+            break;
         default:
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
         }

@@ -52,6 +52,7 @@ static const char *response_status_str[] = {
     "PIN required", /* RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED */
     "PUK required", /* RMF_RESPONSE_STATUS_ERROR_PUK_REQUIRED */
     "SIM error", /* RMF_RESPONSE_STATUS_ERROR_SIM_ERROR */
+    "Invalid PIN", /* RMF_RESPONSE_STATUS_ERROR_INVALID_PIN */
 };
 
 /*****************************************************************************/
