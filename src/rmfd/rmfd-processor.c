@@ -1233,7 +1233,7 @@ rmfd_processor_run (RmfdProcessor       *self,
 {
     RunContext *ctx;
 
-    ctx = g_slice_new (RunContext);
+    ctx = g_slice_new0 (RunContext);
     ctx->self = g_object_ref (self);
     ctx->result = g_simple_async_result_new (G_OBJECT (self),
                                              callback,
