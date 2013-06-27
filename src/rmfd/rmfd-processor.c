@@ -1441,7 +1441,8 @@ device_new_ready (GObject      *source,
 
     /* Open the QMI port */
     qmi_device_open (ctx->self->priv->qmi_device,
-                     (QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
+                     (QMI_DEVICE_OPEN_FLAGS_SYNC |
+                      QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
                       QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
                       QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER),
                      10,
