@@ -324,32 +324,35 @@ getPowerInfo (void)
         return -1;
     }
 
-    for (std::vector<Modem::RadioPowerInfo>::iterator it = infoVector.begin(); it != infoVector.end(); ++it) {
-        switch (it->radioInterface) {
-        case Modem::Gsm:
-            std::cout << "GSM:" << std::endl;
-            break;
-        case Modem::Umts:
-            std::cout << "UMTS:" << std::endl;
-            break;
-        case Modem::Lte:
-            std::cout << "LTE:" << std::endl;
-            break;
-        default:
-            std::cout << "Unknown:" << std::endl;
-            break;
-        }
+    if (infoVector.size () > 0) {
+        for (std::vector<Modem::RadioPowerInfo>::iterator it = infoVector.begin (); it != infoVector.end (); ++it) {
+            switch (it->radioInterface) {
+            case Modem::Gsm:
+                std::cout << "GSM:" << std::endl;
+                break;
+            case Modem::Umts:
+                std::cout << "UMTS:" << std::endl;
+                break;
+            case Modem::Lte:
+                std::cout << "LTE:" << std::endl;
+                break;
+            default:
+                std::cout << "Unknown:" << std::endl;
+                break;
+            }
 
-        std::cout << "\tIn traffic: " << (it->inTraffic ? "yes" : "no") << std::endl;
-        if (it->inTraffic)
-            std::cout << "\tTX power: " << it->txPower << " dBm" << std::endl;
-        std::cout << "\tRX 0 tuned: " << (it->rx0RadioTuned ? "yes" : "no") << std::endl;
-        if (it->rx0RadioTuned)
-            std::cout << "\tRX 0 power: " << it->rx0Power << " dBm" << std::endl;
-        std::cout << "\tRX 1 tuned: " << (it->rx1RadioTuned ? "yes" : "no") << std::endl;
-        if (it->rx1RadioTuned)
-            std::cout << "\tRX 1 power: " << it->rx1Power << " dBm" << std::endl;
-    }
+            std::cout << "\tIn traffic: " << (it->inTraffic ? "yes" : "no") << std::endl;
+            if (it->inTraffic)
+                std::cout << "\tTX power: " << it->txPower << " dBm" << std::endl;
+            std::cout << "\tRX 0 tuned: " << (it->rx0RadioTuned ? "yes" : "no") << std::endl;
+            if (it->rx0RadioTuned)
+                std::cout << "\tRX 0 power: " << it->rx0Power << " dBm" << std::endl;
+            std::cout << "\tRX 1 tuned: " << (it->rx1RadioTuned ? "yes" : "no") << std::endl;
+            if (it->rx1RadioTuned)
+                std::cout << "\tRX 1 power: " << it->rx1Power << " dBm" << std::endl;
+        }
+    } else
+        std::cout << "No power info available" << std::endl;
 
     return 0;
 }
