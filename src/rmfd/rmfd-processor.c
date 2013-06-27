@@ -50,6 +50,9 @@ struct _RmfdProcessorPrivate {
     QmiClient *dms;
     QmiClient *nas;
     QmiClient *wds;
+    /* Connection related info */
+    RmfConnectionStatus connection_status;
+    guint32 packet_data_handle;
 };
 
 /*****************************************************************************/
@@ -1224,6 +1227,21 @@ get_registration_status (RunContext *ctx)
 }
 
 /**********************/
+/* Get connection status */
+
+static void
+get_connection_status (RunContext *ctx)
+{
+    guint8 *response;
+
+    response = rmf_message_get_connection_status_response_new (ctx->self->priv->connection_status);
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -1295,6 +1313,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS:
         get_registration_status (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS:
+        get_connection_status (ctx);
         return;
     default:
         break;
@@ -1516,6 +1537,7 @@ rmfd_processor_init (RmfdProcessor *self)
     self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
                                               RMFD_TYPE_PROCESSOR,
                                               RmfdProcessorPrivate);
+    self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
 }
 
 static void
