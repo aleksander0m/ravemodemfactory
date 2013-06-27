@@ -136,7 +136,7 @@ port_added (RmfdManager *self,
 
         if (self->priv->qmi) {
             if (!g_str_equal (name, g_udev_device_get_name (self->priv->qmi)))
-                g_debug ("Replacing QMI port '%s' with %s",
+                g_debug ("replacing QMI port '%s' with %s",
                          g_udev_device_get_name (self->priv->qmi),
                          name);
             g_clear_object (&self->priv->processor);
@@ -161,7 +161,7 @@ port_added (RmfdManager *self,
     if (g_str_has_prefix (subsystem, "net")) {
         if (self->priv->wwan) {
             if (!g_str_equal (name, g_udev_device_get_name (self->priv->wwan)))
-                g_debug ("Replacing NET port '%s' with %s",
+                g_debug ("replacing NET port '%s' with %s",
                          name,
                          g_udev_device_get_name (self->priv->wwan));
             g_clear_object (&self->priv->wwan);

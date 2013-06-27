@@ -95,7 +95,7 @@ dms_get_manufacturer_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_get_manufacturer_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get Manufacturer: ");
+        g_prefix_error (&error, "couldn't get manufacturer: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -139,7 +139,7 @@ dms_get_model_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_get_model_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get Model: ");
+        g_prefix_error (&error, "couldn't get model: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -183,7 +183,7 @@ dms_get_revision_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_get_revision_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get Revision: ");
+        g_prefix_error (&error, "couldn't get revision: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -227,7 +227,7 @@ dms_get_hardware_revision_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_get_hardware_revision_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get Revision: ");
+        g_prefix_error (&error, "couldn't get revision: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -271,7 +271,7 @@ dms_get_ids_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_get_ids_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get IMEI: ");
+        g_prefix_error (&error, "couldn't get IMEI: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -315,7 +315,7 @@ dms_uim_get_imsi_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_uim_get_imsi_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get IMSI: ");
+        g_prefix_error (&error, "couldn't get IMSI: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -359,7 +359,7 @@ dms_uim_get_iccid_ready (QmiClientDms *client,
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else if (!qmi_message_dms_uim_get_iccid_output_get_result (output, &error)) {
-        g_prefix_error (&error, "Couldn't get ICCID: ");
+        g_prefix_error (&error, "couldn't get ICCID: ");
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         const gchar *str;
@@ -410,7 +410,7 @@ rmfd_processor_run (RmfdProcessor       *self,
         g_simple_async_result_set_error (ctx->result,
                                          RMFD_ERROR,
                                          RMFD_ERROR_INVALID_REQUEST,
-                                         "Received message is not a request");
+                                         "received message is not a request");
         run_context_complete_and_free (ctx);
         return;
     }
@@ -444,7 +444,7 @@ rmfd_processor_run (RmfdProcessor       *self,
     g_simple_async_result_set_error (ctx->result,
                                      RMFD_ERROR,
                                      RMFD_ERROR_UNKNOWN_COMMAND,
-                                     "Unknown command received (0x%X)",
+                                     "unknown command received (0x%X)",
                                      rmf_message_get_command (request->data));
     run_context_complete_and_free (ctx);
 }
@@ -488,7 +488,7 @@ allocate_wds_client_ready (QmiDevice    *qmi_device,
         return;
     }
 
-    g_debug ("Qmi WDS client created");
+    g_debug ("QMI WDS client created");
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     init_context_complete_and_free (ctx);
 }
@@ -507,7 +507,7 @@ allocate_nas_client_ready (QmiDevice    *qmi_device,
         return;
     }
 
-    g_debug ("Qmi NAS client created");
+    g_debug ("QMI NAS client created");
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_WDS,
                                 QMI_CID_NONE,
@@ -531,7 +531,7 @@ allocate_dms_client_ready (QmiDevice    *qmi_device,
         return;
     }
 
-    g_debug ("Qmi DMS client created");
+    g_debug ("QMI DMS client created");
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_NAS,
                                 QMI_CID_NONE,
@@ -554,7 +554,7 @@ device_open_ready (QmiDevice    *qmi_device,
         return;
     }
 
-    g_debug ("QmiDevice opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
+    g_debug ("QMI device opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_DMS,
                                 QMI_CID_NONE,
@@ -578,7 +578,7 @@ device_new_ready (GObject      *source,
         return;
     }
 
-    g_debug ("QmiDevice created: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
+    g_debug ("QMI device created: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
     /* Open the QMI port */
     qmi_device_open (ctx->self->priv->qmi_device,
