@@ -730,7 +730,7 @@ Modem::GetRegistrationStatus (string   &operatorDescription,
     operatorMcc = (uint16_t)operator_mcc;
     operatorMnc = (uint16_t)operator_mnc;
     lac = (uint16_t)_lac;
-    cid = cid;
+    cid = _cid;
 
     free (response);
 
