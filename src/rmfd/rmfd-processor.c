@@ -630,6 +630,80 @@ enable_pin (RunContext *ctx)
 }
 
 /**********************/
+/* Change PIN */
+
+static void
+dms_uim_change_pin_ready (QmiClientDms *client,
+                          GAsyncResult *res,
+                          RunContext *ctx)
+{
+    QmiMessageDmsUimChangePinOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_uim_change_pin_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_uim_change_pin_output_get_result (output, &error)) {
+        /* QMI error internal when checking PIN status likely means NO SIM */
+        if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INTERNAL)) {
+            g_error_free (error);
+            error = g_error_new (QMI_PROTOCOL_ERROR,
+                                 QMI_PROTOCOL_ERROR_NO_SIM,
+                                 "missing SIM");
+        }
+        /* 'No effect' error means we already have that PIN */
+        else if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_NO_EFFECT)) {
+            g_clear_error (&error);
+        }
+
+        if (error) {
+            g_prefix_error (&error, "couldn't change PIN: ");
+            g_simple_async_result_take_error (ctx->result, error);
+        }
+    }
+
+    if (!error) {
+        guint8 *response;
+
+        response = rmf_message_change_pin_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_dms_uim_change_pin_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+change_pin (RunContext *ctx)
+{
+    QmiMessageDmsUimChangePinInput *input;
+    const gchar *old_pin;
+    const gchar *new_pin;
+
+    rmf_message_change_pin_request_parse (ctx->request->data, &old_pin, &new_pin);
+
+    input = qmi_message_dms_uim_change_pin_input_new ();
+    qmi_message_dms_uim_change_pin_input_set_info (
+        input,
+        QMI_DMS_UIM_PIN_ID_PIN,
+        old_pin,
+        new_pin,
+        NULL);
+    qmi_client_dms_uim_change_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                   input,
+                                   5,
+                                   NULL,
+                                   (GAsyncReadyCallback)dms_uim_change_pin_ready,
+                                   ctx);
+    qmi_message_dms_uim_change_pin_input_unref (input);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -683,6 +757,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_ENABLE_PIN:
         enable_pin (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_CHANGE_PIN:
+        change_pin (ctx);
         return;
     default:
         break;
