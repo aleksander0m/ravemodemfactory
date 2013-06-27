@@ -82,6 +82,9 @@ rmfd_processor_run_finish (RmfdProcessor *self,
     return g_byte_array_ref (g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res)));
 }
 
+/**********************/
+/* Get manufacturer */
+
 static void
 dms_get_manufacturer_ready (QmiClientDms *client,
                             GAsyncResult *res,
@@ -125,6 +128,9 @@ get_manufacturer (RunContext *ctx)
                                      (GAsyncReadyCallback) dms_get_manufacturer_ready,
                                      ctx);
 }
+
+/**********************/
+/* Get model */
 
 static void
 dms_get_model_ready (QmiClientDms *client,
@@ -170,6 +176,9 @@ get_model (RunContext *ctx)
                               ctx);
 }
 
+/**********************/
+/* Get revision */
+
 static void
 dms_get_revision_ready (QmiClientDms *client,
                         GAsyncResult *res,
@@ -213,6 +222,9 @@ get_revision (RunContext *ctx)
                                  (GAsyncReadyCallback) dms_get_revision_ready,
                                  ctx);
 }
+
+/**********************/
+/* Get hardware revision */
 
 static void
 dms_get_hardware_revision_ready (QmiClientDms *client,
@@ -258,6 +270,9 @@ get_hardware_revision (RunContext *ctx)
                                           ctx);
 }
 
+/**********************/
+/* Get IMEI */
+
 static void
 dms_get_ids_ready (QmiClientDms *client,
                    GAsyncResult *res,
@@ -301,6 +316,9 @@ get_imei (RunContext *ctx)
                             (GAsyncReadyCallback) dms_get_ids_ready,
                             ctx);
 }
+
+/**********************/
+/* Get IMSI */
 
 static void
 dms_uim_get_imsi_ready (QmiClientDms *client,
@@ -346,6 +364,9 @@ get_imsi (RunContext *ctx)
                                  ctx);
 }
 
+/**********************/
+/* Get ICCID */
+
 static void
 dms_uim_get_iccid_ready (QmiClientDms *client,
                          GAsyncResult *res,
@@ -389,6 +410,9 @@ get_iccid (RunContext *ctx)
                                   (GAsyncReadyCallback) dms_uim_get_iccid_ready,
                                   ctx);
 }
+
+/**********************/
+/* Unlock PIN */
 
 static void
 dms_uim_verify_pin_ready (QmiClientDms *client,
@@ -530,6 +554,8 @@ unlock (RunContext *ctx)
                                        (GAsyncReadyCallback)dms_uim_get_pin_status_ready,
                                        ctx);
 }
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
