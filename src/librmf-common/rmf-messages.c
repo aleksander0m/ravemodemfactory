@@ -738,46 +738,46 @@ rmf_message_get_power_info_request_new (void)
 
 uint8_t *
 rmf_message_get_power_info_response_new (uint32_t gsm_in_traffic,
-                                         uint32_t gsm_tx_power,
+                                         int32_t  gsm_tx_power,
                                          uint32_t gsm_rx0_radio_tuned,
-                                         uint32_t gsm_rx0_power,
+                                         int32_t  gsm_rx0_power,
                                          uint32_t gsm_rx1_radio_tuned,
-                                         uint32_t gsm_rx1_power,
+                                         int32_t  gsm_rx1_power,
                                          uint32_t umts_in_traffic,
-                                         uint32_t umts_tx_power,
+                                         int32_t  umts_tx_power,
                                          uint32_t umts_rx0_radio_tuned,
-                                         uint32_t umts_rx0_power,
+                                         int32_t  umts_rx0_power,
                                          uint32_t umts_rx1_radio_tuned,
-                                         uint32_t umts_rx1_power,
+                                         int32_t  umts_rx1_power,
                                          uint32_t lte_in_traffic,
-                                         uint32_t lte_tx_power,
+                                         int32_t  lte_tx_power,
                                          uint32_t lte_rx0_radio_tuned,
-                                         uint32_t lte_rx0_power,
+                                         int32_t  lte_rx0_power,
                                          uint32_t lte_rx1_radio_tuned,
-                                         uint32_t lte_rx1_power)
+                                         int32_t  lte_rx1_power)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
     builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_POWER_INFO, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, gsm_in_traffic);
-    rmf_message_builder_add_uint32 (builder, gsm_tx_power);
+    rmf_message_builder_add_int32 (builder, gsm_tx_power);
     rmf_message_builder_add_uint32 (builder, gsm_rx0_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, gsm_rx0_power);
+    rmf_message_builder_add_int32 (builder, gsm_rx0_power);
     rmf_message_builder_add_uint32 (builder, gsm_rx1_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, gsm_rx1_power);
+    rmf_message_builder_add_int32 (builder, gsm_rx1_power);
     rmf_message_builder_add_uint32 (builder, umts_in_traffic);
-    rmf_message_builder_add_uint32 (builder, umts_tx_power);
+    rmf_message_builder_add_int32 (builder, umts_tx_power);
     rmf_message_builder_add_uint32 (builder, umts_rx0_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, umts_rx0_power);
+    rmf_message_builder_add_int32 (builder, umts_rx0_power);
     rmf_message_builder_add_uint32 (builder, umts_rx1_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, umts_rx1_power);
+    rmf_message_builder_add_int32 (builder, umts_rx1_power);
     rmf_message_builder_add_uint32 (builder, lte_in_traffic);
-    rmf_message_builder_add_uint32 (builder, lte_tx_power);
+    rmf_message_builder_add_int32 (builder, lte_tx_power);
     rmf_message_builder_add_uint32 (builder, lte_rx0_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, lte_rx0_power);
+    rmf_message_builder_add_int32 (builder, lte_rx0_power);
     rmf_message_builder_add_uint32 (builder, lte_rx1_radio_tuned);
-    rmf_message_builder_add_uint32 (builder, lte_rx1_power);
+    rmf_message_builder_add_int32 (builder, lte_rx1_power);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -788,26 +788,27 @@ void
 rmf_message_get_power_info_response_parse (const uint8_t *message,
                                            uint32_t      *status,
                                            uint32_t      *gsm_in_traffic,
-                                           uint32_t      *gsm_tx_power,
+                                           int32_t       *gsm_tx_power,
                                            uint32_t      *gsm_rx0_radio_tuned,
-                                           uint32_t      *gsm_rx0_power,
+                                           int32_t       *gsm_rx0_power,
                                            uint32_t      *gsm_rx1_radio_tuned,
-                                           uint32_t      *gsm_rx1_power,
+                                           int32_t       *gsm_rx1_power,
                                            uint32_t      *umts_in_traffic,
-                                           uint32_t      *umts_tx_power,
+                                           int32_t       *umts_tx_power,
                                            uint32_t      *umts_rx0_radio_tuned,
-                                           uint32_t      *umts_rx0_power,
+                                           int32_t       *umts_rx0_power,
                                            uint32_t      *umts_rx1_radio_tuned,
-                                           uint32_t      *umts_rx1_power,
+                                           int32_t       *umts_rx1_power,
                                            uint32_t      *lte_in_traffic,
-                                           uint32_t      *lte_tx_power,
+                                           int32_t       *lte_tx_power,
                                            uint32_t      *lte_rx0_radio_tuned,
-                                           uint32_t      *lte_rx0_power,
+                                           int32_t       *lte_rx0_power,
                                            uint32_t      *lte_rx1_radio_tuned,
-                                           uint32_t      *lte_rx1_power)
+                                           int32_t       *lte_rx1_power)
 {
     uint32_t offset = 0;
-    uint32_t value;
+    uint32_t uvalue;
+    int32_t ivalue;
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_POWER_INFO);
@@ -818,62 +819,62 @@ rmf_message_get_power_info_response_parse (const uint8_t *message,
     if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
         return;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (gsm_in_traffic)
-        *gsm_in_traffic = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_in_traffic = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (gsm_tx_power)
-        *gsm_tx_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_tx_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (gsm_rx0_radio_tuned)
-        *gsm_rx0_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_rx0_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (gsm_rx0_power)
-        *gsm_rx0_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_rx0_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (gsm_rx1_radio_tuned)
-        *gsm_rx1_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_rx1_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (gsm_rx1_power)
-        *gsm_rx1_power = value;
+        *gsm_rx1_power = ivalue;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (umts_in_traffic)
-        *umts_in_traffic = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_in_traffic = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (umts_tx_power)
-        *umts_tx_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_tx_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (umts_rx0_radio_tuned)
-        *umts_rx0_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_rx0_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (umts_rx0_power)
-        *umts_rx0_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_rx0_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (umts_rx1_radio_tuned)
-        *umts_rx1_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_rx1_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (umts_rx1_power)
-        *umts_rx1_power = value;
+        *umts_rx1_power = ivalue;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (lte_in_traffic)
-        *lte_in_traffic = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_in_traffic = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (lte_tx_power)
-        *lte_tx_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_tx_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (lte_rx0_radio_tuned)
-        *lte_rx0_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_rx0_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (lte_rx0_power)
-        *lte_rx0_power = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_rx0_power = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (lte_rx1_radio_tuned)
-        *lte_rx1_radio_tuned = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_rx1_radio_tuned = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (lte_rx1_power)
-        *lte_rx1_power = value;
+        *lte_rx1_power = ivalue;
 }
 
 /******************************************************************************/
