@@ -623,13 +623,13 @@ Modem::GetSignalInfo (void)
     std::vector<RadioSignalInfo> info_vector;
     RadioSignalInfo info;
     uint32_t gsm_available;
-    uint32_t gsm_rssi;
+    int32_t gsm_rssi;
     uint32_t gsm_quality;
     uint32_t umts_available;
-    uint32_t umts_rssi;
+    int32_t umts_rssi;
     uint32_t umts_quality;
     uint32_t lte_available;
-    uint32_t lte_rssi;
+    int32_t lte_rssi;
     uint32_t lte_quality;
     int ret;
 
@@ -660,7 +660,7 @@ Modem::GetSignalInfo (void)
     /* GSM */
     if (gsm_available) {
         info.radioInterface = Gsm;
-        info.rssi = (int32_t)gsm_rssi;;
+        info.rssi = gsm_rssi;
         info.quality = gsm_quality;
         info_vector.push_back (info);
     }
@@ -668,7 +668,7 @@ Modem::GetSignalInfo (void)
     /* UMTS */
     if (umts_available) {
         info.radioInterface = Umts;
-        info.rssi = (int32_t)umts_rssi;;
+        info.rssi = umts_rssi;
         info.quality = umts_quality;
         info_vector.push_back (info);
     }
@@ -676,7 +676,7 @@ Modem::GetSignalInfo (void)
     /* LTE */
     if (lte_available) {
         info.radioInterface = Lte;
-        info.rssi = (int32_t)lte_rssi;;
+        info.rssi = lte_rssi;
         info.quality = lte_quality;
         info_vector.push_back (info);
     }

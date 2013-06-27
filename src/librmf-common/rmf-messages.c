@@ -895,13 +895,13 @@ rmf_message_get_signal_info_request_new (void)
 
 uint8_t *
 rmf_message_get_signal_info_response_new (uint32_t gsm_available,
-                                          uint32_t gsm_rssi,
+                                          int32_t  gsm_rssi,
                                           uint32_t gsm_quality,
                                           uint32_t umts_available,
-                                          uint32_t umts_rssi,
+                                          int32_t  umts_rssi,
                                           uint32_t umts_quality,
                                           uint32_t lte_available,
-                                          uint32_t lte_rssi,
+                                          int32_t  lte_rssi,
                                           uint32_t lte_quality)
 {
     RmfMessageBuilder *builder;
@@ -909,13 +909,13 @@ rmf_message_get_signal_info_response_new (uint32_t gsm_available,
 
     builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, gsm_available);
-    rmf_message_builder_add_uint32 (builder, gsm_rssi);
+    rmf_message_builder_add_int32 (builder, gsm_rssi);
     rmf_message_builder_add_uint32 (builder, gsm_quality);
     rmf_message_builder_add_uint32 (builder, umts_available);
-    rmf_message_builder_add_uint32 (builder, umts_rssi);
+    rmf_message_builder_add_int32 (builder, umts_rssi);
     rmf_message_builder_add_uint32 (builder, umts_quality);
     rmf_message_builder_add_uint32 (builder, lte_available);
-    rmf_message_builder_add_uint32 (builder, lte_rssi);
+    rmf_message_builder_add_int32 (builder, lte_rssi);
     rmf_message_builder_add_uint32 (builder, lte_quality);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -927,17 +927,18 @@ void
 rmf_message_get_signal_info_response_parse (const uint8_t *message,
                                             uint32_t      *status,
                                             uint32_t      *gsm_available,
-                                            uint32_t      *gsm_rssi,
+                                            int32_t       *gsm_rssi,
                                             uint32_t      *gsm_quality,
                                             uint32_t      *umts_available,
-                                            uint32_t      *umts_rssi,
+                                            int32_t       *umts_rssi,
                                             uint32_t      *umts_quality,
                                             uint32_t      *lte_available,
-                                            uint32_t      *lte_rssi,
+                                            int32_t       *lte_rssi,
                                             uint32_t      *lte_quality)
 {
     uint32_t offset = 0;
-    uint32_t value;
+    uint32_t uvalue;
+    int32_t ivalue;
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO);
@@ -948,35 +949,35 @@ rmf_message_get_signal_info_response_parse (const uint8_t *message,
     if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
         return;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (gsm_available)
-        *gsm_available = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_available = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (gsm_rssi)
-        *gsm_rssi = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *gsm_rssi = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (gsm_quality)
-        *gsm_quality = value;
+        *gsm_quality = uvalue;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (umts_available)
-        *umts_available = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_available = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (umts_rssi)
-        *umts_rssi = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *umts_rssi = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (umts_quality)
-        *umts_quality = value;
+        *umts_quality = uvalue;
 
-    value = rmf_message_read_uint32 (message, &offset);
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (lte_available)
-        *lte_available = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_available = uvalue;
+    ivalue = rmf_message_read_int32 (message, &offset);
     if (lte_rssi)
-        *lte_rssi = value;
-    value = rmf_message_read_uint32 (message, &offset);
+        *lte_rssi = ivalue;
+    uvalue = rmf_message_read_uint32 (message, &offset);
     if (lte_quality)
-        *lte_quality = value;
+        *lte_quality = uvalue;
 }
 
 /******************************************************************************/

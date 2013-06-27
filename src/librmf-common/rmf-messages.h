@@ -280,24 +280,24 @@ void     rmf_message_get_power_info_response_parse (const uint8_t *message,
 
 uint8_t *rmf_message_get_signal_info_request_new    (void);
 uint8_t *rmf_message_get_signal_info_response_new   (uint32_t       gsm_available,
-                                                     uint32_t       gsm_rssi,
+                                                     int32_t        gsm_rssi,
                                                      uint32_t       gsm_quality,
                                                      uint32_t       umts_available,
-                                                     uint32_t       umts_rssi,
+                                                     int32_t        umts_rssi,
                                                      uint32_t       umts_quality,
                                                      uint32_t       lte_available,
-                                                     uint32_t       lte_rssi,
+                                                     int32_t        lte_rssi,
                                                      uint32_t       lte_quality);
 void     rmf_message_get_signal_info_response_parse (const uint8_t *message,
                                                      uint32_t      *status,
                                                      uint32_t      *gsm_available,
-                                                     uint32_t      *gsm_rssi,
+                                                     int32_t       *gsm_rssi,
                                                      uint32_t      *gsm_quality,
                                                      uint32_t      *umts_available,
-                                                     uint32_t      *umts_rssi,
+                                                     int32_t       *umts_rssi,
                                                      uint32_t      *umts_quality,
                                                      uint32_t      *lte_available,
-                                                     uint32_t      *lte_rssi,
+                                                     int32_t      *lte_rssi,
                                                      uint32_t      *lte_quality);
 
 /******************************************************************************/
