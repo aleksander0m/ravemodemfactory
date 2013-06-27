@@ -240,8 +240,13 @@ changePin (const std::string str)
     }
     iss >> newPin;
     if (iss) {
-        std::cout << "Too many arguments given" << std::endl;
-        return -1;
+        std::string rest;
+
+        iss >> rest;
+        if (rest != "") {
+            std::cout << "Too many arguments given" << std::endl;
+            return -1;
+        }
     }
 
     try {
@@ -523,8 +528,13 @@ connect (const std::string str)
         if (iss) {
             iss >> password;
             if (iss) {
-                std::cout << "Too many arguments given" << std::endl;
-                return -1;
+                std::string rest;
+
+                iss >> rest;
+                if (rest != "") {
+                    std::cout << "Too many arguments given" << std::endl;
+                    return -1;
+                }
             }
         }
     }
