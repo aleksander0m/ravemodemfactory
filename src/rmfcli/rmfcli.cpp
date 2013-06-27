@@ -308,6 +308,7 @@ setPowerStatus (const std::string str)
         return -1;
     }
 
+    std::cout << "Power status successfully changed" << std::endl;
     return 0;
 }
 
