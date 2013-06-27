@@ -153,28 +153,36 @@ void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
 /******************************************************************************/
 /* Unlock */
 
-uint8_t *rmf_message_unlock_request_new    (const char    *pin);
+uint8_t *rmf_message_unlock_request_new    (const char     *pin);
+void     rmf_message_unlock_request_parse  (const uint8_t  *message,
+                                            const char    **pin);
 uint8_t *rmf_message_unlock_response_new   (void);
-void     rmf_message_unlock_response_parse (const uint8_t *message,
-                                            uint32_t      *status);
+void     rmf_message_unlock_response_parse (const uint8_t  *message,
+                                            uint32_t       *status);
 
 /******************************************************************************/
 /* Enable/Disable PIN */
 
-uint8_t *rmf_message_enable_pin_request_new    (uint32_t       enable,
-                                                const char    *pin);
+uint8_t *rmf_message_enable_pin_request_new    (uint32_t        enable,
+                                                const char     *pin);
+void     rmf_message_enable_pin_request_parse  (const uint8_t  *message,
+                                                uint32_t       *enable,
+                                                const char    **pin);
 uint8_t *rmf_message_enable_pin_response_new   (void);
-void     rmf_message_enable_pin_response_parse (const uint8_t *message,
-                                                uint32_t      *status);
+void     rmf_message_enable_pin_response_parse (const uint8_t  *message,
+                                                uint32_t       *status);
 
 /******************************************************************************/
 /* Change PIN */
 
-uint8_t *rmf_message_change_pin_request_new    (const char    *pin,
-                                                const char    *new_pin);
+uint8_t *rmf_message_change_pin_request_new    (const char     *pin,
+                                                const char     *new_pin);
+void     rmf_message_change_pin_request_parse  (const uint8_t  *message,
+                                                const char    **pin,
+                                                const char    **new_pin);
 uint8_t *rmf_message_change_pin_response_new   (void);
-void     rmf_message_change_pin_response_parse (const uint8_t *message,
-                                                uint32_t      *status);
+void     rmf_message_change_pin_response_parse (const uint8_t  *message,
+                                                uint32_t       *status);
 
 /******************************************************************************/
 /* Get Power Status */
@@ -189,6 +197,8 @@ void     rmf_message_get_power_status_response_parse (const uint8_t *message,
 /* Set Power Status */
 
 uint8_t *rmf_message_set_power_status_request_new    (uint32_t       power_status);
+void     rmf_message_set_power_status_request_parse  (const uint8_t *message,
+                                                      uint32_t      *power_status);
 uint8_t *rmf_message_set_power_status_response_new   (void);
 void     rmf_message_set_power_status_response_parse (const uint8_t *message,
                                                       uint32_t      *status);
@@ -315,12 +325,16 @@ void     rmf_message_get_connection_stats_response_parse (const uint8_t *message
 /******************************************************************************/
 /* Connect */
 
-uint8_t *rmf_message_connect_request_new    (const char    *apn,
-                                             const char    *user,
-                                             const char    *password);
+uint8_t *rmf_message_connect_request_new    (const char     *apn,
+                                             const char     *user,
+                                             const char     *password);
+void     rmf_message_connect_request_parse  (const uint8_t  *message,
+                                             const char    **apn,
+                                             const char    **user,
+                                             const char    **password);
 uint8_t *rmf_message_connect_response_new   (void);
-void     rmf_message_connect_response_parse (const uint8_t *message,
-                                             uint32_t      *status);
+void     rmf_message_connect_response_parse (const uint8_t  *message,
+                                             uint32_t       *status);
 
 /******************************************************************************/
 /* Disconnect */

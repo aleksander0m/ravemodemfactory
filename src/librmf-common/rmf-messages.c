@@ -452,6 +452,19 @@ rmf_message_unlock_request_new (const char *pin)
     return message;
 }
 
+void
+rmf_message_unlock_request_parse (const uint8_t  *message,
+                                  const char    **pin)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_UNLOCK);
+
+    if (pin)
+        *pin = rmf_message_read_string (message, &offset);
+}
+
 uint8_t *
 rmf_message_unlock_response_new (void)
 {
@@ -497,6 +510,23 @@ rmf_message_enable_pin_request_new (uint32_t   enable,
     return message;
 }
 
+void
+rmf_message_enable_pin_request_parse (const uint8_t  *message,
+                                      uint32_t       *enable,
+                                      const char    **pin)
+{
+    uint32_t offset = 0;
+    uint32_t val;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_ENABLE_PIN);
+    val = rmf_message_read_uint32 (message, &offset);
+    if (enable)
+        *enable = val;
+    if (pin)
+        *pin = rmf_message_read_string (message, &offset);
+}
+
 uint8_t *
 rmf_message_enable_pin_response_new (void)
 {
@@ -540,6 +570,23 @@ rmf_message_change_pin_request_new (const char *pin,
     rmf_message_builder_free (builder);
 
     return message;
+}
+
+void
+rmf_message_change_pin_request_parse (const uint8_t  *message,
+                                      const char    **pin,
+                                      const char    **new_pin)
+{
+    uint32_t offset = 0;
+    const char *val;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_CHANGE_PIN);
+    val = rmf_message_read_string (message, &offset);
+    if (pin)
+        *pin = val;
+    if (new_pin)
+        *new_pin = rmf_message_read_string (message, &offset);
 }
 
 uint8_t *
@@ -633,6 +680,18 @@ rmf_message_set_power_status_request_new (uint32_t power_status)
     rmf_message_builder_free (builder);
 
     return message;
+}
+
+void
+rmf_message_set_power_status_request_parse (const uint8_t *message,
+                                            uint32_t      *power_status)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_POWER_STATUS);
+    if (power_status)
+        *power_status = rmf_message_read_uint32 (message, &offset);
 }
 
 uint8_t *
@@ -1159,6 +1218,27 @@ rmf_message_connect_request_new (const char *apn,
     rmf_message_builder_free (builder);
 
     return message;
+}
+
+void
+rmf_message_connect_request_parse (const uint8_t  *message,
+                                   const char    **apn,
+                                   const char    **user,
+                                   const char    **password)
+{
+    uint32_t offset = 0;
+    const char *val;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_CONNECT);
+    val = rmf_message_read_string (message, &offset);
+    if (apn)
+        *apn = val;
+    val = rmf_message_read_string (message, &offset);
+    if (user)
+        *user = val;
+    if (password)
+        *password = rmf_message_read_string (message, &offset);
 }
 
 uint8_t *
