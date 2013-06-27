@@ -151,7 +151,13 @@ send_and_receive (const uint8_t  *request,
      * size for now */
     buffer = (uint8_t *) malloc (RMF_MESSAGE_MAX_SIZE);
 
-    /* 5th step: recv() */
+    /* 5th step: recv(). We try to read up to RMF_MESSAGE_MAX_SIZE, even if
+     * the final message will be much smaller. The read is blocking, but we
+     * won't really block much time because the peer will close the channel
+     * as soon as the whole message is written. If the peer didn't close the
+     * channel, we would probably need to the initial 4 bytes first (to get
+     * the expected message length) and only then block reading for the exact
+     * amount of data to read (as we do in the server side) */
     total = 0;
     left = RMF_MESSAGE_MAX_SIZE;
     do {
