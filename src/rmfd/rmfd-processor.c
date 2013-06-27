@@ -1142,6 +1142,88 @@ get_signal_info (RunContext *ctx)
 }
 
 /**********************/
+/* Get Registration Status */
+
+static void
+nas_get_serving_system_ready (QmiClientNas *client,
+                              GAsyncResult *res,
+                              RunContext   *ctx)
+{
+    QmiMessageNasGetServingSystemOutput *output;
+    GError *error = NULL;
+
+    output = qmi_client_nas_get_serving_system_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_nas_get_serving_system_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get serving system: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint8 *response;
+        guint32 rmf_registration_state;
+        QmiNasRegistrationState registration_state = QMI_NAS_REGISTRATION_STATE_UNKNOWN;
+        QmiNasRoamingIndicatorStatus roaming = QMI_NAS_ROAMING_INDICATOR_STATUS_OFF;
+        guint16 mcc = 0;
+        guint16 mnc = 0;
+        const gchar *description = NULL;
+        guint16 lac = 0;
+        guint32 cid = 0;
+
+        qmi_message_nas_get_serving_system_output_get_serving_system (
+            output, &registration_state, NULL, NULL, NULL, NULL, NULL);
+        qmi_message_nas_get_serving_system_output_get_roaming_indicator (
+            output, &roaming, NULL);
+        qmi_message_nas_get_serving_system_output_get_current_plmn (
+            output, &mcc, &mnc, &description, NULL);
+        qmi_message_nas_get_serving_system_output_get_lac_3gpp (
+            output, &lac, NULL);
+        qmi_message_nas_get_serving_system_output_get_cid_3gpp (
+            output, &cid, NULL);
+
+        switch (registration_state) {
+        case QMI_NAS_REGISTRATION_STATE_REGISTERED:
+            rmf_registration_state = (roaming == QMI_NAS_ROAMING_INDICATOR_STATUS_ON ?
+                                      RMF_REGISTRATION_STATUS_ROAMING :
+                                      RMF_REGISTRATION_STATUS_HOME);
+            break;
+        case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED_SEARCHING:
+            rmf_registration_state = RMF_REGISTRATION_STATUS_SEARCHING;
+            break;
+        case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED:
+        case QMI_NAS_REGISTRATION_STATE_REGISTRATION_DENIED:
+        case QMI_NAS_REGISTRATION_STATE_UNKNOWN:
+        default:
+            rmf_registration_state = RMF_REGISTRATION_STATUS_IDLE;
+            break;
+        }
+
+        response = (rmf_message_get_registration_status_response_new   (
+                        rmf_registration_state, description, mcc, mnc, lac, cid));
+
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_nas_get_serving_system_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_registration_status (RunContext *ctx)
+{
+    qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (ctx->self->priv->nas),
+                                       NULL,
+                                       10,
+                                       NULL,
+                                       (GAsyncReadyCallback)nas_get_serving_system_ready,
+                                       ctx);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -1210,6 +1292,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO:
         get_signal_info (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS:
+        get_registration_status (ctx);
         return;
     default:
         break;
