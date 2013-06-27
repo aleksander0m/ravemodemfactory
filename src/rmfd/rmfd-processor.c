@@ -58,6 +58,7 @@ struct _RmfdProcessorPrivate {
 typedef struct {
     RmfdProcessor *self;
     GSimpleAsyncResult *result;
+    GByteArray *request;
 } RunContext;
 
 static void
@@ -65,11 +66,12 @@ run_context_complete_and_free (RunContext *ctx)
 {
     g_simple_async_result_complete_in_idle (ctx->result);
     g_object_unref (ctx->result);
+    g_byte_array_unref (ctx->request);
     g_object_unref (ctx->self);
     g_slice_free (RunContext, ctx);
 }
 
-const guint8 *
+GByteArray *
 rmfd_processor_run_finish (RmfdProcessor *self,
                            GAsyncResult  *res,
                            GError       **error)
@@ -77,7 +79,7 @@ rmfd_processor_run_finish (RmfdProcessor *self,
     if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
         return NULL;
 
-    return g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res));
+    return g_byte_array_ref (g_simple_async_result_get_op_res_gpointer (G_SIMPLE_ASYNC_RESULT (res)));
 }
 
 static void
@@ -103,8 +105,8 @@ dms_get_manufacturer_ready (QmiClientDms *client,
 
         response = rmf_message_get_manufacturer_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -114,8 +116,7 @@ dms_get_manufacturer_ready (QmiClientDms *client,
 }
 
 static void
-get_manufacturer (const guint8 *request,
-                  RunContext   *ctx)
+get_manufacturer (RunContext *ctx)
 {
     qmi_client_dms_get_manufacturer (QMI_CLIENT_DMS (ctx->self->priv->dms),
                                      NULL,
@@ -148,8 +149,8 @@ dms_get_model_ready (QmiClientDms *client,
 
         response = rmf_message_get_model_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -159,8 +160,7 @@ dms_get_model_ready (QmiClientDms *client,
 }
 
 static void
-get_model (const guint8 *request,
-           RunContext   *ctx)
+get_model (RunContext *ctx)
 {
     qmi_client_dms_get_model (QMI_CLIENT_DMS (ctx->self->priv->dms),
                               NULL,
@@ -193,8 +193,8 @@ dms_get_revision_ready (QmiClientDms *client,
 
         response = rmf_message_get_software_revision_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -204,8 +204,7 @@ dms_get_revision_ready (QmiClientDms *client,
 }
 
 static void
-get_revision (const guint8 *request,
-              RunContext   *ctx)
+get_revision (RunContext *ctx)
 {
     qmi_client_dms_get_revision (QMI_CLIENT_DMS (ctx->self->priv->dms),
                                  NULL,
@@ -238,8 +237,8 @@ dms_get_hardware_revision_ready (QmiClientDms *client,
 
         response = rmf_message_get_hardware_revision_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -249,8 +248,7 @@ dms_get_hardware_revision_ready (QmiClientDms *client,
 }
 
 static void
-get_hardware_revision (const guint8 *request,
-                       RunContext   *ctx)
+get_hardware_revision (RunContext *ctx)
 {
     qmi_client_dms_get_hardware_revision (QMI_CLIENT_DMS (ctx->self->priv->dms),
                                           NULL,
@@ -283,8 +281,8 @@ dms_get_ids_ready (QmiClientDms *client,
 
         response = rmf_message_get_imei_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -294,8 +292,7 @@ dms_get_ids_ready (QmiClientDms *client,
 }
 
 static void
-get_imei (const guint8 *request,
-          RunContext   *ctx)
+get_imei (RunContext *ctx)
 {
     qmi_client_dms_get_ids (QMI_CLIENT_DMS (ctx->self->priv->dms),
                             NULL,
@@ -328,8 +325,8 @@ dms_uim_get_imsi_ready (QmiClientDms *client,
 
         response = rmf_message_get_imsi_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -339,8 +336,7 @@ dms_uim_get_imsi_ready (QmiClientDms *client,
 }
 
 static void
-get_imsi (const guint8 *request,
-          RunContext   *ctx)
+get_imsi (RunContext *ctx)
 {
     qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (ctx->self->priv->dms),
                                  NULL,
@@ -373,8 +369,8 @@ dms_uim_get_iccid_ready (QmiClientDms *client,
 
         response = rmf_message_get_iccid_response_new (str);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   response,
-                                                   (GDestroyNotify)g_free);
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
     }
 
     if (output)
@@ -384,8 +380,7 @@ dms_uim_get_iccid_ready (QmiClientDms *client,
 }
 
 static void
-get_iccid (const guint8 *request,
-           RunContext   *ctx)
+get_iccid (RunContext *ctx)
 {
     qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (ctx->self->priv->dms),
                                   NULL,
@@ -397,7 +392,7 @@ get_iccid (const guint8 *request,
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
-                    const guint8        *request,
+                    GByteArray          *request,
                     GAsyncReadyCallback  callback,
                     gpointer             user_data)
 {
@@ -409,8 +404,9 @@ rmfd_processor_run (RmfdProcessor       *self,
                                              callback,
                                              user_data,
                                              rmfd_processor_run);
+    ctx->request = g_byte_array_ref (request);
 
-    if (rmf_message_get_type (request) != RMF_MESSAGE_TYPE_REQUEST) {
+    if (rmf_message_get_type (request->data) != RMF_MESSAGE_TYPE_REQUEST) {
         g_simple_async_result_set_error (ctx->result,
                                          RMFD_ERROR,
                                          RMFD_ERROR_INVALID_REQUEST,
@@ -419,27 +415,27 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     }
 
-    switch (rmf_message_get_command (request)) {
+    switch (rmf_message_get_command (request->data)) {
     case RMF_MESSAGE_COMMAND_GET_MANUFACTURER:
-        get_manufacturer (request, ctx);
+        get_manufacturer (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_MODEL:
-        get_model (request, ctx);
+        get_model (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION:
-        get_revision (request, ctx);
+        get_revision (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION:
-        get_hardware_revision (request, ctx);
+        get_hardware_revision (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_IMEI:
-        get_imei (request, ctx);
+        get_imei (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_IMSI:
-        get_imsi (request, ctx);
+        get_imsi (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_ICCID:
-        get_iccid (request, ctx);
+        get_iccid (ctx);
         return;
     default:
         break;
@@ -449,7 +445,7 @@ rmfd_processor_run (RmfdProcessor       *self,
                                      RMFD_ERROR,
                                      RMFD_ERROR_UNKNOWN_COMMAND,
                                      "Unknown command received (0x%X)",
-                                     rmf_message_get_command (request));
+                                     rmf_message_get_command (request->data));
     run_context_complete_and_free (ctx);
 }
 

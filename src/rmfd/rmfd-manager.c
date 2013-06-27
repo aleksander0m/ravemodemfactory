@@ -226,27 +226,31 @@ uevent_cb (GUdevClient *client,
 
 typedef struct {
     GSocketConnection *connection;
-    guint8 *message;
+    GByteArray *message;
+    GByteArray *response;
 } Request;
 
 static void
 request_free (Request *request)
 {
-    g_free (request->message);
+    if (request->message)
+        g_byte_array_unref (request->message);
+    if (request->response)
+        g_byte_array_unref (request->response);
     g_output_stream_close (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)), NULL, NULL);
     g_object_unref (request->connection);
     g_slice_free (Request, request);
 }
 
 static void
-request_complete (const Request *request,
-                  const guint8  *response)
+request_complete (const Request *request)
 {
     GError *error = NULL;
 
+    g_assert (request->response != NULL);
     if (!g_output_stream_write_all (g_io_stream_get_output_stream (G_IO_STREAM (request->connection)),
-                                    response,
-                                    rmf_message_get_length (response),
+                                    request->response->data,
+                                    request->response->len,
                                     NULL,
                                     NULL, /* cancellable */
                                     &error)) {
@@ -260,20 +264,18 @@ processor_run_ready (RmfdProcessor *processor,
                      GAsyncResult  *result,
                      Request       *request)
 {
-    const guint8 *response;
-    guint8 *response_error = NULL;
+    GByteArray *response;
     GError *error = NULL;
 
-    response = rmfd_processor_run_finish (processor, result, &error);
-    if (!response) {
+    request->response = rmfd_processor_run_finish (processor, result, &error);
+    if (!request->response) {
         g_warning ("error processing the request: %s", error->message);
-        response_error = rmfd_error_message_new_from_gerror (request->message, error);
+        request->response = rmfd_error_message_new_from_gerror (request->message, error);
         g_error_free (error);
     }
 
-    request_complete (request, response_error ? response_error : response);
+    request_complete (request);
     request_free (request);
-    g_free (response_error);
 }
 
 static void
@@ -281,16 +283,9 @@ request_process (RmfdManager *self,
                  Request     *request)
 {
     if (!self->priv->processor) {
-        guint8 *response;
-        GError *error;
-
-        error = g_error_new (RMFD_ERROR, RMFD_ERROR_NO_MODEM, "No modem");
-        response = rmfd_error_message_new_from_gerror (request->message, error);
-        g_error_free (error);
-
-        request_complete (request, response);
+        request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM);
+        request_complete (request);
         request_free (request);
-        g_free (response);
         return;
     }
 
@@ -347,6 +342,7 @@ incoming_cb (GSocketService    *service,
     GError *error = NULL;
     gsize bytes_read = 0;
     Request *request;
+    guint8 *buffer;
 
     /* First, read message size (first 4 bytes) */
     if (!g_input_stream_read_all (g_io_stream_get_input_stream (G_IO_STREAM (connection)),
@@ -363,20 +359,26 @@ incoming_cb (GSocketService    *service,
     /* Create request */
     request = g_slice_new0 (Request);
     request->connection = g_object_ref (connection);
-    request->message = g_malloc (message_size);
-    memcpy (&request->message[0], &message_size, 4);
 
+    buffer = g_malloc (message_size);
+    memcpy (buffer, &message_size, 4);
+
+    /* Read into buffer */
     if (!g_input_stream_read_all (g_io_stream_get_input_stream (G_IO_STREAM (connection)),
-                                  &request->message[4],
+                                  &buffer[4],
                                   message_size - 4,
                                   NULL,
                                   NULL, /* cancellable */
                                   &error)) {
         g_warning ("error reading from input stream: %s", error->message);
         g_error_free (error);
+        g_free (buffer);
         request_free (request);
         return;
     }
+
+    /* Store the request message */
+    request->message = g_byte_array_new_take (buffer, message_size);
 
     /* Push request */
     self->priv->requests = g_list_append (self->priv->requests, request);

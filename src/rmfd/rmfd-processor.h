@@ -62,12 +62,12 @@ RmfdProcessor *rmfd_processor_new_finish (GAsyncResult         *res,
 
 
 /* Processes the request and gets back a response */
-void          rmfd_processor_run        (RmfdProcessor        *processor,
-                                         const guint8         *request,
-                                         GAsyncReadyCallback   callback,
-                                         gpointer              user_data);
-const guint8 *rmfd_processor_run_finish (RmfdProcessor        *processor,
-                                         GAsyncResult         *res,
-                                         GError              **error);
+void        rmfd_processor_run        (RmfdProcessor        *processor,
+                                       GByteArray           *request,
+                                       GAsyncReadyCallback   callback,
+                                       gpointer              user_data);
+GByteArray *rmfd_processor_run_finish (RmfdProcessor        *processor,
+                                       GAsyncResult         *res,
+                                       GError              **error);
 
 #endif /* RMFD_PROCESSOR_H */

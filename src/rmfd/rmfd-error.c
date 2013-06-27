@@ -27,14 +27,16 @@
 #include <libqmi-glib.h>
 #include <rmf-messages.h>
 
-guint8 *
-rmfd_error_message_new_from_gerror (const guint8 *request,
-                                    const GError *error)
+GByteArray *
+rmfd_error_message_new_from_error (const GByteArray *request,
+                                   GQuark            error_domain,
+                                   gint              error_code)
 {
     guint32 status;
+    guint8 *buffer;
 
-    if (error->domain == RMFD_ERROR) {
-        switch (error->code) {
+    if (error_domain == RMFD_ERROR) {
+        switch (error_code) {
         case RMFD_ERROR_UNKNOWN:
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
             break;
@@ -50,8 +52,8 @@ rmfd_error_message_new_from_gerror (const guint8 *request,
         default:
             g_assert_not_reached ();
         }
-    } else if (error->domain == QMI_PROTOCOL_ERROR) {
-        switch (error->code) {
+    } else if (error_domain == QMI_PROTOCOL_ERROR) {
+        switch (error_code) {
         case QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED:
             status = RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED;
             break;
@@ -68,5 +70,14 @@ rmfd_error_message_new_from_gerror (const guint8 *request,
     } else
         status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
 
-    return rmf_message_error_response_new (rmf_message_get_command (request), status);
+    buffer = rmf_message_error_response_new (rmf_message_get_command (request->data), status);
+    return g_byte_array_new_take (buffer, rmf_message_get_length (buffer));
+}
+
+
+GByteArray *
+rmfd_error_message_new_from_gerror (const GByteArray *request,
+                                    const GError     *error)
+{
+    return rmfd_error_message_new_from_error (request, error->domain, error->code);
 }

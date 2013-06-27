@@ -33,7 +33,11 @@ typedef enum {
     RMFD_ERROR_NO_MODEM        = 4,
 } RmfdError;
 
-guint8 *rmfd_error_message_new_from_gerror (const guint8 *request,
-                                            const GError *error);
+GByteArray *rmfd_error_message_new_from_error  (const GByteArray *request,
+                                                GQuark            error_domain,
+                                                gint              error_code);
+
+GByteArray *rmfd_error_message_new_from_gerror (const GByteArray *request,
+                                                const GError     *error);
 
 #endif /* RMFD_ERROR_H */
