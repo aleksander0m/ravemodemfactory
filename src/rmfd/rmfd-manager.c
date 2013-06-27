@@ -143,12 +143,12 @@ port_added (RmfdManager *self,
 
         path = g_strdup_printf ("/dev/%s", name);
         file = g_file_new_for_path (path);
-        g_free (path);
-
         /* Create Processor */
         rmfd_processor_new (file,
                             (GAsyncReadyCallback) processor_new_ready,
                             g_object_ref (self));
+        g_object_unref (file);
+        g_free (path);
         return;
     }
 
