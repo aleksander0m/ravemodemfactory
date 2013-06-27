@@ -292,9 +292,9 @@ setPowerStatus (const std::string str)
 {
     Modem::PowerStatus powerStatus;
 
-    if (str.compare ("Full") || str.compare ("full"))
+    if (str.compare ("Full") == 0 || str.compare ("full") == 0)
         powerStatus = Modem::Full;
-    else if (str.compare ("Low") || str.compare ("low"))
+    else if (str.compare ("Low") == 0 || str.compare ("low") == 0)
         powerStatus = Modem::Low;
     else {
         std::cout << "Unknown power status given: " << str << std::endl;
