@@ -704,6 +704,73 @@ change_pin (RunContext *ctx)
 }
 
 /**********************/
+/* Get power status */
+
+static void
+dms_get_operating_mode_ready (QmiClientDms *client,
+                              GAsyncResult *res,
+                              RunContext   *ctx)
+{
+    QmiMessageDmsGetOperatingModeOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_get_operating_mode_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_get_operating_mode_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get operating mode: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        QmiDmsOperatingMode mode = QMI_DMS_OPERATING_MODE_UNKNOWN;
+        guint8 *response = NULL;
+
+        qmi_message_dms_get_operating_mode_output_get_mode (output, &mode, NULL);
+
+        switch (mode) {
+        case QMI_DMS_OPERATING_MODE_ONLINE:
+            response = rmf_message_get_power_status_response_new (RMF_POWER_STATUS_FULL);
+            break;
+        case QMI_DMS_OPERATING_MODE_LOW_POWER:
+        case QMI_DMS_OPERATING_MODE_PERSISTENT_LOW_POWER:
+        case QMI_DMS_OPERATING_MODE_MODE_ONLY_LOW_POWER:
+        case QMI_DMS_OPERATING_MODE_OFFLINE:
+            response = rmf_message_get_power_status_response_new (RMF_POWER_STATUS_LOW);
+            break;
+        default:
+            g_simple_async_result_set_error (ctx->result,
+                                             RMFD_ERROR,
+                                             RMFD_ERROR_UNKNOWN,
+                                             "Unhandled power state: '%s' (%u)",
+                                             qmi_dms_operating_mode_get_string (mode),
+                                             mode);
+            break;
+        }
+
+        if (response)
+            g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                       (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_dms_get_operating_mode_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_power_status (RunContext *ctx)
+{
+    qmi_client_dms_get_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                       NULL,
+                                       5,
+                                       NULL,
+                                       (GAsyncReadyCallback)dms_get_operating_mode_ready,
+                                       ctx);
+}
+
+/**********************/
 
 void
 rmfd_processor_run (RmfdProcessor       *self,
@@ -760,6 +827,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_CHANGE_PIN:
         change_pin (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_POWER_STATUS:
+        get_power_status (ctx);
         return;
     default:
         break;
