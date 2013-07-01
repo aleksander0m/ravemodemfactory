@@ -554,7 +554,7 @@ connect (const std::string str)
         return -1;
     }
 
-    std::cout << "PIN successfully connected" << std::endl;
+    std::cout << "Modem successfully connected" << std::endl;
     return 0;
 }
 
@@ -568,7 +568,7 @@ disconnect (void)
         return -1;
     }
 
-    std::cout << "PIN successfully disconnected" << std::endl;
+    std::cout << "Modem successfully disconnected" << std::endl;
     return 0;
 }
 
