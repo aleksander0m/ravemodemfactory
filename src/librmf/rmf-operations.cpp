@@ -845,7 +845,7 @@ Modem::Connect (const string apn,
     request = rmf_message_connect_request_new (apn.c_str(),
                                                user.c_str(),
                                                password.c_str());
-    ret = send_and_receive (request, 10, &response);
+    ret = send_and_receive (request, 120, &response);
     free (request);
 
     if (ret != ERROR_NONE)
@@ -869,7 +869,7 @@ Modem::Disconnect (void)
     int ret;
 
     request = rmf_message_disconnect_request_new ();
-    ret = send_and_receive (request, 10, &response);
+    ret = send_and_receive (request, 120, &response);
     free (request);
 
     if (ret != ERROR_NONE)
