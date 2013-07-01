@@ -33,6 +33,7 @@ typedef enum {
     RMFD_ERROR_INVALID_REQUEST = 2,
     RMFD_ERROR_UNKNOWN_COMMAND = 3,
     RMFD_ERROR_NO_MODEM        = 4,
+    RMFD_ERROR_INVALID_STATE   = 5,
 } RmfdError;
 
 GByteArray *rmfd_error_message_new_from_error  (const GByteArray *request,

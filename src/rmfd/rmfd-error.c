@@ -51,6 +51,8 @@ rmfd_error_message_new_from_error (const GByteArray *request,
         case RMFD_ERROR_NO_MODEM:
             status = RMF_RESPONSE_STATUS_ERROR_NO_MODEM;
             break;
+        case RMFD_ERROR_INVALID_STATE:
+            status = RMF_RESPONSE_STATUS_ERROR_INVALID_STATE;
         default:
             g_assert_not_reached ();
         }
@@ -69,6 +71,8 @@ rmfd_error_message_new_from_error (const GByteArray *request,
         case QMI_PROTOCOL_ERROR_INCORRECT_PIN:
             status = RMF_RESPONSE_STATUS_ERROR_INVALID_PIN;
             break;
+        case QMI_PROTOCOL_ERROR_CALL_FAILED:
+            status = RMF_RESPONSE_STATUS_ERROR_CALL_FAILED;
         default:
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
         }
