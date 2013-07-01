@@ -19,6 +19,8 @@
  * Boston, MA 02110-1301 USA.
  *
  * Copyright (C) 2013 Zodiac Inflight Innovations
+ *
+ * Author: Aleksander Morgado <aleksander@lanedo.com>
  */
 
 #ifndef _RMF_OPERATIONS_H_
