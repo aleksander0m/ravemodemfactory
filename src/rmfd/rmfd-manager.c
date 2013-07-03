@@ -300,6 +300,7 @@ request_process (RmfdManager *self,
 
     rmfd_processor_run (self->priv->processor,
                         request->message,
+                        self->priv->wwan,
                         (GAsyncReadyCallback)processor_run_ready,
                         request);
 }

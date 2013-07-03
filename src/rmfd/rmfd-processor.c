@@ -66,6 +66,7 @@ typedef struct {
     RmfdProcessor *self;
     GSimpleAsyncResult *result;
     GByteArray *request;
+    RmfdWwan *wwan;
     gpointer additional_context;
     GDestroyNotify additional_context_free;
 } RunContext;
@@ -78,6 +79,7 @@ run_context_complete_and_free (RunContext *ctx)
     if (ctx->additional_context && ctx->additional_context_free)
         ctx->additional_context_free (ctx->additional_context);
     g_byte_array_unref (ctx->request);
+    g_object_unref (ctx->wwan);
     g_object_unref (ctx->self);
     g_slice_free (RunContext, ctx);
 }
@@ -1547,6 +1549,7 @@ disconnect (RunContext *ctx)
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     GByteArray          *request,
+                    RmfdWwan            *wwan,
                     GAsyncReadyCallback  callback,
                     gpointer             user_data)
 {
@@ -1559,6 +1562,7 @@ rmfd_processor_run (RmfdProcessor       *self,
                                              user_data,
                                              rmfd_processor_run);
     ctx->request = g_byte_array_ref (request);
+    ctx->wwan = g_object_ref (wwan);
 
     if (rmf_message_get_type (request->data) != RMF_MESSAGE_TYPE_REQUEST) {
         g_simple_async_result_set_error (ctx->result,
