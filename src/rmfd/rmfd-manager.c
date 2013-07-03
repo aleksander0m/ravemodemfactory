@@ -44,8 +44,8 @@ struct _RmfdManagerPrivate {
     guint initial_scan_id;
 
     /* QMI and net ports */
-    GUdevDevice *qmi;
-    GUdevDevice *wwan;
+    GUdevDevice *qmi_port;
+    GUdevDevice *wwan_port;
 
     /* Processor */
     RmfdProcessor *processor;
@@ -136,17 +136,17 @@ port_added (RmfdManager *self,
         GFile *file;
         gchar *path;
 
-        if (self->priv->qmi) {
-            if (!g_str_equal (name, g_udev_device_get_name (self->priv->qmi)))
+        if (self->priv->qmi_port) {
+            if (!g_str_equal (name, g_udev_device_get_name (self->priv->qmi_port)))
                 g_debug ("replacing QMI port '%s' with %s",
-                         g_udev_device_get_name (self->priv->qmi),
+                         g_udev_device_get_name (self->priv->qmi_port),
                          name);
             g_clear_object (&self->priv->processor);
-            g_clear_object (&self->priv->qmi);
+            g_clear_object (&self->priv->qmi_port);
         } else
             g_debug ("QMI port added: /dev/%s", name);
 
-        self->priv->qmi = g_object_ref (device);
+        self->priv->qmi_port = g_object_ref (device);
 
         path = g_strdup_printf ("/dev/%s", name);
         file = g_file_new_for_path (path);
@@ -161,16 +161,16 @@ port_added (RmfdManager *self,
 
     /* Store the net port */
     if (g_str_has_prefix (subsystem, "net")) {
-        if (self->priv->wwan) {
-            if (!g_str_equal (name, g_udev_device_get_name (self->priv->wwan)))
+        if (self->priv->wwan_port) {
+            if (!g_str_equal (name, g_udev_device_get_name (self->priv->wwan_port)))
                 g_debug ("replacing NET port '%s' with %s",
                          name,
-                         g_udev_device_get_name (self->priv->wwan));
-            g_clear_object (&self->priv->wwan);
+                         g_udev_device_get_name (self->priv->wwan_port));
+            g_clear_object (&self->priv->wwan_port);
         } else
             g_debug ("NET port added: %s", name);
 
-        self->priv->wwan = g_object_ref (device);
+        self->priv->wwan_port = g_object_ref (device);
         return;
     }
 }
@@ -180,24 +180,24 @@ port_removed (RmfdManager *self,
               GUdevDevice *device)
 {
     /* Remove the QMI port */
-    if (self->priv->qmi &&
+    if (self->priv->qmi_port &&
         g_str_equal (g_udev_device_get_subsystem (device),
-                     g_udev_device_get_subsystem (self->priv->qmi)) &&
+                     g_udev_device_get_subsystem (self->priv->qmi_port)) &&
         g_str_equal (g_udev_device_get_name (device),
-                     g_udev_device_get_name (self->priv->qmi))) {
-        g_debug ("QMI port removed: /dev/%s", g_udev_device_get_name (self->priv->qmi));
+                     g_udev_device_get_name (self->priv->qmi_port))) {
+        g_debug ("QMI port removed: /dev/%s", g_udev_device_get_name (self->priv->qmi_port));
         g_clear_object (&self->priv->processor);
-        g_clear_object (&self->priv->qmi);
+        g_clear_object (&self->priv->qmi_port);
     }
 
     /* Remove the net port */
-    if (self->priv->wwan &&
+    if (self->priv->wwan_port &&
         g_str_equal (g_udev_device_get_subsystem (device),
-                     g_udev_device_get_subsystem (self->priv->wwan)) &&
+                     g_udev_device_get_subsystem (self->priv->wwan_port)) &&
         g_str_equal (g_udev_device_get_name (device),
-                     g_udev_device_get_name (self->priv->wwan))) {
-        g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan));
-        g_clear_object (&self->priv->wwan);
+                     g_udev_device_get_name (self->priv->wwan_port))) {
+        g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan_port));
+        g_clear_object (&self->priv->wwan_port);
     }
 }
 
@@ -520,8 +520,8 @@ dispose (GObject *object)
 
     g_clear_object (&priv->socket_service);
     g_clear_object (&priv->processor);
-    g_clear_object (&priv->qmi);
-    g_clear_object (&priv->wwan);
+    g_clear_object (&priv->qmi_port);
+    g_clear_object (&priv->wwan_port);
     g_clear_object (&priv->udev_client);
 
     G_OBJECT_CLASS (rmfd_manager_parent_class)->dispose (object);
