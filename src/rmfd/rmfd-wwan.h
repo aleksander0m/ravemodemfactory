@@ -58,5 +58,14 @@ GType rmfd_wwan_get_type (void);
 /* Create a wwan */
 RmfdWwan *rmfd_wwan_new (const gchar *name);
 
+/* Setup  */
+void     rmfd_wwan_setup        (RmfdWwan             *self,
+                                 gboolean              start,
+                                 GAsyncReadyCallback   callback,
+                                 gpointer              user_data);
+gboolean rmfd_wwan_setup_finish (RmfdWwan             *self,
+                                 GAsyncResult         *res,
+                                 GError              **error);
+
 
 #endif /* RMFD_WWAN_H */
