@@ -33,6 +33,7 @@
 
 #include "rmfd-manager.h"
 #include "rmfd-processor.h"
+#include "rmfd-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
@@ -47,8 +48,9 @@ struct _RmfdManagerPrivate {
     GUdevDevice *qmi_port;
     GUdevDevice *wwan_port;
 
-    /* Processor */
+    /* Processor and WWAN controller*/
     RmfdProcessor *processor;
+    RmfdWwan *wwan;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -166,11 +168,15 @@ port_added (RmfdManager *self,
                 g_debug ("replacing NET port '%s' with %s",
                          name,
                          g_udev_device_get_name (self->priv->wwan_port));
+            g_clear_object (&self->priv->wwan);
             g_clear_object (&self->priv->wwan_port);
         } else
             g_debug ("NET port added: %s", name);
 
         self->priv->wwan_port = g_object_ref (device);
+
+        /* Create WWAN controller */
+        self->priv->wwan = rmfd_wwan_new (name);
         return;
     }
 }
@@ -197,6 +203,7 @@ port_removed (RmfdManager *self,
         g_str_equal (g_udev_device_get_name (device),
                      g_udev_device_get_name (self->priv->wwan_port))) {
         g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan_port));
+        g_clear_object (&self->priv->wwan);
         g_clear_object (&self->priv->wwan_port);
     }
 }
@@ -284,7 +291,7 @@ static void
 request_process (RmfdManager *self,
                  Request     *request)
 {
-    if (!self->priv->processor) {
+    if (!self->priv->processor || !self->priv->wwan) {
         request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM);
         request_complete (request);
         request_free (request);
@@ -520,6 +527,7 @@ dispose (GObject *object)
 
     g_clear_object (&priv->socket_service);
     g_clear_object (&priv->processor);
+    g_clear_object (&priv->wwan);
     g_clear_object (&priv->qmi_port);
     g_clear_object (&priv->wwan_port);
     g_clear_object (&priv->udev_client);
