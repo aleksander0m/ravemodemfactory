@@ -1,5 +1,6 @@
 
 sbin_PROGRAMS = rmfd
+dist_bin_SCRIPTS = rmfd-wwan-service
 
 BUILT_SOURCES = \
 	rmfd-error-types.h \

@@ -1,0 +1,106 @@
+#!/bin/sh
+
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 51
+# Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# Copyright (C) 2013 Zodiac Inflight Innovations
+#
+# Author: Aleksander Morgado <aleksander@lanedo.com>
+#
+
+print_usage ()
+{
+    echo "usage: $0 [DEVICE] [COMMAND]"
+}
+
+if [ $# -ne 2 ]; then
+    echo "error: missing arguments" 1>&2
+    print_usage
+    exit 255
+fi
+
+DEVICE=$1
+COMMAND=$2
+PID_FILE=/var/run/rmfd-wwan-service-$DEVICE
+
+echoerr() { echo "$@" 1>&2; }
+
+start_network ()
+{
+    IFUP_CMD="ifconfig $DEVICE up"
+    echo "bringing up WWAN interface '$DEVICE': $IFUP_CMD"
+    `$IFUP_CMD` >/dev/null 2>&1
+    IFUP_STATUS=$?
+    if [ $IFUP_STATUS -ne 0 ]; then
+       echoerr "error: couldn't bring up WWAN interface $DEVICE: ifconfig returned $IFUP_STATUS"
+       exit -1
+    fi
+
+    DHCLIENT_CMD="dhclient -pf $PID_FILE $DEVICE"
+    echo "requesting DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
+    `$DHCLIENT_CMD` >/dev/null 2>&1
+    DHCLIENT_STATUS=$?
+    if [ $DHCLIENT_STATUS -ne 0 ]; then
+       echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
+       ifconfig $DEVICE down
+       exit -2
+    fi
+
+    echo "WWAN interface '$DEVICE' started successfully"
+    exit 0
+}
+
+stop_network ()
+{
+    ERR=0
+
+    DHCLIENT_CMD="dhclient -x -pf $PID_FILE $DEVICE"
+    echo "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
+    `$DHCLIENT_CMD` >/dev/null 2>&1
+    DHCLIENT_STATUS=$?
+    if [ $DHCLIENT_STATUS -ne 0 ]; then
+       echoerr "error: couldn't release DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
+       ERR=-1
+    fi
+
+    IFDOWN_CMD="ifconfig $DEVICE down"
+    echo "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
+    `$IFDOWN_CMD` >/dev/null 2>&1
+    IFDOWN_STATUS=$?
+    if [ $IFDOWN_STATUS -ne 0 ]; then
+       echoerr "error: couldn't bring down WWAN interface $DEVICE: ifconfig returned $IFDOWN_STATUS"
+       ERR=-2
+    fi
+
+    if [ $ERR -eq 0 ]; then
+        echo "WWAN interface '$DEVICE' stopped successfully"
+    fi
+    exit $ERR
+}
+
+# Process commands
+case $COMMAND in
+    "start")
+        start_network
+        ;;
+    "stop")
+        stop_network
+        ;;
+    *)
+        echo "error: unexpected command '$COMMAND'" 1>&2
+        print_usage
+        exit 255
+        ;;
+esac
+
+exit 0
