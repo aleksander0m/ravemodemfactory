@@ -18,13 +18,18 @@
 # Author: Aleksander Morgado <aleksander@lanedo.com>
 #
 
+PROGRAM=$0
+
+echoerr() { echo "[$PROGRAM] $@" 1>&2; }
+echodbg() { echo "[$PROGRAM] $@"; }
+
 print_usage ()
 {
-    echo "usage: $0 [DEVICE] [COMMAND]"
+    echodbg "usage: $0 [DEVICE] [COMMAND]"
 }
 
 if [ $# -ne 2 ]; then
-    echo "error: missing arguments" 1>&2
+    echoerr "error: missing arguments" 1>&2
     print_usage
     exit 255
 fi
@@ -33,12 +38,10 @@ DEVICE=$1
 COMMAND=$2
 PID_FILE=/var/run/rmfd-wwan-service-$DEVICE
 
-echoerr() { echo "$@" 1>&2; }
-
 start_network ()
 {
     IFUP_CMD="ifconfig $DEVICE up"
-    echo "bringing up WWAN interface '$DEVICE': $IFUP_CMD"
+    echodbg "bringing up WWAN interface '$DEVICE': $IFUP_CMD"
     `$IFUP_CMD` >/dev/null 2>&1
     IFUP_STATUS=$?
     if [ $IFUP_STATUS -ne 0 ]; then
@@ -47,7 +50,7 @@ start_network ()
     fi
 
     DHCLIENT_CMD="dhclient -pf $PID_FILE $DEVICE"
-    echo "requesting DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
+    echodbg "requesting DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
     `$DHCLIENT_CMD` >/dev/null 2>&1
     DHCLIENT_STATUS=$?
     if [ $DHCLIENT_STATUS -ne 0 ]; then
@@ -56,7 +59,7 @@ start_network ()
        exit -2
     fi
 
-    echo "WWAN interface '$DEVICE' started successfully"
+    echodbg "WWAN interface '$DEVICE' started successfully"
     exit 0
 }
 
@@ -65,7 +68,7 @@ stop_network ()
     ERR=0
 
     DHCLIENT_CMD="dhclient -x -pf $PID_FILE $DEVICE"
-    echo "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
+    echodbg "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
     `$DHCLIENT_CMD` >/dev/null 2>&1
     DHCLIENT_STATUS=$?
     if [ $DHCLIENT_STATUS -ne 0 ]; then
@@ -74,7 +77,7 @@ stop_network ()
     fi
 
     IFDOWN_CMD="ifconfig $DEVICE down"
-    echo "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
+    echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
     `$IFDOWN_CMD` >/dev/null 2>&1
     IFDOWN_STATUS=$?
     if [ $IFDOWN_STATUS -ne 0 ]; then
@@ -83,7 +86,7 @@ stop_network ()
     fi
 
     if [ $ERR -eq 0 ]; then
-        echo "WWAN interface '$DEVICE' stopped successfully"
+        echodbg "WWAN interface '$DEVICE' stopped successfully"
     fi
     exit $ERR
 }
@@ -97,7 +100,7 @@ case $COMMAND in
         stop_network
         ;;
     *)
-        echo "error: unexpected command '$COMMAND'" 1>&2
+        echoerr "error: unexpected command '$COMMAND'" 1>&2
         print_usage
         exit 255
         ;;
