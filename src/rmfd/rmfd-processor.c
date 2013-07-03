@@ -1251,6 +1251,64 @@ get_connection_status (RunContext *ctx)
 /* Connect */
 
 static void
+wds_stop_network_after_start_ready (QmiClientWds *client,
+                                    GAsyncResult *res,
+                                    RunContext   *ctx)
+{
+    QmiMessageWdsStopNetworkOutput *output;
+
+    /* Ignore these errors */
+    output = qmi_client_wds_stop_network_finish (client, res, NULL);
+    if (output)
+        qmi_message_wds_stop_network_output_unref (output);
+
+    /* Clear packet data handle */
+    ctx->self->priv->packet_data_handle = 0;
+    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               rmfd_error_message_new_from_gerror (
+                                                   ctx->request,
+                                                   (GError *)ctx->additional_context),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
+wwan_setup_start_ready (RmfdWwan     *wwan,
+                        GAsyncResult *res,
+                        RunContext   *ctx)
+{
+    GError *error = NULL;
+    guint8 *response;
+
+    if (!rmfd_wwan_setup_finish (wwan, res, &error)) {
+        QmiMessageWdsStopNetworkInput *input;
+
+        /* Abort */
+        run_context_set_additional_context (ctx, error, (GDestroyNotify)g_error_free);
+        g_warning ("error: couldn't start interface: %s", error->message);
+        input = qmi_message_wds_stop_network_input_new ();
+        qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
+        qmi_client_wds_stop_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                     input,
+                                     30,
+                                     NULL,
+                                     (GAsyncReadyCallback)wds_stop_network_after_start_ready,
+                                     ctx);
+        qmi_message_wds_stop_network_input_unref (input);
+        return;
+    }
+
+    /* Ok! */
+    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
+    response = rmf_message_connect_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
 wds_start_network_ready (QmiClientWds *client,
                          GAsyncResult *res,
                          RunContext   *ctx)
@@ -1305,28 +1363,26 @@ wds_start_network_ready (QmiClientWds *client,
         }
     }
 
+    if (output) {
+        if (ctx->self->priv->packet_data_handle != GLOBAL_PACKET_DATA_HANDLE)
+            qmi_message_wds_start_network_output_get_packet_data_handle (output, &ctx->self->priv->packet_data_handle, NULL);
+        qmi_message_wds_start_network_output_unref (output);
+    }
+
     if (error) {
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
         g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                    rmfd_error_message_new_from_gerror (ctx->request, error),
                                                    (GDestroyNotify)g_byte_array_unref);
         g_error_free (error);
-    } else {
-        guint8 *response;
-
-        /* Ok! */
-        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
-        qmi_message_wds_start_network_output_get_packet_data_handle (output, &ctx->self->priv->packet_data_handle, NULL);
-        response = rmf_message_connect_response_new ();
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
-        qmi_message_wds_start_network_output_unref (output);
-
-    run_context_complete_and_free (ctx);
+    rmfd_wwan_setup (ctx->wwan,
+                     TRUE,
+                     (GAsyncReadyCallback)wwan_setup_start_ready,
+                     ctx);
 }
 
 static void
@@ -1445,6 +1501,35 @@ connect (RunContext *ctx)
 /* Disconnect */
 
 static void
+wwan_setup_stop_ready (RmfdWwan     *wwan,
+                       GAsyncResult *res,
+                       RunContext   *ctx)
+{
+    GError *error = NULL;
+    guint8 *response;
+
+    if (!rmfd_wwan_setup_finish (wwan, res, &error)) {
+        g_warning ("error: couldn't stop interface: %s", error->message);
+        g_warning ("error: will assume disconnected");
+        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   rmfd_error_message_new_from_gerror (ctx->request, error),
+                                                   (GDestroyNotify)g_byte_array_unref);
+        g_error_free (error);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Ok! */
+    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+    response = rmf_message_disconnect_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
 wds_stop_network_ready (QmiClientWds *client,
                         GAsyncResult *res,
                         RunContext   *ctx)
@@ -1453,40 +1538,38 @@ wds_stop_network_ready (QmiClientWds *client,
     QmiMessageWdsStopNetworkOutput *output;
 
     output = qmi_client_wds_stop_network_finish (client, res, &error);
-    if (output &&
-        !qmi_message_wds_stop_network_output_get_result (output, &error)) {
-        /* No effect error, we're already disconnected */
-        if (g_error_matches (error,
-                             QMI_PROTOCOL_ERROR,
-                             QMI_PROTOCOL_ERROR_NO_EFFECT)) {
-            g_error_free (error);
-            error = NULL;
+    if (output) {
+        if (!qmi_message_wds_stop_network_output_get_result (output, &error)) {
+            /* No effect error, we're already disconnected */
+            if (g_error_matches (error,
+                                 QMI_PROTOCOL_ERROR,
+                                 QMI_PROTOCOL_ERROR_NO_EFFECT)) {
+                g_error_free (error);
+                error = NULL;
+            }
         }
+
+        qmi_message_wds_stop_network_output_unref (output);
     }
 
     if (error) {
-        g_warning ("error disconnecting: %s", error->message);
+        g_warning ("error: couldn't disconnect: %s", error->message);
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
         g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                    rmfd_error_message_new_from_gerror (ctx->request, error),
                                                    (GDestroyNotify)g_byte_array_unref);
         g_error_free (error);
-    } else {
-        guint8 *response;
-
-        /* Ok! */
-        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
-        ctx->self->priv->packet_data_handle = 0;
-        response = rmf_message_disconnect_response_new ();
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
-        qmi_message_wds_stop_network_output_unref (output);
+    /* Clear packet data handle */
+    ctx->self->priv->packet_data_handle = 0;
 
-    run_context_complete_and_free (ctx);
+    rmfd_wwan_setup (ctx->wwan,
+                     FALSE,
+                     (GAsyncReadyCallback)wwan_setup_stop_ready,
+                     ctx);
 }
 
 static void
@@ -1497,14 +1580,14 @@ disconnect (RunContext *ctx)
     if (ctx->self->priv->connection_status != RMF_CONNECTION_STATUS_CONNECTED) {
         switch (ctx->self->priv->connection_status) {
         case RMF_CONNECTION_STATUS_DISCONNECTING:
-            g_warning ("error disconnecting: already disconnecting");
+            g_warning ("error: cannot disconnect: already disconnecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
                 rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
                 (GDestroyNotify)g_byte_array_unref);
             break;
         case RMF_CONNECTION_STATUS_CONNECTING:
-            g_warning ("error disconnecting: currently connecting");
+            g_warning ("error: cannot disconnect: currently connecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
                 rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
