@@ -60,6 +60,7 @@ printHelp (void)
     std::cout << "\t-s, --get-signal-info" << std::endl;
     std::cout << "\t-r, --get-registration-status" << std::endl;
     std::cout << "\t-c, --get-connection-status" << std::endl;
+    std::cout << "\t-x, --get-connection-stats" << std::endl;
     std::cout << "\t-C, --connect=\"apn user password\"" << std::endl;
     std::cout << "\t-D, --disconnect" << std::endl;
     std::cout << std::endl;
