@@ -1803,6 +1803,7 @@ disconnect (RunContext *ctx)
                                  NULL,
                                  (GAsyncReadyCallback)wds_stop_network_ready,
                                  ctx);
+    qmi_message_wds_stop_network_input_unref (input);
 }
 
 /**********************/
