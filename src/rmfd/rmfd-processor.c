@@ -437,6 +437,95 @@ get_iccid (RunContext *ctx)
 /**********************/
 /* Unlock PIN */
 
+typedef struct {
+    guint after_unlock_checks;
+} UnlockPinContext;
+
+static void run_after_unlock_checks (RunContext *ctx);
+
+static void
+dms_uim_get_pin_status_after_unlock_ready (QmiClientDms *client,
+                                           GAsyncResult *res,
+                                           RunContext   *ctx)
+{
+    QmiMessageDmsUimGetPinStatusOutput *output = NULL;
+    GError *error = NULL;
+    QmiDmsUimPinStatus current_status;
+
+    output = qmi_client_dms_uim_get_pin_status_finish (client, res, NULL);
+    if (output &&
+        qmi_message_dms_uim_get_pin_status_output_get_result (output, NULL) &&
+        qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
+            output,
+            &current_status,
+            NULL, /* verify_retries_left */
+            NULL, /* unblock_retries_left */
+            NULL)) {
+        switch (current_status) {
+        case QMI_DMS_UIM_PIN_STATUS_CHANGED:
+            /* This state is possibly given when after an ChangePin() operation has been performed. */
+        case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
+            /* This state is possibly given when after an Unblock() operation has been performed. */
+        case QMI_DMS_UIM_PIN_STATUS_DISABLED:
+        case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED: {
+            guint8 *response;
+
+            response = rmf_message_unlock_response_new ();
+            g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                       (GDestroyNotify)g_byte_array_unref);
+            qmi_message_dms_uim_get_pin_status_output_unref (output);
+            run_context_complete_and_free (ctx);
+            return;
+        }
+
+        case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
+        case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
+        case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
+        case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
+        default:
+            break;
+        }
+    }
+
+    if (output)
+        qmi_message_dms_uim_get_pin_status_output_unref (output);
+
+    /* Sleep & retry */
+    run_after_unlock_checks (ctx);
+}
+
+static gboolean
+after_unlock_check_cb (RunContext *ctx)
+{
+    qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                       NULL,
+                                       5,
+                                       NULL,
+                                       (GAsyncReadyCallback)dms_uim_get_pin_status_after_unlock_ready,
+                                       ctx);
+    return FALSE;
+}
+
+static void
+run_after_unlock_checks (RunContext *ctx)
+{
+    UnlockPinContext *unlock_ctx = (UnlockPinContext *)ctx->additional_context;
+
+    if (unlock_ctx->after_unlock_checks == 10) {
+        g_simple_async_result_set_error (ctx->result,
+                                         RMFD_ERROR,
+                                         RMFD_ERROR_UNKNOWN,
+                                         "PIN unlocked but too many unlock checks afterwards");
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Recheck lock status. The change is not immediate */
+    unlock_ctx->after_unlock_checks++;
+    g_timeout_add_seconds (1, (GSourceFunc)after_unlock_check_cb, ctx);
+}
+
 static void
 dms_uim_verify_pin_ready (QmiClientDms *client,
                           GAsyncResult *res,
@@ -444,26 +533,28 @@ dms_uim_verify_pin_ready (QmiClientDms *client,
 {
     QmiMessageDmsUimVerifyPinOutput *output = NULL;
     GError *error = NULL;
+    UnlockPinContext *unlock_ctx;
 
     output = qmi_client_dms_uim_verify_pin_finish (client, res, &error);
     if (!output) {
         g_prefix_error (&error, "QMI operation failed: ");
         g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_verify_pin_output_get_result (output, &error)) {
-        g_prefix_error (&error, "couldn't verify PIN: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        guint8 *response;
-
-        response = rmf_message_unlock_response_new ();
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
+    if (!qmi_message_dms_uim_verify_pin_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't verify PIN: ");
+        g_simple_async_result_take_error (ctx->result, error);
         qmi_message_dms_uim_verify_pin_output_unref (output);
-    run_context_complete_and_free (ctx);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    qmi_message_dms_uim_verify_pin_output_unref (output);
+    unlock_ctx = g_new0 (UnlockPinContext, 1);
+    run_context_set_additional_context (ctx, unlock_ctx, g_free);
+    run_after_unlock_checks (ctx);
 }
 
 static void
