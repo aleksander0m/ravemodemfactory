@@ -548,6 +548,7 @@ dms_uim_get_pin_status_ready (QmiClientDms *client,
                                            (GAsyncReadyCallback)dms_uim_verify_pin_ready,
                                            ctx);
             qmi_message_dms_uim_verify_pin_input_unref (input);
+            qmi_message_dms_uim_get_pin_status_output_unref (output);
             return;
         }
 
