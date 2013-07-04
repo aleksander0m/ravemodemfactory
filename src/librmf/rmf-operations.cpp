@@ -68,6 +68,8 @@ enum {
     ERROR_SEND_FAILED,
     ERROR_POLL_FAILED,
     ERROR_TIMEOUT,
+    ERROR_CHANNEL_ERROR,
+    ERROR_CHANNEL_HUP,
     ERROR_RECV_FAILED,
     ERROR_NO_MATCH,
 };
@@ -79,6 +81,8 @@ static const char *error_strings[] = {
     "Send failed",
     "Poll failed",
     "Timeout",
+    "Error detected in channel",
+    "Remote closed channel",
     "Recv failed",
     "Request and response didn't match"
 };
@@ -138,7 +142,7 @@ send_and_receive (const uint8_t  *request,
 
     /* 4th step: wait for reply, but don't wait forever */
     fds[0].fd = fd;
-    fds[0].events= POLLIN | POLLPRI;
+    fds[0].events = POLLIN | POLLPRI | POLLERR | POLLHUP;
 
     switch (poll (fds, 1, 1000 * timeout_s)) {
     case -1:
@@ -150,6 +154,16 @@ send_and_receive (const uint8_t  *request,
     default:
         /* all good */
         break;
+    }
+
+    if (fds[0].revents & POLLHUP) {
+        ret = ERROR_CHANNEL_HUP;
+        goto failed;
+    }
+
+    if (fds[0].revents & POLLERR) {
+        ret = ERROR_CHANNEL_ERROR;
+        goto failed;
     }
 
     /* Setup buffer to receive the response; we'll assume it has a max
