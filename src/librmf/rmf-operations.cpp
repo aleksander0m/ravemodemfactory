@@ -156,42 +156,40 @@ send_and_receive (const uint8_t  *request,
         break;
     }
 
-    if (fds[0].revents & POLLHUP) {
-        ret = ERROR_CHANNEL_HUP;
-        goto failed;
-    }
+    if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI) {
+        /* Setup buffer to receive the response; we'll assume it has a max
+         * size for now */
+        buffer = (uint8_t *) malloc (RMF_MESSAGE_MAX_SIZE);
 
-    if (fds[0].revents & POLLERR) {
-        ret = ERROR_CHANNEL_ERROR;
-        goto failed;
-    }
+        /* 5th step: recv(). We try to read up to RMF_MESSAGE_MAX_SIZE, even if
+         * the final message will be much smaller. The read is blocking, but we
+         * won't really block much time because the peer will close the channel
+         * as soon as the whole message is written. If the peer didn't close the
+         * channel, we would probably need to the initial 4 bytes first (to get
+         * the expected message length) and only then block reading for the exact
+         * amount of data to read (as we do in the server side) */
+        total = 0;
+        left = RMF_MESSAGE_MAX_SIZE;
+        do {
+            if ((current = recv (fd, &buffer[total], left, 0)) < 0) {
+                ret = ERROR_RECV_FAILED;
+                goto failed;
+            }
 
-    /* Setup buffer to receive the response; we'll assume it has a max
-     * size for now */
-    buffer = (uint8_t *) malloc (RMF_MESSAGE_MAX_SIZE);
+            assert (left >= current);
+            left -= current;
+            total += current;
+        } while (total < 4 || total < rmf_message_get_length (buffer));
 
-    /* 5th step: recv(). We try to read up to RMF_MESSAGE_MAX_SIZE, even if
-     * the final message will be much smaller. The read is blocking, but we
-     * won't really block much time because the peer will close the channel
-     * as soon as the whole message is written. If the peer didn't close the
-     * channel, we would probably need to the initial 4 bytes first (to get
-     * the expected message length) and only then block reading for the exact
-     * amount of data to read (as we do in the server side) */
-    total = 0;
-    left = RMF_MESSAGE_MAX_SIZE;
-    do {
-        if ((current = recv (fd, &buffer[total], left, 0)) < 0) {
-            ret = ERROR_RECV_FAILED;
+        if (!rmf_message_request_and_response_match (request, buffer)) {
+            ret = ERROR_NO_MATCH;
             goto failed;
         }
-
-        assert (left >= current);
-        left -= current;
-        total += current;
-    } while (total < 4 || total < rmf_message_get_length (buffer));
-
-    if (!rmf_message_request_and_response_match (request, buffer)) {
-        ret = ERROR_NO_MATCH;
+    } else if (fds[0].revents & POLLHUP) {
+        ret = ERROR_CHANNEL_HUP;
+        goto failed;
+    } else if (fds[0].revents & POLLERR) {
+        ret = ERROR_CHANNEL_ERROR;
         goto failed;
     }
 
