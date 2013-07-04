@@ -122,6 +122,9 @@ rmf_message_builder_add_string (RmfMessageBuilder *builder,
     uint32_t value_len;
     uint32_t extra_variable_size;
 
+    if (!value)
+        value = "";
+
     /* Strings are added as:
      *  - size + offset in the fixed buffer,
      *  - actual string in the variable buffer
