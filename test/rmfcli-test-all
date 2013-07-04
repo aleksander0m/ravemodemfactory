@@ -1,0 +1,80 @@
+#!/bin/sh
+
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 51
+# Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+#
+# Copyright (C) 2013 Zodiac Inflight Innovations
+#
+# Author: Aleksander Morgado <aleksander@lanedo.com>
+#
+
+PROGRAM=$0
+
+echoerr() { echo "[$PROGRAM] $@" 1>&2; }
+
+print_usage ()
+{
+    echodbg "usage: $0 [PIN] [APN]"
+}
+
+if [ $# -ne 2 ]; then
+    echoerr "error: missing arguments" 1>&2
+    print_usage
+    exit 255
+fi
+
+PIN=$1
+APN=$2
+
+command ()
+{
+    echo ======================================
+    COMMAND=$@
+    echo $COMMAND
+    eval $COMMAND
+    if [ $? -ne 0 ]; then
+       echoerr "Command failed, aborting"
+       exit -1
+    fi
+}
+
+command rmfcli --get-manufacturer
+command rmfcli --get-model
+command rmfcli --get-software-revision
+command rmfcli --get-hardware-revision
+command rmfcli --get-imei
+command rmfcli --get-iccid
+command rmfcli --unlock=$PIN
+# IMSI readable only after PIN unlocked
+command rmfcli --get-imsi
+command rmfcli --disable-pin=$PIN
+command rmfcli --enable-pin=$PIN
+command rmfcli --change-pin=\"$PIN 0000\"
+command rmfcli --change-pin=\"0000 $PIN\"
+command rmfcli --get-power-status
+command rmfcli --set-power-status=Low
+command rmfcli --set-power-status=Full
+# Wait some time after powering on the radio
+sleep 5
+command rmfcli --get-signal-info
+command rmfcli --get-registration-status
+command rmfcli --get-connection-status
+command rmfcli --connect=$APN
+# Wait some time after connecting
+sleep 5
+command rmfcli --get-connection-status
+command rmfcli --get-power-info
+command rmfcli --get-connection-stats
+command rmfcli --disconnect
+
+exit 0

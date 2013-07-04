@@ -1,5 +1,5 @@
 
-SUBDIRS = build-aux src
+SUBDIRS = build-aux src test
 
 ACLOCAL_AMFLAGS = -I m4
 

@@ -43,7 +43,8 @@ AC_CONFIG_FILES([Makefile
                  src/librmf-common/test/Makefile
                  src/librmf/Makefile
                  src/rmfcli/Makefile
-                 src/rmfd/Makefile])
+                 src/rmfd/Makefile
+                 test/Makefile])
 AC_OUTPUT
 
 echo "

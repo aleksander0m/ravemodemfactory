@@ -1,0 +1,85 @@
+This tester runs all available commands one after the other.
+
+
+$ sudo ./test/rmfcli-test-all 7423 ac.vodafone.es
+======================================
+rmfcli --get-manufacturer
+Manufacturer: Sierra Wireless, Incorporated
+======================================
+rmfcli --get-model
+Model: MC7710
+======================================
+rmfcli --get-software-revision
+Software Revision: SWI9200X_03.05.19.04ap r5475 carmd-en-10527 2012/09/17 17:57:14
+======================================
+rmfcli --get-hardware-revision
+Hardware Revision: 10
+======================================
+rmfcli --get-imei
+IMEI: 358178040668164
+======================================
+rmfcli --get-iccid
+ICCID: 8934565521300460932
+======================================
+rmfcli --unlock=7423
+rmfcli --get-imsi
+IMSI: 214015515415848
+======================================
+rmfcli --disable-pin=7423
+PIN successfully disabled
+======================================
+rmfcli --enable-pin=7423
+PIN successfully enabled
+======================================
+rmfcli --change-pin="7423 0000"
+PIN successfully changed
+======================================
+rmfcli --change-pin="0000 7423"
+PIN successfully changed
+======================================
+rmfcli --get-power-status
+Power status: Full
+======================================
+rmfcli --set-power-status=Low
+Power status successfully changed
+======================================
+rmfcli --set-power-status=Full
+Power status successfully changed
+======================================
+rmfcli --get-signal-info
+UMTS:
+	RSSI: -84 dBm
+	Quality: 47%
+======================================
+rmfcli --get-registration-status
+Registration status: Home
+MCC: 214
+MNC: 1
+Operator: vodafone ES
+Location Area code: 12741
+Cell ID: 8592480
+======================================
+rmfcli --get-connection-status
+Connection status: Disconnected
+======================================
+rmfcli --connect=ac.vodafone.es
+Modem successfully connected
+======================================
+rmfcli --get-power-info
+UMTS:
+	In traffic: yes
+	TX power: 0 dBm
+	RX 0 tuned: yes
+	RX 0 power: -84 dBm
+	RX 1 tuned: yes
+	RX 1 power: -106 dBm
+======================================
+rmfcli --get-connection-stats
+Connection stats:
+	TX Packets Ok: 15
+	RX Packets Ok: 4
+	TX Bytes Ok: 2799
+	RX Bytes Ok: 456
+======================================
+rmfcli --disconnect
+Modem successfully disconnected
