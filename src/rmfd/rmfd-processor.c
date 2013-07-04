@@ -1340,6 +1340,92 @@ get_connection_status (RunContext *ctx)
 }
 
 /**********************/
+/* Get Connection Stats */
+
+static void
+get_packet_statistics_ready (QmiClientWds *client,
+                             GAsyncResult *res,
+                             RunContext   *ctx)
+{
+    GError *error = NULL;
+    QmiMessageWdsGetPacketStatisticsOutput *output;
+
+    output = qmi_client_wds_get_packet_statistics_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_wds_get_packet_statistics_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get packet statistics: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint8 *response;
+        guint32 tx_packets_ok = 0xFFFFFFFF;
+        guint32 rx_packets_ok = 0xFFFFFFFF;
+        guint32 tx_packets_error = 0xFFFFFFFF;
+        guint32 rx_packets_error = 0xFFFFFFFF;
+        guint32 tx_packets_overflow = 0xFFFFFFFF;
+        guint32 rx_packets_overflow = 0xFFFFFFFF;
+        guint64 tx_bytes_ok = 0;
+        guint64 rx_bytes_ok = 0;
+
+        qmi_message_wds_get_packet_statistics_output_get_tx_packets_ok (output, &tx_packets_ok, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_rx_packets_ok (output, &rx_packets_ok, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_tx_packets_error (output, &tx_packets_error, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_rx_packets_error (output, &rx_packets_error, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_tx_overflows (output, &tx_packets_overflow, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_rx_overflows (output, &rx_packets_overflow, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok (output, &tx_bytes_ok, NULL);
+        qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok (output, &rx_bytes_ok, NULL);
+
+        response = rmf_message_get_connection_stats_response_new (tx_packets_ok,
+                                                                  rx_packets_ok,
+                                                                  tx_packets_error,
+                                                                  rx_packets_error,
+                                                                  tx_packets_overflow,
+                                                                  rx_packets_overflow,
+                                                                  tx_bytes_ok,
+                                                                  rx_bytes_ok);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_wds_get_packet_statistics_output_unref (output);
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_connection_stats (RunContext *ctx)
+{
+    QmiMessageWdsGetPacketStatisticsInput *input;
+
+    input = qmi_message_wds_get_packet_statistics_input_new ();
+    qmi_message_wds_get_packet_statistics_input_set_mask (
+        input,
+        (QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_PACKETS_OK      |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_PACKETS_OK      |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_PACKETS_ERROR   |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_PACKETS_ERROR   |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_OVERFLOWS       |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_OVERFLOWS       |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_BYTES_OK        |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_BYTES_OK        |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_PACKETS_DROPPED |
+         QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_PACKETS_DROPPED),
+        NULL);
+
+    g_debug ("Asynchronously getting packet statistics...");
+    qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                          input,
+                                          10,
+                                          NULL,
+                                          (GAsyncReadyCallback)get_packet_statistics_ready,
+                                          ctx);
+    qmi_message_wds_get_packet_statistics_input_unref (input);
+}
+
+/**********************/
 /* Connect */
 
 static void
@@ -1796,6 +1882,9 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS:
         get_connection_status (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS:
+        get_connection_stats (ctx);
         return;
     case RMF_MESSAGE_COMMAND_CONNECT:
         connect (ctx);
