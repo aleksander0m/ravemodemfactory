@@ -14,7 +14,7 @@ PKG_NAME=RaveModemFactory
 
 (cd $srcdir;
     mkdir -p m4
-    touch NEWS ChangeLog
+    touch ChangeLog
     autoreconf --force --install --verbose
     if test -z "$NOCONFIGURE"; then
         ./configure --enable-maintainer-mode $@

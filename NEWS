@@ -1,0 +1,25 @@
+
+Overview of changes in RaveModemFactory 1.0
+---------------------------------------------
+
+Initial release, with support for the following operations:
+
+ * Get manufacturer
+ * Get model
+ * Get software revision
+ * Get hardware revision
+ * Get IMEI
+ * Get IMSI
+ * Get ICCID
+ * PIN unlock
+ * Enable or disable PIN
+ * Change PIN
+ * Get power status
+ * Set full-power or low-power mode
+ * Get power info
+ * Get signal info
+ * Get registration status
+ * Get connection status
+ * Get connection statistics
+ * Connect
+ * Disconnect
