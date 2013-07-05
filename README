@@ -1,0 +1,47 @@
+
+
+-------------------------------------------------------------------------------
+What is the RaveModemFactory?
+-------------------------------------------------------------------------------
+
+The RaveModemFactory is a simple connection manager for modems which speak the
+Qualcomm MSM Interface (QMI) protocol. This connection manager is suitable for
+embedded systems with simple mobile broadband requirements.
+
+
+-------------------------------------------------------------------------------
+How does it work?
+-------------------------------------------------------------------------------
+
+The 'rmfd' daemon will take care of finding the modem's QMI (/dev/cdc-wdm) port
+as well as its associated NET/WWAN port. The daemon expects only ONE modem in
+the system. If multiple modems are found, it may not work, or it may just choose
+the last one found. The daemon will send QMI requests and receive QMI responses,
+using the QMI support provided by 'libqmi' [1].
+
+The 'librmf' library provides a C++ interface to run operations in the daemon.
+All the actions in the interface are blocking; i.e. the thread running the
+action will be halted until a response is received from the 'rmfd' daemon, or
+until the specified timeout expires.
+
+The 'rmfcli' command line tool allows to run all the different actions exposed
+by the 'librmf' library.
+
+The communication between the 'librmf' library and the 'rmfd' daemon is
+performed via local UNIX sockets, using a custom protocol to embed the request
+and responses.
+
+When a 3GPP connection is requested, specifying at least the APN, and the
+connection succeeds, the 'rmfd' daemon will execute the 'rmfd-wwan-service'
+script. This script takes care of bringing up the net interface and running a
+DHCP client on it. The built-in DHCP server in the modem will provide the
+details to setup not only the IP address, but also the DNS servers and routes.
+Upon disconnection, the same script will stop the DHCP client and bring down
+the net interface.
+
+
+-------------------------------------------------------------------------------
+References
+-------------------------------------------------------------------------------
+
+[1] http://www.freedesktop.org/wiki/Software/libqmi
