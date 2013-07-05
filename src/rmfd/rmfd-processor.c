@@ -60,6 +60,30 @@ struct _RmfdProcessorPrivate {
 };
 
 /*****************************************************************************/
+/* Background request to register automatically */
+
+static void
+initiate_network_register (RmfdProcessor *self)
+{
+    QmiMessageNasInitiateNetworkRegisterInput *input;
+
+    g_debug ("Launching automatic network registration...");
+    input = qmi_message_nas_initiate_network_register_input_new ();
+    qmi_message_nas_initiate_network_register_input_set_action (
+        input,
+        QMI_NAS_NETWORK_REGISTER_TYPE_AUTOMATIC,
+        NULL);
+    qmi_client_nas_initiate_network_register (
+        QMI_CLIENT_NAS (self->priv->nas),
+        input,
+        10,
+        NULL,
+        NULL,
+        NULL);
+    qmi_message_nas_initiate_network_register_input_unref (input);
+}
+
+/*****************************************************************************/
 /* Process an action */
 
 typedef struct {
@@ -475,6 +499,10 @@ dms_uim_get_pin_status_after_unlock_ready (QmiClientDms *client,
                                                        g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                        (GDestroyNotify)g_byte_array_unref);
             qmi_message_dms_uim_get_pin_status_output_unref (output);
+
+            /* Launch automatic registration */
+            initiate_network_register (ctx->self);
+
             run_context_complete_and_free (ctx);
             return;
         }
@@ -602,6 +630,10 @@ dms_uim_get_pin_status_ready (QmiClientDms *client,
             g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                        g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                        (GDestroyNotify)g_byte_array_unref);
+
+            /* Launch automatic registration */
+            initiate_network_register (ctx->self);
+
             break;
         }
 
@@ -888,6 +920,10 @@ get_power_status (RunContext *ctx)
 /**********************/
 /* Set power status */
 
+typedef struct {
+    QmiDmsOperatingMode mode;
+} PowerContext;
+
 static void
 dms_set_operating_mode_ready (QmiClientDms *client,
                               GAsyncResult *res,
@@ -905,11 +941,17 @@ dms_set_operating_mode_ready (QmiClientDms *client,
         g_simple_async_result_take_error (ctx->result, error);
     } else {
         guint8 *response = NULL;
+        PowerContext *power_ctx;
 
         response = rmf_message_set_power_status_response_new ();
         g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                    g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                    (GDestroyNotify)g_byte_array_unref);
+
+        power_ctx = (PowerContext *)ctx->additional_context;
+        if (power_ctx->mode == RMF_POWER_STATUS_FULL)
+            /* Launch automatic registration */
+            initiate_network_register (ctx->self);
     }
 
     if (output)
@@ -924,6 +966,7 @@ set_power_status (RunContext *ctx)
     QmiMessageDmsSetOperatingModeInput *input;
     uint32_t power_status;
     QmiDmsOperatingMode mode;
+    PowerContext *power_ctx;
 
     rmf_message_set_power_status_request_parse (ctx->request->data, &power_status);
 
@@ -943,6 +986,10 @@ set_power_status (RunContext *ctx)
         run_context_complete_and_free (ctx);
         return;
     }
+
+    power_ctx = g_new (PowerContext, 1);
+    power_ctx->mode = mode;
+    run_context_set_additional_context (ctx, power_ctx, g_free);
 
     input = qmi_message_dms_set_operating_mode_input_new ();
     qmi_message_dms_set_operating_mode_input_set_mode (input, mode, NULL);
