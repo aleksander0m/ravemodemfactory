@@ -73,6 +73,20 @@ including the network interface setup.
 
 
 -------------------------------------------------------------------------------
+Dependencies
+-------------------------------------------------------------------------------
+
+The 'rmfd' daemon requires:
+ * glib & gio >= 2.32
+ * libqmi >= 1.5
+ * gudev >= 147 (and therefore, the udev daemon)
+ * dhclient
+
+The 'librmf' library and the 'rmfcli' utility don't have any external
+dependency.
+
+
+-------------------------------------------------------------------------------
 References
 -------------------------------------------------------------------------------
 
