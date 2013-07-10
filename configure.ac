@@ -32,6 +32,13 @@ PKG_CHECK_MODULES(GUDEV, gudev-1.0 >= 147)
 AC_SUBST(GUDEV_CFLAGS)
 AC_SUBST(GUDEV_LIBS)
 
+dnl Require dhclient
+AC_PATH_PROG(DHCLIENT_PATH, dhclient)
+if ! test -x "$DHCLIENT_PATH"; then
+    AC_MSG_ERROR(dhclient was not installed.)
+fi
+AC_SUBST(DHCLIENT_PATH)
+
 # Some required utilities
 GLIB_MKENUMS=`$PKG_CONFIG --variable=glib_mkenums glib-2.0`
 AC_SUBST(GLIB_MKENUMS)
@@ -56,4 +63,5 @@ echo "
     C++ compiler:        ${CXX}
     cxxflags:            ${CXXFLAGS}
     Maintainer mode:     ${USE_MAINTAINER_MODE}
+    dhclient:            ${DHCLIENT_PATH}
 "
