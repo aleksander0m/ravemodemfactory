@@ -37,6 +37,7 @@ fi
 DEVICE=$1
 COMMAND=$2
 PID_FILE=/var/run/rmfd-wwan-service-$DEVICE
+DHCLIENT_PATH=@DHCLIENT_PATH@
 
 start_network ()
 {
@@ -49,7 +50,7 @@ start_network ()
        exit -1
     fi
 
-    DHCLIENT_CMD="dhclient -pf $PID_FILE $DEVICE"
+    DHCLIENT_CMD="$DHCLIENT_PATH -pf $PID_FILE $DEVICE"
     echodbg "requesting DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
     `$DHCLIENT_CMD` >/dev/null 2>&1
     DHCLIENT_STATUS=$?
@@ -67,7 +68,7 @@ stop_network ()
 {
     ERR=0
 
-    DHCLIENT_CMD="dhclient -x -pf $PID_FILE $DEVICE"
+    DHCLIENT_CMD="$DHCLIENT_PATH -x -pf $PID_FILE $DEVICE"
     echodbg "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
     `$DHCLIENT_CMD` >/dev/null 2>&1
     DHCLIENT_STATUS=$?
