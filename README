@@ -41,6 +41,38 @@ the net interface.
 
 
 -------------------------------------------------------------------------------
+Operation
+-------------------------------------------------------------------------------
+
+Unlocking:
+
+The first thing to do when wanting to get the modem connected is to make sure
+that the modem is unlocked. There is no explicit command to query whether the
+modem is unlocked, you just need to run Unlock() passing the PIN. The operation
+will succeed in all these cases:
+ * If the modem was already unlocked.
+ * If the modem had the PIN request disabled.
+ * If the unlock with the given PIN was successful.
+
+Power on:
+
+Once unlocked, you need to make sure that the modem has the radio powered on,
+by running SetPowerStatus(Full). This operation will succeed in all these cases:
+ * If the modem was already in Full power mode.
+ * If the power mode was changed from Low to Full.
+
+During the power on, a explicit request to register in the network will be
+issued. This means that you can use the SetPowerStatus(Full) to re-request
+automatic registration in the home network if needed.
+
+Connection:
+
+The Connect() and Disconnect() methods will get the modem connected or
+disconnected. The Connect() methods performs the whole connection process,
+including the network interface setup.
+
+
+-------------------------------------------------------------------------------
 References
 -------------------------------------------------------------------------------
 
