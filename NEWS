@@ -1,4 +1,12 @@
 
+Overview of changes in RaveModemFactory 1.2
+---------------------------------------------
+
+Bugfix release, including:
+
+ * Look for dhclient during configure
+ * Minor fixes in the rmfcli outputs
+
 Overview of changes in RaveModemFactory 1.0
 ---------------------------------------------
 
