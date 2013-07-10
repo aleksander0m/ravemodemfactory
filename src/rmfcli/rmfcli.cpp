@@ -372,6 +372,11 @@ getSignalInfo (void)
         return -1;
     }
 
+    if (infoVector.size() == 0) {
+        std::cout << "No signal information available" << std::endl;
+        return 0;
+    }
+
     for (std::vector<Modem::RadioSignalInfo>::iterator it = infoVector.begin(); it != infoVector.end(); ++it) {
         switch (it->radioInterface) {
         case Modem::Gsm:
