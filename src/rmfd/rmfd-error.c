@@ -57,25 +57,10 @@ rmfd_error_message_new_from_error (const GByteArray *request,
             g_assert_not_reached ();
         }
     } else if (error_domain == QMI_PROTOCOL_ERROR) {
-        switch (error_code) {
-        case QMI_PROTOCOL_ERROR_UIM_UNINITIALIZED:
-            status = RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED;
-            break;
-        case QMI_PROTOCOL_ERROR_PIN_BLOCKED:
-            status = RMF_RESPONSE_STATUS_ERROR_PUK_REQUIRED;
-            break;
-        case QMI_PROTOCOL_ERROR_NO_SIM:
-        case QMI_PROTOCOL_ERROR_PIN_ALWAYS_BLOCKED:
-            status = RMF_RESPONSE_STATUS_ERROR_SIM_ERROR;
-            break;
-        case QMI_PROTOCOL_ERROR_INCORRECT_PIN:
-            status = RMF_RESPONSE_STATUS_ERROR_INVALID_PIN;
-            break;
-        case QMI_PROTOCOL_ERROR_CALL_FAILED:
-            status = RMF_RESPONSE_STATUS_ERROR_CALL_FAILED;
-        default:
+        if (error_code < QMI_PROTOCOL_ERROR_PB_HIDDEN_KEY_RESTRICTION)
+            status = 100 + error_code;
+        else
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
-        }
     } else
         status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
 

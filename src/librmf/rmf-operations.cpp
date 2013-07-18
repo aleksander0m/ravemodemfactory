@@ -46,17 +46,127 @@ using namespace Modem;
 /*****************************************************************************/
 
 static const char *response_status_str[] = {
-    "Ok", /* RMF_RESPONSE_STATUS_OK */
-    "Unknown error", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
+    "Ok",              /* RMF_RESPONSE_STATUS_OK */
+    "Unknown error",   /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
     "Invalid request", /* RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST */
     "Unknown command", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
-    "No modem", /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
-    "PIN required", /* RMF_RESPONSE_STATUS_ERROR_PIN_REQUIRED */
-    "PUK required", /* RMF_RESPONSE_STATUS_ERROR_PUK_REQUIRED */
-    "SIM error", /* RMF_RESPONSE_STATUS_ERROR_SIM_ERROR */
-    "Invalid PIN", /* RMF_RESPONSE_STATUS_ERROR_INVALID_PIN */
-    "Call failed", /* RMF_RESPONSE_STATUS_ERROR_CALL_FAILED */
-    "Invalid state", /* RMF_RESPONSE_STATUS_ERROR_INVALID_STATE */
+    "No modem",        /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
+    "Invalid state",   /* RMF_RESPONSE_STATUS_ERROR_INVALID_STATE */
+};
+
+static const char *qmi_response_status_str[] = {
+    "", /* 100 unused, no qmi error */
+    "Malformed message", /* 101, RMF_RESPONSE_STATUS_ERROR_MALFORMED_MESSAGE */
+    "No memory", /* 102, RMF_RESPONSE_STATUS_ERROR_NO_MEMORY */
+    "Internal", /* 103, RMF_RESPONSE_STATUS_ERROR_INTERNAL */
+    "Aborted", /* 104, RMF_RESPONSE_STATUS_ERROR_ABORTED */
+    "Client IDs exhausted", /* 105, RMF_RESPONSE_STATUS_ERROR_CLIENT_IDS_EXHAUSTED */
+    "Unabortable transaction", /* 106, RMF_RESPONSE_STATUS_ERROR_UNABORTABLE_TRANSACTION */
+    "Invalid client ID", /* 107, RMF_RESPONSE_STATUS_ERROR_INVALID_CLIENT_ID */
+    "No thresholds provided", /* 108, RMF_RESPONSE_STATUS_ERROR_NO_THRESHOLDS_PROVIDED */
+    "Invalid handle", /* 109, RMF_RESPONSE_STATUS_ERROR_INVALID_HANDLE */
+    "Invalid profile", /* 110, RMF_RESPONSE_STATUS_ERROR_INVALID_PROFILE */
+    "Invalid PIN ID", /* 111, RMF_RESPONSE_STATUS_ERROR_INVALID_PIN_ID */
+    "Incorrect PIN", /* 112, RMF_RESPONSE_STATUS_ERROR_INCORRECT_PIN */
+    "No network found", /* 113, RMF_RESPONSE_STATUS_ERROR_NO_NETWORK_FOUND */
+    "Call failed", /* 114, RMF_RESPONSE_STATUS_ERROR_CALL_FAILED */
+    "Out of call", /* 115, RMF_RESPONSE_STATUS_ERROR_OUT_OF_CALL */
+    "Not provisioned", /* 116, RMF_RESPONSE_STATUS_ERROR_NOT_PROVISIONED */
+    "Missing argument", /* 117, RMF_RESPONSE_STATUS_ERROR_MISSING_ARGUMENT */
+    "", /* 118 */
+    "Argument too long", /* 119, RMF_RESPONSE_STATUS_ERROR_ARGUMENT_TOO_LONG */
+    "", /* 120 */
+    "", /* 121 */
+    "Invalid transaction ID", /* 122, RMF_RESPONSE_STATUS_ERROR_INVALID_TRANSACTION_ID */
+    "Device in use", /* 123, RMF_RESPONSE_STATUS_ERROR_DEVICE_IN_USE */
+    "Network unsupported", /* 124, RMF_RESPONSE_STATUS_ERROR_NETWORK_UNSUPPORTED */
+    "Device unsupported", /* 125, RMF_RESPONSE_STATUS_ERROR_DEVICE_UNSUPPORTED */
+    "No effect", /* 126, RMF_RESPONSE_STATUS_ERROR_NO_EFFECT */
+    "No free profile", /* 127, RMF_RESPONSE_STATUS_ERROR_NO_FREE_PROFILE */
+    "Invalid PDP type", /* 128, RMF_RESPONSE_STATUS_ERROR_INVALID_PDP_TYPE */
+    "Invalid technology preference", /* 129, RMF_RESPONSE_STATUS_ERROR_INVALID_TECHNOLOGY_PREFERENCE */
+    "Invalid profile type", /* 130, RMF_RESPONSE_STATUS_ERROR_INVALID_PROFILE_TYPE */
+    "Invalid service type", /* 131, RMF_RESPONSE_STATUS_ERROR_INVALID_SERVICE_TYPE */
+    "Invalid register action", /* 132, RMF_RESPONSE_STATUS_ERROR_INVALID_REGISTER_ACTION */
+    "Invalid PS attach action", /* 133, RMF_RESPONSE_STATUS_ERROR_INVALID_PS_ATTACH_ACTION */
+    "Authentication failed", /* 134, RMF_RESPONSE_STATUS_ERROR_AUTHENTICATION_FAILED */
+    "PIN blocked", /* 135, RMF_RESPONSE_STATUS_ERROR_PIN_BLOCKED */
+    "PIN always blocked", /* 136, RMF_RESPONSE_STATUS_ERROR_PIN_ALWAYS_BLOCKED */
+    "UIM uninitialized", /* 137, RMF_RESPONSE_STATUS_ERROR_UIM_UNINITIALIZED */
+    "QoS requests in use", /* 138, RMF_RESPONSE_STATUS_ERROR_MAXIMUM_QOS_REQUESTS_IN_USE */
+    "Incorrect flow filter", /* 139, RMF_RESPONSE_STATUS_ERROR_INCORRECT_FLOW_FILTER */
+    "Network QoS unaware", /* 140, RMF_RESPONSE_STATUS_ERROR_NETWORK_QOS_UNAWARE */
+    "Invalid QoS ID", /* 141, RMF_RESPONSE_STATUS_ERROR_INVALID_QOS_ID */
+    "QoS unavailable", /* 142, RMF_RESPONSE_STATUS_ERROR_QOS_UNAVAILABLE */
+    "Flow suspended", /* 143, RMF_RESPONSE_STATUS_ERROR_FLOW_SUSPENDED */
+    "", /* 144 */
+    "", /* 145 */
+    "General error", /* 146, RMF_RESPONSE_STATUS_ERROR_GENERAL_ERROR */
+    "Unknown error", /* 147, RMF_RESPONSE_STATUS_ERROR_UNKNOWN_ERROR */
+    "Invalid argument", /* 148, RMF_RESPONSE_STATUS_ERROR_INVALID_ARGUMENT */
+    "Invalid index", /* 149, RMF_RESPONSE_STATUS_ERROR_INVALID_INDEX */
+    "No entry", /* 150, RMF_RESPONSE_STATUS_ERROR_NO_ENTRY */
+    "Device storage full", /* 151, RMF_RESPONSE_STATUS_ERROR_DEVICE_STORAGE_FULL */
+    "Device not ready", /* 152, RMF_RESPONSE_STATUS_ERROR_DEVICE_NOT_READY */
+    "Network not ready", /* 153, RMF_RESPONSE_STATUS_ERROR_NETWORK_NOT_READY */
+    "WMS cause code", /* 154, RMF_RESPONSE_STATUS_ERROR_WMS_CAUSE_CODE */
+    "WMS message not sent", /* 155, RMF_RESPONSE_STATUS_ERROR_WMS_MESSAGE_NOT_SENT */
+    "WMS message delivery failure", /* 156, RMF_RESPONSE_STATUS_ERROR_WMS_MESSAGE_DELIVERY_FAILURE */
+    "WMS invalid message ID", /* 157, RMF_RESPONSE_STATUS_ERROR_WMS_INVALID_MESSAGE_ID */
+    "WMS encoding", /* 158, RMF_RESPONSE_STATUS_ERROR_WMS_ENCODING */
+    "Authentication lock", /* 159, RMF_RESPONSE_STATUS_ERROR_AUTHENTICATION_LOCK */
+    "Invalid transition", /* 160, RMF_RESPONSE_STATUS_ERROR_INVALID_TRANSITION */
+    "", /* 161 */
+    "", /* 162 */
+    "", /* 163 */
+    "", /* 164 */
+    "Session inactive", /* 165, RMF_RESPONSE_STATUS_ERROR_SESSION_INACTIVE */
+    "Session invalid", /* 166, RMF_RESPONSE_STATUS_ERROR_SESSION_INVALID */
+    "Session ownership", /* 167, RMF_RESPONSE_STATUS_ERROR_SESSION_OWNERSHIP */
+    "Insufficient resources", /* 168, RMF_RESPONSE_STATUS_ERROR_INSUFFICIENT_RESOURCES */
+    "Disabled", /* 169, RMF_RESPONSE_STATUS_ERROR_DISABLED */
+    "Invalid operation", /* 170, RMF_RESPONSE_STATUS_ERROR_INVALID_OPERATION */
+    "Invalid QMI command", /* 171, RMF_RESPONSE_STATUS_ERROR_INVALID_QMI_COMMAND */
+    "WMS T-PDU type", /* 172, RMF_RESPONSE_STATUS_ERROR_WMS_T_PDU_TYPE */
+    "WMS SMSC address", /* 173, RMF_RESPONSE_STATUS_ERROR_WMS_SMSC_ADDRESS */
+    "Information unavailable", /* 174, RMF_RESPONSE_STATUS_ERROR_INFORMATION_UNAVAILABLE */
+    "Segment too long", /* 175, RMF_RESPONSE_STATUS_ERROR_SEGMENT_TOO_LONG */
+    "Segment order", /* 176, RMF_RESPONSE_STATUS_ERROR_SEGMENT_ORDER */
+    "Bundling not supported", /* 177, RMF_RESPONSE_STATUS_ERROR_BUNDLING_NOT_SUPPORTED */
+    "", /* 178 */
+    "", /* 179 */
+    "SIM file not found", /* 180, RMF_RESPONSE_STATUS_ERROR_SIM_FILE_NOT_FOUND */
+    "Extended internal", /* 181, RMF_RESPONSE_STATUS_ERROR_EXTENDED_INTERNAL */
+    "Access denied", /* 182, RMF_RESPONSE_STATUS_ERROR_ACCESS_DENIED */
+    "Hardware restricted", /* 183, RMF_RESPONSE_STATUS_ERROR_HARDWARE_RESTRICTED */
+    "ACK not sent", /* 184, RMF_RESPONSE_STATUS_ERROR_ACK_NOT_SENT */
+    "Inject timeout", /* 185, RMF_RESPONSE_STATUS_ERROR_INJECT_TIMEOUT */
+    "", /* 186 */
+    "", /* 187 */
+    "", /* 188 */
+    "", /* 189 */
+    "Incompatible state", /* 190, RMF_RESPONSE_STATUS_ERROR_INCOMPATIBLE_STATE */
+    "FDN restrict", /* 191, RMF_RESPONSE_STATUS_ERROR_FDN_RESTRICT */
+    "SUPS failure case", /* 192, RMF_RESPONSE_STATUS_ERROR_SUPS_FAILURE_CASE */
+    "No radio", /* 193, RMF_RESPONSE_STATUS_ERROR_NO_RADIO */
+    "Not supported", /* 194, RMF_RESPONSE_STATUS_ERROR_NOT_SUPPORTED */
+    "No subscription", /* 195, RMF_RESPONSE_STATUS_ERROR_NO_SUBSCRIPTION */
+    "Card call control failed", /* 196, RMF_RESPONSE_STATUS_ERROR_CARD_CALL_CONTROL_FAILED */
+    "Network aborted", /* 197, RMF_RESPONSE_STATUS_ERROR_NETWORK_ABORTED */
+    "Msg blocked", /* 198, RMF_RESPONSE_STATUS_ERROR_MSG_BLOCKED */
+    "", /* 199 */
+    "Invalid session type", /* 200, RMF_RESPONSE_STATUS_ERROR_INVALID_SESSION_TYPE */
+    "Invalid phonebook type", /* 201, RMF_RESPONSE_STATUS_ERROR_INVALID_PB_TYPE */
+    "No SIM", /* 202, RMF_RESPONSE_STATUS_ERROR_NO_SIM */
+    "Phonebook not ready", /* 203, RMF_RESPONSE_STATUS_ERROR_PB_NOT_READY */
+    "PIN restriction", /* 204, RMF_RESPONSE_STATUS_ERROR_PIN_RESTRICTION */
+    "PIN2 restriction", /* 205, RMF_RESPONSE_STATUS_ERROR_PIN2_RESTRICTION */
+    "PUK restriction", /* 206, RMF_RESPONSE_STATUS_ERROR_PUK_RESTRICTION */
+    "PUK2 restriction", /* 207, RMF_RESPONSE_STATUS_ERROR_PUK2_RESTRICTION */
+    "Phonebook access restricted", /* 208, RMF_RESPONSE_STATUS_ERROR_PB_ACCESS_RESTRICTED */
+    "Phonebook text too long", /* 209, RMF_RESPONSE_STATUS_ERROR_PB_TEXT_TOO_LONG */
+    "Phonebook number too long", /* 210, RMF_RESPONSE_STATUS_ERROR_PB_NUMBER_TOO_LONG */
+    "Phonebook hidden key restriction", /* 211, RMF_RESPONSE_STATUS_ERROR_PB_HIDDEN_KEY_RESTRICTION */
 };
 
 /*****************************************************************************/
@@ -209,6 +319,13 @@ failed:
     return ret;
 }
 
+#define throw_response_error(status) do {                           \
+    if (status < 100)                                               \
+        throw std::runtime_error (response_status_str[status]);     \
+    else                                                            \
+        throw std::runtime_error (qmi_response_status_str[status - 100]); \
+    } while (0)
+
 /*****************************************************************************/
 
 string
@@ -231,7 +348,7 @@ Modem::GetManufacturer (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -258,7 +375,7 @@ Modem::GetModel (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -285,7 +402,7 @@ Modem::GetSoftwareRevision (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -313,7 +430,7 @@ Modem::GetHardwareRevision (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -340,7 +457,7 @@ Modem::GetImei (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -367,7 +484,7 @@ Modem::GetImsi (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -394,7 +511,7 @@ Modem::GetIccid (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return str;
 }
@@ -420,7 +537,7 @@ Modem::Unlock (const string pin)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
 
 /*****************************************************************************/
@@ -445,7 +562,7 @@ Modem::EnablePin (bool         enable,
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
 
 /*****************************************************************************/
@@ -470,7 +587,7 @@ Modem::ChangePin (const string pin,
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
 
 /*****************************************************************************/
@@ -495,7 +612,7 @@ Modem::GetPowerStatus (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return (PowerStatus) power_status;
 }
@@ -521,7 +638,7 @@ Modem::SetPowerStatus (PowerStatus power_status)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
 
 /*****************************************************************************/
@@ -585,7 +702,7 @@ Modem::GetPowerInfo (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     /* Note: power values come in scale of 0.1 dBm */
 
@@ -671,7 +788,7 @@ Modem::GetSignalInfo (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     /* GSM */
     if (gsm_available) {
@@ -739,7 +856,7 @@ Modem::GetRegistrationStatus (string   &operatorDescription,
 
     if (status != RMF_RESPONSE_STATUS_OK) {
         free (response);
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
     }
 
     operatorDescription = operator_description;
@@ -778,7 +895,7 @@ Modem::GetConnectionStatus (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     return (ConnectionStatus) connection_status;
 }
@@ -829,7 +946,7 @@ Modem::GetConnectionStats (uint32_t &txPacketsOk,
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 
     txPacketsOk = tx_packets_ok;
     rxPacketsOk = rx_packets_ok;
@@ -869,7 +986,7 @@ Modem::Connect (const string apn,
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
 
 /*****************************************************************************/
@@ -893,5 +1010,5 @@ Modem::Disconnect (void)
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)
-        throw std::runtime_error (response_status_str[status]);
+        throw_response_error (status);
 }
