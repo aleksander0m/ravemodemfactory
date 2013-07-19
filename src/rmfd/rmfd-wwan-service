@@ -38,7 +38,7 @@ DEVICE=$1
 COMMAND=$2
 PID_FILE=/var/run/rmfd-wwan-service-$DEVICE.pid
 LEASES_FILE=/var/run/rmfd-wwan-service-$DEVICE.leases
-DHCLIENT_PATH=@DHCLIENT_PATH@
+DHCLIENT_PATH=dhclient
 
 start_network ()
 {
