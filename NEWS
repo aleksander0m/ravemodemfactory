@@ -1,3 +1,11 @@
+Overview of changes in RaveModemFactory 1.4
+---------------------------------------------
+
+Bugfix release, including:
+
+ * Assume dhclient is in $PATH
+ * Pass more meaningful errors to the client
+ * Use the dhclient leases file under /var/run
 
 Overview of changes in RaveModemFactory 1.2
 ---------------------------------------------
