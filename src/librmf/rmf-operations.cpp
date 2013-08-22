@@ -518,6 +518,33 @@ Modem::GetIccid (void)
 
 /*****************************************************************************/
 
+uint8_t
+Modem::IsLocked (void)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint8_t locked;
+    int ret;
+
+    request = rmf_message_is_locked_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_is_locked_response_parse (response, &status, &locked);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw_response_error (status);
+
+    return locked;
+}
+
+/*****************************************************************************/
+
 void
 Modem::Unlock (const string pin)
 {

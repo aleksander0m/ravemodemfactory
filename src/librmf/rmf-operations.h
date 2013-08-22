@@ -103,6 +103,13 @@ namespace Modem {
     std::string GetIccid (void);
 
     /**
+     * IsLocked:
+     *
+     * Gets whether the modem is locked.
+     */
+    uint8_t IsLocked (void);
+
+    /**
      * Unlock:
      * @pin: (in) PIN to send.
      *

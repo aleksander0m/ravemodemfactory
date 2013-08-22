@@ -50,6 +50,7 @@ printHelp (void)
     std::cout << "\t-e, --get-imei" << std::endl;
     std::cout << "\t-i, --get-imsi" << std::endl;
     std::cout << "\t-o, --get-iccid" << std::endl;
+    std::cout << "\t-L, --is-locked" << std::endl;
     std::cout << "\t-U, --unlock=\"pin\"" << std::endl;
     std::cout << "\t-E, --enable-pin=\"pin\"" << std::endl;
     std::cout << "\t-G, --disable-pin=\"pin\"" << std::endl;
@@ -198,6 +199,26 @@ unlock (const std::string str)
     }
 
     std::cout << "PIN successfully unlocked" << std::endl;
+    return 0;
+}
+
+static int
+isLocked (void)
+{
+    uint8_t locked;
+
+    try {
+        locked = Modem::IsLocked ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    if (locked == 0)
+        std::cout << "PIN is unlocked" << std::endl;
+    else
+        std::cout << "PIN is locked" << std::endl;
+
     return 0;
 }
 
@@ -596,6 +617,7 @@ main (int argc, char **argv)
         { "get-imei",                no_argument, 0, 'e' },
         { "get-imsi",                no_argument, 0, 'i' },
         { "get-iccid",               no_argument, 0, 'o' },
+        { "is-locked",               no_argument, 0, 'L' },
         { "unlock",                  required_argument, 0, 'U' },
         { "enable-pin",              required_argument, 0, 'E' },
         { "disable-pin",             required_argument, 0, 'G' },
@@ -644,6 +666,8 @@ main (int argc, char **argv)
             return getImsi ();
         case 'o':
             return getIccid ();
+        case 'L':
+            return isLocked ();
         case 'U':
             return unlock (optarg);
         case 'E':

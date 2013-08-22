@@ -182,6 +182,7 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS    = 17,
     RMF_MESSAGE_COMMAND_CONNECT                 = 18,
     RMF_MESSAGE_COMMAND_DISCONNECT              = 19,
+    RMF_MESSAGE_COMMAND_IS_LOCKED               = 20,
 };
 
 /******************************************************************************/
@@ -280,6 +281,15 @@ uint8_t *rmf_message_get_iccid_response_new   (const char     *iccid);
 void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
                                                uint32_t       *status,
                                                const char    **iccid);
+
+/******************************************************************************/
+/* Is Locked */
+
+uint8_t *rmf_message_is_locked_request_new    (void);
+uint8_t *rmf_message_is_locked_response_new   (uint8_t         locked);
+void     rmf_message_is_locked_response_parse (const uint8_t  *message,
+                                               uint32_t       *status,
+                                               uint8_t        *locked);
 
 /******************************************************************************/
 /* Unlock */
