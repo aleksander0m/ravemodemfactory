@@ -305,7 +305,7 @@ request_process (RmfdManager *self,
     }
 
     if (!self->priv->processor || !self->priv->wwan) {
-        request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM);
+        request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM, "No modem");
         request_complete (request);
         request_free (request);
         return;

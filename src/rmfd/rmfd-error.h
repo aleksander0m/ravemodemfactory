@@ -38,7 +38,8 @@ typedef enum {
 
 GByteArray *rmfd_error_message_new_from_error  (const GByteArray *request,
                                                 GQuark            error_domain,
-                                                gint              error_code);
+                                                gint              error_code,
+                                                const gchar      *msg);
 
 GByteArray *rmfd_error_message_new_from_gerror (const GByteArray *request,
                                                 const GError     *error);

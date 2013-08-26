@@ -217,8 +217,12 @@ typedef enum {
 /******************************************************************************/
 /* Generic error response */
 
-uint8_t *rmf_message_error_response_new (uint32_t command,
-                                         uint32_t status);
+uint8_t *rmf_message_error_response_new   (uint32_t        command,
+                                           uint32_t        status,
+                                           const char     *msg);
+void     rmf_message_error_response_parse (const uint8_t  *message,
+                                           uint32_t       *status,
+                                           const char    **error_msg);
 
 /******************************************************************************/
 /* Get Manufacturer */

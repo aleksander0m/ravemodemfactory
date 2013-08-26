@@ -319,11 +319,20 @@ failed:
     return ret;
 }
 
-#define throw_response_error(status) do {                           \
-    if (status < 100)                                               \
-        throw std::runtime_error (response_status_str[status]);     \
-    else                                                            \
-        throw std::runtime_error (qmi_response_status_str[status - 100]); \
+#define response_error_string(status) \
+    ((status < 100) ?                                   \
+    response_status_str[status] :                       \
+    qmi_response_status_str[status - 100])
+
+#define throw_response_error(status) do {                       \
+    throw std::runtime_error (response_error_string (status));  \
+    } while (0)
+
+#define throw_verbose_response_error(status,str) do { \
+    string s(response_error_string (status));         \
+    s.append(": ");                                   \
+    s.append(str);                                    \
+    throw std::runtime_error (s);                     \
     } while (0)
 
 /*****************************************************************************/
@@ -998,6 +1007,7 @@ Modem::Connect (const string apn,
     uint8_t *request;
     uint8_t *response;
     uint32_t status;
+    const char *error_str;
     int ret;
 
     request = rmf_message_connect_request_new (apn.c_str(),
@@ -1010,10 +1020,12 @@ Modem::Connect (const string apn,
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_connect_response_parse (response, &status);
+    rmf_message_error_response_parse (response, NULL, &error_str);
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        throw_verbose_response_error (status, error_str);
+    }
 }
 
 /*****************************************************************************/

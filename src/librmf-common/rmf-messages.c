@@ -66,8 +66,9 @@ rmf_message_request_and_response_match (const uint8_t *request,
 /* Generic error response */
 
 uint8_t *
-rmf_message_error_response_new (uint32_t command,
-                                uint32_t status)
+rmf_message_error_response_new (uint32_t    command,
+                                uint32_t    status,
+                                const char *msg)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
@@ -75,10 +76,29 @@ rmf_message_error_response_new (uint32_t command,
     assert (status != RMF_RESPONSE_STATUS_OK);
 
     builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, command, status);
+    rmf_message_builder_add_string (builder, msg);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
     return message;
+}
+
+void
+rmf_message_error_response_parse (const uint8_t  *message,
+                                  uint32_t       *status,
+                                  const char    **error_msg)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        *error_msg = rmf_message_read_string (message, &offset);
+    else
+        *error_msg = NULL;
 }
 
 /******************************************************************************/

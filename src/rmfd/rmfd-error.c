@@ -32,7 +32,8 @@
 GByteArray *
 rmfd_error_message_new_from_error (const GByteArray *request,
                                    GQuark            error_domain,
-                                   gint              error_code)
+                                   gint              error_code,
+                                   const gchar      *msg)
 {
     guint32 status;
     guint8 *buffer;
@@ -64,7 +65,7 @@ rmfd_error_message_new_from_error (const GByteArray *request,
     } else
         status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;
 
-    buffer = rmf_message_error_response_new (rmf_message_get_command (request->data), status);
+    buffer = rmf_message_error_response_new (rmf_message_get_command (request->data), status, msg);
     return g_byte_array_new_take (buffer, rmf_message_get_length (buffer));
 }
 
@@ -73,5 +74,5 @@ GByteArray *
 rmfd_error_message_new_from_gerror (const GByteArray *request,
                                     const GError     *error)
 {
-    return rmfd_error_message_new_from_error (request, error->domain, error->code);
+    return rmfd_error_message_new_from_error (request, error->domain, error->code, error->message);
 }

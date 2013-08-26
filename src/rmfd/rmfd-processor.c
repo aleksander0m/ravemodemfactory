@@ -1622,6 +1622,7 @@ wds_start_network_ready (QmiClientWds *client,
                          GAsyncResult *res,
                          RunContext   *ctx)
 {
+    GByteArray *error_message = NULL;
     GError *error = NULL;
     QmiMessageWdsStartNetworkOutput *output;
 
@@ -1649,25 +1650,33 @@ wds_start_network_ready (QmiClientWds *client,
                 QmiWdsCallEndReason cer;
                 QmiWdsVerboseCallEndReasonType verbose_cer_type;
                 gint16 verbose_cer_reason;
+                const gchar *error_str;
 
                 if (qmi_message_wds_start_network_output_get_call_end_reason (
                         output,
                         &cer,
-                        NULL))
+                        NULL)) {
+                    error_str = qmi_wds_call_end_reason_get_string (cer);
                     g_warning ("call end reason (%u): '%s'",
-                               cer,
-                               qmi_wds_call_end_reason_get_string (cer));
+                               cer, error_str);
+                }
 
                 if (qmi_message_wds_start_network_output_get_verbose_call_end_reason (
                         output,
                         &verbose_cer_type,
                         &verbose_cer_reason,
-                        NULL))
+                        NULL)) {
+                    error_str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
+
                     g_warning ("verbose call end reason (%u,%d): [%s] %s",
                                verbose_cer_type,
                                verbose_cer_reason,
                                qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type),
-                               qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason));
+                               error_str);
+                }
+
+                error_message = rmfd_error_message_new_from_error (ctx->request, error->domain,
+                                                                   error->code, error_str);
             }
         }
     }
@@ -1679,9 +1688,11 @@ wds_start_network_ready (QmiClientWds *client,
     }
 
     if (error) {
+        if (!error_message)
+            error_message = rmfd_error_message_new_from_gerror (ctx->request, error);
+
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   rmfd_error_message_new_from_gerror (ctx->request, error),
+        g_simple_async_result_set_op_res_gpointer (ctx->result, error_message,
                                                    (GDestroyNotify)g_byte_array_unref);
         g_error_free (error);
         run_context_complete_and_free (ctx);
@@ -1761,14 +1772,14 @@ connect (RunContext *ctx)
             g_warning ("error connecting: currenty disconnecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
-                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
+                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE, "Currently disconnecting"),
                 (GDestroyNotify)g_byte_array_unref);
             break;
         case RMF_CONNECTION_STATUS_CONNECTING:
             g_warning ("error connecting: already connecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
-                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
+                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE, "Already connecting"),
                 (GDestroyNotify)g_byte_array_unref);
             break;
         case RMF_CONNECTION_STATUS_CONNECTED: {
@@ -1892,14 +1903,14 @@ disconnect (RunContext *ctx)
             g_warning ("error: cannot disconnect: already disconnecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
-                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
+                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE, "Already disconnecting"),
                 (GDestroyNotify)g_byte_array_unref);
             break;
         case RMF_CONNECTION_STATUS_CONNECTING:
             g_warning ("error: cannot disconnect: currently connecting");
             g_simple_async_result_set_op_res_gpointer (
                 ctx->result,
-                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE),
+                rmfd_error_message_new_from_error (ctx->request, RMFD_ERROR, RMFD_ERROR_INVALID_STATE, "Currently connecting"),
                 (GDestroyNotify)g_byte_array_unref);
             break;
         case RMF_CONNECTION_STATUS_DISCONNECTED: {
