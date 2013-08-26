@@ -291,6 +291,16 @@ static void
 request_process (RmfdManager *self,
                  Request     *request)
 {
+    if (rmf_message_get_command (request->message->data) == RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE) {
+        uint8_t modem_available;
+
+        modem_available = self->priv->processor && self->priv->wwan;
+        request->response = rmf_message_modem_is_available_response_new (modem_available);
+        request_complete (request);
+        request_free (request);
+        return;
+    }
+
     if (!self->priv->processor || !self->priv->wwan) {
         request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM);
         request_complete (request);

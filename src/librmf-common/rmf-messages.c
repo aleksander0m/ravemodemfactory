@@ -1368,3 +1368,50 @@ rmf_message_disconnect_response_parse (const uint8_t *message,
     if (status)
         *status = rmf_message_get_status (message);
 }
+
+/******************************************************************************/
+/* Modem Is Available */
+
+uint8_t *
+rmf_message_modem_is_available_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_modem_is_available_response_new (uint8_t available)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, (uint32_t) available);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_modem_is_available_response_parse (const uint8_t *message,
+                                               uint32_t      *status,
+                                               uint8_t       *available)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (available)
+        *available = (uint8_t) rmf_message_read_uint32 (message, &offset);
+}

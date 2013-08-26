@@ -183,6 +183,7 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_CONNECT                 = 18,
     RMF_MESSAGE_COMMAND_DISCONNECT              = 19,
     RMF_MESSAGE_COMMAND_IS_LOCKED               = 20,
+    RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE      = 21
 };
 
 /******************************************************************************/
@@ -484,5 +485,15 @@ uint8_t *rmf_message_disconnect_request_new    (void);
 uint8_t *rmf_message_disconnect_response_new   (void);
 void     rmf_message_disconnect_response_parse (const uint8_t *message,
                                                 uint32_t      *status);
+
+/******************************************************************************/
+/* Modem Is Available */
+
+uint8_t *rmf_message_modem_is_available_request_new    (void);
+uint8_t *rmf_message_modem_is_available_response_new   (uint8_t        available);
+void     rmf_message_modem_is_available_response_parse (const uint8_t *message,
+                                                        uint32_t      *status,
+                                                        uint8_t       *available);
+
 
 #endif /* _RMF_MESSAGES_H_ */

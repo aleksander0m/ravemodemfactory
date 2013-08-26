@@ -601,6 +601,26 @@ disconnect (void)
     return 0;
 }
 
+static int
+isAvailable (void)
+{
+    uint8_t available;
+
+    try {
+        available = Modem::IsAvailable ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    if (available == 0)
+        std::cout << "Modem is unavailable" << std::endl;
+    else
+        std::cout << "Modem is available" << std::endl;
+
+    return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -631,6 +651,7 @@ main (int argc, char **argv)
         { "get-connection-stats",    no_argument,       0, 'x' },
         { "connect",                 required_argument, 0, 'C' },
         { "disconnect",              no_argument      , 0, 'D' },
+        { "is-available",            no_argument,       0, 'A' },
         { 0,                         0,                 0, 0   },
     };
 
@@ -694,6 +715,8 @@ main (int argc, char **argv)
             return connect (optarg);
         case 'D':
             return disconnect ();
+        case 'A':
+            return isAvailable ();
         }
     }
 

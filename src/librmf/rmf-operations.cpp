@@ -1039,3 +1039,30 @@ Modem::Disconnect (void)
     if (status != RMF_RESPONSE_STATUS_OK)
         throw_response_error (status);
 }
+
+/*****************************************************************************/
+
+uint8_t
+Modem::IsAvailable (void)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint8_t available;
+    int ret;
+
+    request = rmf_message_modem_is_available_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_modem_is_available_response_parse (response, &status, &available);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw_response_error (status);
+
+    return available;
+}
