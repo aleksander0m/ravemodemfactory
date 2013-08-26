@@ -203,6 +203,7 @@ port_removed (RmfdManager *self,
         g_str_equal (g_udev_device_get_name (device),
                      g_udev_device_get_name (self->priv->wwan_port))) {
         g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan_port));
+        rmfd_wwan_setup (self->priv->wwan, FALSE, NULL, NULL);
         g_clear_object (&self->priv->wwan);
         g_clear_object (&self->priv->wwan_port);
     }
