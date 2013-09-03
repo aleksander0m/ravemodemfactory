@@ -38,6 +38,7 @@ DEVICE=$1
 COMMAND=$2
 PID_FILE=/var/run/rmfd-wwan-service-$DEVICE.pid
 LEASES_FILE=/var/run/rmfd-wwan-service-$DEVICE.leases
+RESOLV_CONF_BACKUP=/var/run/rmfd-wwan-service-$DEVICE.resolv.conf.backup
 DHCLIENT_PATH=dhclient
 
 start_network ()
@@ -50,6 +51,13 @@ start_network ()
        echoerr "error: couldn't bring up WWAN interface $DEVICE: ifconfig returned $IFUP_STATUS"
        exit -1
     fi
+
+    if [ -f $RESOLV_CONF_BACKUP ]; then
+	rm -f $RESOLV_CONF_BACKUP
+    fi
+
+    echodbg "backing up resolv.conf file"
+    cp /etc/resolv.conf $RESOLV_CONF_BACKUP
 
     DHCLIENT_CMD="$DHCLIENT_PATH -pf $PID_FILE -lf $LEASES_FILE $DEVICE"
     echodbg "requesting DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
@@ -89,6 +97,11 @@ stop_network ()
 
     if [ $ERR -eq 0 ]; then
         echodbg "WWAN interface '$DEVICE' stopped successfully"
+
+	if [ -f $RESOLV_CONF_BACKUP ]; then
+            echodbg "Restoring resolv.conf file"
+	    mv $RESOLV_CONF_BACKUP /etc/resolv.conf
+	fi
     fi
     exit $ERR
 }
