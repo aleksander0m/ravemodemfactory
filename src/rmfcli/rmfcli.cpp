@@ -602,12 +602,12 @@ disconnect (void)
 }
 
 static int
-isAvailable (void)
+isModemAvailable (void)
 {
     bool available;
 
     try {
-        available = Modem::IsAvailable ();
+        available = Modem::IsModemAvailable ();
     } catch (std::exception const& e) {
         std::cout << "Exception: " << e.what() << std::endl;
         return -1;
@@ -716,7 +716,7 @@ main (int argc, char **argv)
         case 'D':
             return disconnect ();
         case 'A':
-            return isAvailable ();
+            return isModemAvailable ();
         }
     }
 

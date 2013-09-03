@@ -1043,7 +1043,7 @@ Modem::Disconnect (void)
 /*****************************************************************************/
 
 bool
-Modem::IsAvailable (void)
+Modem::IsModemAvailable (void)
 {
     uint8_t *request;
     uint8_t *response;
@@ -1051,14 +1051,14 @@ Modem::IsAvailable (void)
     uint8_t available;
     int ret;
 
-    request = rmf_message_modem_is_available_request_new ();
+    request = rmf_message_is_modem_available_request_new ();
     ret = send_and_receive (request, 10, &response);
     free (request);
 
     if (ret != ERROR_NONE)
         throw std::runtime_error (error_strings[ret]);
 
-    rmf_message_modem_is_available_response_parse (response, &status, &available);
+    rmf_message_is_modem_available_response_parse (response, &status, &available);
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)

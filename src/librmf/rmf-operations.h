@@ -253,11 +253,11 @@ namespace Modem {
     void Disconnect (void);
 
     /**
-     * IsAvailable:
+     * IsModemAvailable:
      *
      * Gets whether a modem is available.
      */
-    bool IsAvailable (void);
+    bool IsModemAvailable (void);
 }
 
 #endif /* _RMF_OPERATIONS_H_ */
