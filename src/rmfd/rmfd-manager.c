@@ -293,9 +293,11 @@ request_process (RmfdManager *self,
 {
     if (rmf_message_get_command (request->message->data) == RMF_MESSAGE_COMMAND_MODEM_IS_AVAILABLE) {
         uint8_t modem_available;
+        uint8_t *response_buffer;
 
         modem_available = self->priv->processor && self->priv->wwan;
-        request->response = rmf_message_modem_is_available_response_new (modem_available);
+        response_buffer = rmf_message_modem_is_available_response_new (modem_available);
+        request->response = g_byte_array_new_take (response_buffer, rmf_message_get_length (response_buffer));
         request_complete (request);
         request_free (request);
         return;
