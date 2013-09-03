@@ -203,12 +203,12 @@ unlock (const std::string str)
 }
 
 static int
-isLocked (void)
+isSimLocked (void)
 {
     bool locked;
 
     try {
-        locked = Modem::IsLocked ();
+        locked = Modem::IsSimLocked ();
     } catch (std::exception const& e) {
         std::cout << "Exception: " << e.what() << std::endl;
         return -1;
@@ -688,7 +688,7 @@ main (int argc, char **argv)
         case 'o':
             return getIccid ();
         case 'L':
-            return isLocked ();
+            return isSimLocked ();
         case 'U':
             return unlock (optarg);
         case 'E':

@@ -501,7 +501,7 @@ dms_uim_get_locked_status_ready (QmiClientDms *client,
             /* This state is possibly given when after an Unblock() operation has been performed. */
         case QMI_DMS_UIM_PIN_STATUS_DISABLED:
         case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED:
-            response = rmf_message_is_locked_response_new (FALSE);
+            response = rmf_message_is_sim_locked_response_new (FALSE);
             g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                        g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                        (GDestroyNotify)g_byte_array_unref);
@@ -510,7 +510,7 @@ dms_uim_get_locked_status_ready (QmiClientDms *client,
         case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
         case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
         case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
-            response = rmf_message_is_locked_response_new (TRUE);
+            response = rmf_message_is_sim_locked_response_new (TRUE);
             g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                        g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                        (GDestroyNotify)g_byte_array_unref);
@@ -531,7 +531,7 @@ dms_uim_get_locked_status_ready (QmiClientDms *client,
 }
 
 static void
-is_locked (RunContext *ctx)
+is_sim_locked (RunContext *ctx)
 {
     /* First, check current lock status */
     qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
@@ -1988,8 +1988,8 @@ rmfd_processor_run (RmfdProcessor       *self,
     case RMF_MESSAGE_COMMAND_GET_ICCID:
         get_iccid (ctx);
         return;
-    case RMF_MESSAGE_COMMAND_IS_LOCKED:
-        is_locked (ctx);
+    case RMF_MESSAGE_COMMAND_IS_SIM_LOCKED:
+        is_sim_locked (ctx);
         return;
     case RMF_MESSAGE_COMMAND_UNLOCK:
         unlock (ctx);

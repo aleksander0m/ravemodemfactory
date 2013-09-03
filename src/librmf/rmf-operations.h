@@ -103,11 +103,11 @@ namespace Modem {
     std::string GetIccid (void);
 
     /**
-     * IsLocked:
+     * IsSimLocked:
      *
-     * Gets whether the modem is locked.
+     * Gets whether the SIM is PIN-locked.
      */
-    bool IsLocked (void);
+    bool IsSimLocked (void);
 
     /**
      * Unlock:

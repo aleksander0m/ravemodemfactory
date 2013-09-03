@@ -519,7 +519,7 @@ Modem::GetIccid (void)
 /*****************************************************************************/
 
 bool
-Modem::IsLocked (void)
+Modem::IsSimLocked (void)
 {
     uint8_t *request;
     uint8_t *response;
@@ -527,14 +527,14 @@ Modem::IsLocked (void)
     uint8_t locked;
     int ret;
 
-    request = rmf_message_is_locked_request_new ();
+    request = rmf_message_is_sim_locked_request_new ();
     ret = send_and_receive (request, 10, &response);
     free (request);
 
     if (ret != ERROR_NONE)
         throw std::runtime_error (error_strings[ret]);
 
-    rmf_message_is_locked_response_parse (response, &status, &locked);
+    rmf_message_is_sim_locked_response_parse (response, &status, &locked);
     free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK)

@@ -441,12 +441,12 @@ rmf_message_get_iccid_response_parse (const uint8_t  *message,
 /* Is Locked */
 
 uint8_t *
-rmf_message_is_locked_request_new (void)
+rmf_message_is_sim_locked_request_new (void)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_IS_LOCKED, RMF_RESPONSE_STATUS_OK);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_IS_SIM_LOCKED, RMF_RESPONSE_STATUS_OK);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -454,12 +454,12 @@ rmf_message_is_locked_request_new (void)
 }
 
 uint8_t *
-rmf_message_is_locked_response_new (uint8_t locked)
+rmf_message_is_sim_locked_response_new (uint8_t locked)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
 
-    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_IS_LOCKED, RMF_RESPONSE_STATUS_OK);
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_IS_SIM_LOCKED, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, (uint32_t) locked);
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
@@ -468,14 +468,14 @@ rmf_message_is_locked_response_new (uint8_t locked)
 }
 
 void
-rmf_message_is_locked_response_parse (const uint8_t *message,
-                                      uint32_t      *status,
-                                      uint8_t       *locked)
+rmf_message_is_sim_locked_response_parse (const uint8_t *message,
+                                          uint32_t      *status,
+                                          uint8_t       *locked)
 {
     uint32_t offset = 0;
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
-    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_IS_LOCKED);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_IS_SIM_LOCKED);
 
     if (status)
         *status = rmf_message_get_status (message);
