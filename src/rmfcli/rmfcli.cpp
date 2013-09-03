@@ -604,7 +604,7 @@ disconnect (void)
 static int
 isAvailable (void)
 {
-    uint8_t available;
+    bool available;
 
     try {
         available = Modem::IsAvailable ();
@@ -613,7 +613,7 @@ isAvailable (void)
         return -1;
     }
 
-    if (available == 0)
+    if (!available)
         std::cout << "Modem is unavailable" << std::endl;
     else
         std::cout << "Modem is available" << std::endl;

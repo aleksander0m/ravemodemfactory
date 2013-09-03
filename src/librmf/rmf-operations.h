@@ -257,7 +257,7 @@ namespace Modem {
      *
      * Gets whether a modem is available.
      */
-    uint8_t IsAvailable (void);
+    bool IsAvailable (void);
 }
 
 #endif /* _RMF_OPERATIONS_H_ */

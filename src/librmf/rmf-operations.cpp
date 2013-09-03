@@ -1042,7 +1042,7 @@ Modem::Disconnect (void)
 
 /*****************************************************************************/
 
-uint8_t
+bool
 Modem::IsAvailable (void)
 {
     uint8_t *request;
@@ -1064,5 +1064,5 @@ Modem::IsAvailable (void)
     if (status != RMF_RESPONSE_STATUS_OK)
         throw_response_error (status);
 
-    return available;
+    return (bool)available;
 }
