@@ -527,6 +527,43 @@ Modem::GetIccid (void)
 
 /*****************************************************************************/
 
+void
+Modem::GetSimInfo (uint16_t &operatorMcc,
+                   uint16_t &operatorMnc)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t operator_mcc;
+    uint32_t operator_mnc;
+    int ret;
+
+    request = rmf_message_get_sim_info_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_sim_info_response_parse (
+        response,
+        &status,
+        &operator_mcc,
+        &operator_mnc);
+
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    operatorMcc = (uint16_t)operator_mcc;
+    operatorMnc = (uint16_t)operator_mnc;
+
+    free (response);
+}
+
+/*****************************************************************************/
+
 bool
 Modem::IsSimLocked (void)
 {

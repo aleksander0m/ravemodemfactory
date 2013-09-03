@@ -24,6 +24,7 @@
  */
 
 #include <libqmi-glib.h>
+#include <string.h>
 
 #include <rmf-messages.h>
 
@@ -54,6 +55,7 @@ struct _RmfdProcessorPrivate {
     QmiClient *dms;
     QmiClient *nas;
     QmiClient *wds;
+    QmiClient *uim;
     /* Connection related info */
     RmfConnectionStatus connection_status;
     guint32 packet_data_handle;
@@ -456,6 +458,238 @@ get_iccid (RunContext *ctx)
                                   NULL,
                                   (GAsyncReadyCallback) dms_uim_get_iccid_ready,
                                   ctx);
+}
+
+/**********************/
+/* Get SIM info */
+
+typedef enum {
+    GET_SIM_INFO_STEP_FIRST,
+    GET_SIM_INFO_STEP_IMSI,
+    GET_SIM_INFO_STEP_EFAD,
+    GET_SIM_INFO_STEP_LAST
+} GetSimInfoStep;
+
+typedef struct {
+    gchar *imsi;
+    guint32 mcc;
+    guint32 mnc;
+    GetSimInfoStep step;
+} GetSimInfoContext;
+
+static void
+get_sim_info_context_free (GetSimInfoContext *ctx)
+{
+    g_free (ctx->imsi);
+    g_free (ctx);
+}
+
+static void get_sim_info_step (RunContext *ctx);
+
+static void
+sim_info_efad_uim_read_transparent_ready (QmiClientUim *client,
+                                          GAsyncResult *res,
+                                          RunContext   *ctx)
+{
+    GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
+    QmiMessageUimReadTransparentOutput *output;
+    GError *error = NULL;
+    GArray *read_result = NULL;
+    guint8 mnc_length = 2; /* default */
+
+    output = qmi_client_uim_read_transparent_finish (client, res, &error);
+    if (!output || !qmi_message_uim_read_transparent_output_get_result (output, &error)) {
+        /* Ignore the error; assume MNC length is 3 */
+        g_error_free (error);
+    } else if (qmi_message_uim_read_transparent_output_get_read_result (
+                   output,
+                   &read_result,
+                   NULL)) {
+        /* MCN length is optional; available in the 4th byte of the EFad field */
+        if (read_result->len >= 4) {
+            mnc_length = g_array_index (read_result, guint8, 3);
+            if (mnc_length != 3 && mnc_length != 2)
+                /* It must be either 3 or 2, no other values allowed. */
+                mnc_length = 2;
+        }
+    }
+
+    if (strlen (get_sim_info_ctx->imsi) >= (3 + mnc_length)) {
+        gchar aux[4];
+
+        /* Compute MCC and MNC values */
+        memcpy (aux, get_sim_info_ctx->imsi, 3);
+        aux[3] = '\0';
+        get_sim_info_ctx->mcc = atoi (aux);
+        memcpy (aux, &get_sim_info_ctx->imsi[3], mnc_length);
+        aux[mnc_length] = '\0';
+        get_sim_info_ctx->mnc = atoi (aux);
+    }
+
+    if (output)
+        qmi_message_uim_read_transparent_output_unref (output);
+
+    /* And go on */
+    get_sim_info_ctx->step++;
+    get_sim_info_step (ctx);
+}
+
+static void
+sim_info_dms_uim_get_imsi_ready (QmiClientDms *client,
+                                 GAsyncResult *res,
+                                 RunContext   *ctx)
+{
+    GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
+    QmiMessageDmsUimGetImsiOutput *output = NULL;
+    GError *error = NULL;
+    const gchar *str;
+
+    output = qmi_client_dms_uim_get_imsi_finish (client, res, &error);
+    if (!output || !qmi_message_dms_uim_get_imsi_output_get_result (output, &error)) {
+        /* Ignore these errors; just will set mcc/mnc to 0. And ignore reading
+         * EFad, as it won't be needed. */
+        g_error_free (error);
+        get_sim_info_ctx->step = GET_SIM_INFO_STEP_EFAD + 1;
+        get_sim_info_step (ctx);
+        return;
+    }
+
+    /* Store IMSI temporarily */
+    qmi_message_dms_uim_get_imsi_output_get_imsi (output, &str, NULL);
+    get_sim_info_ctx->imsi = g_strdup (str);
+
+    if (output)
+        qmi_message_dms_uim_get_imsi_output_unref (output);
+
+    /* And go on */
+    get_sim_info_ctx->step++;
+    get_sim_info_step (ctx);
+}
+
+typedef struct {
+    gchar *name;
+    guint16 path[3];
+} SimFile;
+
+static const SimFile sim_files[] = {
+    { "EFad", { 0x3F00, 0x7F20, 0x6FAD } },
+};
+
+static void
+get_sim_file_id_and_path (const gchar *file_name,
+                          guint16 *file_id,
+                          GArray **file_path)
+{
+    guint i;
+    guint8 val;
+
+    for (i = 0; i < G_N_ELEMENTS (sim_files); i++) {
+        if (g_str_equal (sim_files[i].name, file_name))
+            break;
+    }
+
+    g_assert (i != G_N_ELEMENTS (sim_files));
+
+    *file_path = g_array_sized_new (FALSE, FALSE, sizeof (guint8), 4);
+
+    val = sim_files[i].path[0] & 0xFF;
+    g_array_append_val (*file_path, val);
+    val = (sim_files[i].path[0] >> 8) & 0xFF;
+    g_array_append_val (*file_path, val);
+
+    if (sim_files[i].path[2] != 0) {
+        val = sim_files[i].path[1] & 0xFF;
+        g_array_append_val (*file_path, val);
+        val = (sim_files[i].path[1] >> 8) & 0xFF;
+        g_array_append_val (*file_path, val);
+        *file_id = sim_files[i].path[2];
+    } else {
+        *file_id = sim_files[i].path[1];
+    }
+}
+
+static void
+get_sim_info_step (RunContext *ctx)
+{
+    GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
+
+    switch (get_sim_info_ctx->step) {
+    case GET_SIM_INFO_STEP_FIRST:
+        /* Fall down */
+        get_sim_info_ctx->step++;
+
+    case GET_SIM_INFO_STEP_IMSI:
+        qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                     NULL,
+                                     5,
+                                     NULL,
+                                     (GAsyncReadyCallback) sim_info_dms_uim_get_imsi_ready,
+                                     ctx);
+        return;
+
+    case GET_SIM_INFO_STEP_EFAD: {
+        QmiMessageUimReadTransparentInput *input;
+        guint16 file_id = 0;
+        GArray *file_path = NULL;
+
+        get_sim_file_id_and_path ("EFad", &file_id, &file_path);
+
+        input = qmi_message_uim_read_transparent_input_new ();
+        qmi_message_uim_read_transparent_input_set_session_information (
+            input,
+            QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
+            "",
+            NULL);
+        qmi_message_uim_read_transparent_input_set_file (
+            input,
+            file_id,
+            file_path,
+            NULL);
+        qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
+        g_array_unref (file_path);
+
+        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (ctx->self->priv->uim),
+                                         input,
+                                         10,
+                                         NULL,
+                                         (GAsyncReadyCallback)sim_info_efad_uim_read_transparent_ready,
+                                         ctx);
+        qmi_message_uim_read_transparent_input_unref (input);
+        return;
+    }
+
+    case GET_SIM_INFO_STEP_LAST: {
+        /* Build result */
+        guint8 *response;
+
+        response = rmf_message_get_sim_info_response_new (get_sim_info_ctx->mcc,
+                                                          get_sim_info_ctx->mnc);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    default:
+        break;
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+get_sim_info (RunContext *ctx)
+{
+    GetSimInfoContext *get_sim_info_ctx;
+
+    get_sim_info_ctx = g_new0 (GetSimInfoContext, 1);
+    get_sim_info_ctx->step = GET_SIM_INFO_STEP_FIRST;
+    run_context_set_additional_context (ctx,
+                                        get_sim_info_ctx,
+                                        (GDestroyNotify)get_sim_info_context_free);
+
+    get_sim_info_step (ctx);
 }
 
 /**********************/
@@ -1999,6 +2233,9 @@ rmfd_processor_run (RmfdProcessor       *self,
     case RMF_MESSAGE_COMMAND_GET_ICCID:
         get_iccid (ctx);
         return;
+    case RMF_MESSAGE_COMMAND_GET_SIM_INFO:
+        get_sim_info (ctx);
+        return;
     case RMF_MESSAGE_COMMAND_IS_SIM_LOCKED:
         is_sim_locked (ctx);
         return;
@@ -2076,6 +2313,25 @@ initable_init_finish (GAsyncInitable  *initable,
 }
 
 static void
+allocate_uim_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->uim = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->uim) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("QMI UIM client created");
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    init_context_complete_and_free (ctx);
+}
+
+static void
 allocate_wds_client_ready (QmiDevice    *qmi_device,
                            GAsyncResult *res,
                            InitContext  *ctx)
@@ -2090,8 +2346,13 @@ allocate_wds_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI WDS client created");
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_UIM,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_uim_client_ready,
+                                ctx);
 }
 
 static void
@@ -2322,6 +2583,11 @@ dispose (GObject *object)
                                        priv->wds,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
+        if (priv->uim)
+            qmi_device_release_client (priv->qmi_device,
+                                       priv->uim,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
 
         if (!qmi_device_close (priv->qmi_device, &error)) {
             g_warning ("error closing QMI device: %s", error->message);
@@ -2333,6 +2599,7 @@ dispose (GObject *object)
     g_clear_object (&priv->dms);
     g_clear_object (&priv->nas);
     g_clear_object (&priv->wds);
+    g_clear_object (&priv->uim);
     g_clear_object (&priv->qmi_device);
     g_clear_object (&priv->file);
 

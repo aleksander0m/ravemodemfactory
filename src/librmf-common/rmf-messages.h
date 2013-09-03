@@ -183,7 +183,8 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_CONNECT                 = 18,
     RMF_MESSAGE_COMMAND_DISCONNECT              = 19,
     RMF_MESSAGE_COMMAND_IS_SIM_LOCKED           = 20,
-    RMF_MESSAGE_COMMAND_IS_MODEM_AVAILABLE      = 21
+    RMF_MESSAGE_COMMAND_IS_MODEM_AVAILABLE      = 21,
+    RMF_MESSAGE_COMMAND_GET_SIM_INFO            = 22,
 };
 
 /******************************************************************************/
@@ -286,6 +287,17 @@ uint8_t *rmf_message_get_iccid_response_new   (const char     *iccid);
 void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
                                                uint32_t       *status,
                                                const char    **iccid);
+
+/******************************************************************************/
+/* Get SIM info */
+
+uint8_t *rmf_message_get_sim_info_request_new    (void);
+uint8_t *rmf_message_get_sim_info_response_new   (uint32_t       operator_mcc,
+                                                  uint32_t       operator_mnc);
+void     rmf_message_get_sim_info_response_parse (const uint8_t *message,
+                                                  uint32_t      *status,
+                                                  uint32_t      *operator_mcc,
+                                                  uint32_t      *operator_mnc);
 
 /******************************************************************************/
 /* Is SIM Locked */

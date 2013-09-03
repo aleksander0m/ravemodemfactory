@@ -458,6 +458,65 @@ rmf_message_get_iccid_response_parse (const uint8_t  *message,
 }
 
 /******************************************************************************/
+/* Get SIM info */
+
+uint8_t *
+rmf_message_get_sim_info_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SIM_INFO, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_get_sim_info_response_new (uint32_t operator_mcc,
+                                       uint32_t operator_mnc)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIM_INFO, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, operator_mcc);
+    rmf_message_builder_add_uint32 (builder, operator_mnc);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_get_sim_info_response_parse (const uint8_t *message,
+                                         uint32_t      *status,
+                                         uint32_t      *operator_mcc,
+                                         uint32_t      *operator_mnc)
+{
+    uint32_t offset = 0;
+    uint32_t value;
+    const char *str;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_SIM_INFO);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
+    value = rmf_message_read_uint32 (message, &offset);
+    if (operator_mcc)
+        *operator_mcc = value;
+    value = rmf_message_read_uint32 (message, &offset);
+    if (operator_mnc)
+        *operator_mnc = value;
+}
+
+/******************************************************************************/
 /* Is Locked */
 
 uint8_t *

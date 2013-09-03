@@ -103,6 +103,16 @@ namespace Modem {
     std::string GetIccid (void);
 
     /**
+     * GetIccid:
+     * @operatorMcc:  (out) Mobile Country Code of the operator which issued the SIM, or 0 if unknown.
+     * @operatorMnc:  (out) Mobile Network Code of the operator which issued the SIM, or 0 if unknown.
+     *
+     * Get additional SIM info.
+     */
+    void GetSimInfo (uint16_t &operatorMcc,
+                     uint16_t &operatorMnc);
+
+    /**
      * IsSimLocked:
      *
      * Gets whether the SIM is PIN-locked.

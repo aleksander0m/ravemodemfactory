@@ -50,6 +50,7 @@ printHelp (void)
     std::cout << "\t-e, --get-imei" << std::endl;
     std::cout << "\t-i, --get-imsi" << std::endl;
     std::cout << "\t-o, --get-iccid" << std::endl;
+    std::cout << "\t-z, --get-sim-info" << std::endl;
     std::cout << "\t-L, --is-locked" << std::endl;
     std::cout << "\t-U, --unlock=\"pin\"" << std::endl;
     std::cout << "\t-E, --enable-pin=\"pin\"" << std::endl;
@@ -185,6 +186,25 @@ getIccid (void)
     }
 
     std::cout << "ICCID: "  << iccid << std::endl;
+    return 0;
+}
+
+static int
+getSimInfo (void)
+{
+    uint16_t operatorMcc;
+    uint16_t operatorMnc;
+
+    try {
+        Modem::GetSimInfo (operatorMcc, operatorMnc);
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "MCC: " << operatorMcc << std::endl;
+    std::cout << "MNC: " << operatorMnc << std::endl;
+
     return 0;
 }
 
@@ -637,6 +657,7 @@ main (int argc, char **argv)
         { "get-imei",                no_argument, 0, 'e' },
         { "get-imsi",                no_argument, 0, 'i' },
         { "get-iccid",               no_argument, 0, 'o' },
+        { "get-sim-info",            no_argument, 0, 'z' },
         { "is-locked",               no_argument, 0, 'L' },
         { "unlock",                  required_argument, 0, 'U' },
         { "enable-pin",              required_argument, 0, 'E' },
@@ -664,7 +685,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeioLU:E:G:C:pP:asrcxC:DA", longopts, &index);
+        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrcxC:DA", longopts, &index);
 
         switch (iarg) {
         case 'h':
@@ -687,6 +708,8 @@ main (int argc, char **argv)
             return getImsi ();
         case 'o':
             return getIccid ();
+        case 'z':
+            return getSimInfo ();
         case 'L':
             return isSimLocked ();
         case 'U':
