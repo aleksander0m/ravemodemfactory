@@ -106,11 +106,13 @@ namespace Modem {
      * GetIccid:
      * @operatorMcc:  (out) Mobile Country Code of the operator which issued the SIM, or 0 if unknown.
      * @operatorMnc:  (out) Mobile Network Code of the operator which issued the SIM, or 0 if unknown.
+     * @plmns: (out) List of PLMNs configured by the operator.
      *
      * Get additional SIM info.
      */
     void GetSimInfo (uint16_t &operatorMcc,
-                     uint16_t &operatorMnc);
+                     uint16_t &operatorMnc,
+                     std::vector<struct PlmnInfo>&plmns);
 
     /**
      * IsSimLocked:

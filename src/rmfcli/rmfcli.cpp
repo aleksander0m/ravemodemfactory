@@ -194,9 +194,11 @@ getSimInfo (void)
 {
     uint16_t operatorMcc;
     uint16_t operatorMnc;
+    std::vector<Modem::PlmnInfo> plmns;
+    uint32_t c = 0;
 
     try {
-        Modem::GetSimInfo (operatorMcc, operatorMnc);
+        Modem::GetSimInfo (operatorMcc, operatorMnc, plmns);
     } catch (std::exception const& e) {
         std::cout << "Exception: " << e.what() << std::endl;
         return -1;
@@ -204,6 +206,20 @@ getSimInfo (void)
 
     std::cout << "MCC: " << operatorMcc << std::endl;
     std::cout << "MNC: " << operatorMnc << std::endl;
+    if (plmns.size () == 0) {
+        std::cout << "No additional PLMN info available" << std::endl;
+        return 0;
+    }
+
+    std::cout << "Additional PLMN information:" << std::endl;
+    for (std::vector<Modem::PlmnInfo>::iterator it = plmns.begin (); it != plmns.end (); ++it, ++c) {
+        std::cout << "[" << c << "]" << std::endl;
+        std::cout << "\tMCC:  " << it->mcc << std::endl;
+        std::cout << "\tMNC:  " << it->mnc << std::endl;
+        std::cout << "\tGSM:  " << (it->gsm  ? "yes" : "no") << std::endl;
+        std::cout << "\tUMTS: " << (it->umts ? "yes" : "no") << std::endl;
+        std::cout << "\tLTE:  " << (it->lte  ? "yes" : "no") << std::endl;
+    }
 
     return 0;
 }

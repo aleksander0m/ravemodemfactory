@@ -130,6 +130,24 @@ namespace Modem {
         int32_t        rssi;
         uint32_t       quality;
     };
+
+    /**
+     * PlmnInfo:
+     * @mcc: Mobile Country Code of the PLMN.
+     * @mnc: Mobile Network Code of the PLMN.
+     * @gsm: Whether GSM is preferred.
+     * @umts: Whether UMTS is preferred.
+     * @lte: Whether LTE is preferred.
+     *
+     * PLMN information.
+     */
+    struct PlmnInfo {
+        uint16_t mcc;
+        uint16_t mnc;
+        bool     gsm;
+        bool     umts;
+        bool     lte;
+    };
 }
 
 #endif /* _RMF_TYPES_H_ */

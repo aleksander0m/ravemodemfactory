@@ -291,13 +291,25 @@ void     rmf_message_get_iccid_response_parse (const uint8_t  *message,
 /******************************************************************************/
 /* Get SIM info */
 
+typedef struct {
+    uint32_t mcc;
+    uint32_t mnc;
+    uint8_t gsm;
+    uint8_t umts;
+    uint8_t lte;
+} RmfPlmnInfo;
+
 uint8_t *rmf_message_get_sim_info_request_new    (void);
-uint8_t *rmf_message_get_sim_info_response_new   (uint32_t       operator_mcc,
-                                                  uint32_t       operator_mnc);
-void     rmf_message_get_sim_info_response_parse (const uint8_t *message,
-                                                  uint32_t      *status,
-                                                  uint32_t      *operator_mcc,
-                                                  uint32_t      *operator_mnc);
+uint8_t *rmf_message_get_sim_info_response_new   (uint32_t            operator_mcc,
+                                                  uint32_t            operator_mnc,
+                                                  uint32_t            n_plmns,
+                                                  const RmfPlmnInfo  *plmns);
+void     rmf_message_get_sim_info_response_parse (const uint8_t      *message,
+                                                  uint32_t           *status,
+                                                  uint32_t           *operator_mcc,
+                                                  uint32_t           *operator_mnc,
+                                                  uint32_t           *n_plmns,
+                                                  RmfPlmnInfo       **plmns);
 
 /******************************************************************************/
 /* Is SIM Locked */

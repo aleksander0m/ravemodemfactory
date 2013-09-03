@@ -23,6 +23,7 @@
  * Author: Aleksander Morgado <aleksander@lanedo.com>
  */
 
+#include <malloc.h>
 #include <assert.h>
 
 #include <rmf-messages.h>
@@ -474,15 +475,28 @@ rmf_message_get_sim_info_request_new (void)
 }
 
 uint8_t *
-rmf_message_get_sim_info_response_new (uint32_t operator_mcc,
-                                       uint32_t operator_mnc)
+rmf_message_get_sim_info_response_new (uint32_t           operator_mcc,
+                                       uint32_t           operator_mnc,
+                                       uint32_t           n_plmns,
+                                       const RmfPlmnInfo *plmns)
 {
     RmfMessageBuilder *builder;
     uint8_t *message;
+    uint32_t i;
 
     builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIM_INFO, RMF_RESPONSE_STATUS_OK);
     rmf_message_builder_add_uint32 (builder, operator_mcc);
     rmf_message_builder_add_uint32 (builder, operator_mnc);
+
+    rmf_message_builder_add_uint32 (builder, n_plmns);
+    for (i = 0; i < n_plmns; i++) {
+        rmf_message_builder_add_uint32 (builder, plmns[i].mcc);
+        rmf_message_builder_add_uint32 (builder, plmns[i].mnc);
+        rmf_message_builder_add_uint32 (builder, (uint32_t)plmns[i].gsm);
+        rmf_message_builder_add_uint32 (builder, (uint32_t)plmns[i].umts);
+        rmf_message_builder_add_uint32 (builder, (uint32_t)plmns[i].lte);
+    }
+
     message = rmf_message_builder_serialize (builder);
     rmf_message_builder_free (builder);
 
@@ -490,14 +504,17 @@ rmf_message_get_sim_info_response_new (uint32_t operator_mcc,
 }
 
 void
-rmf_message_get_sim_info_response_parse (const uint8_t *message,
-                                         uint32_t      *status,
-                                         uint32_t      *operator_mcc,
-                                         uint32_t      *operator_mnc)
+rmf_message_get_sim_info_response_parse (const uint8_t  *message,
+                                         uint32_t       *status,
+                                         uint32_t       *operator_mcc,
+                                         uint32_t       *operator_mnc,
+                                         uint32_t       *n_plmns,
+                                         RmfPlmnInfo   **plmns)
 {
     uint32_t offset = 0;
     uint32_t value;
     const char *str;
+    uint32_t count;
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_SIM_INFO);
@@ -514,6 +531,23 @@ rmf_message_get_sim_info_response_parse (const uint8_t *message,
     value = rmf_message_read_uint32 (message, &offset);
     if (operator_mnc)
         *operator_mnc = value;
+
+    count = rmf_message_read_uint32 (message, &offset);
+    if (n_plmns)
+        *n_plmns = count;
+
+    if (plmns) {
+        uint32_t i;
+
+        *plmns = malloc (sizeof (RmfPlmnInfo) * count);
+        for (i = 0; i < count; i++) {
+            (*plmns)[i].mcc =  rmf_message_read_uint32 (message, &offset);
+            (*plmns)[i].mnc =  rmf_message_read_uint32 (message, &offset);
+            (*plmns)[i].gsm =  (uint8_t) rmf_message_read_uint32 (message, &offset);
+            (*plmns)[i].umts = (uint8_t) rmf_message_read_uint32 (message, &offset);
+            (*plmns)[i].lte =  (uint8_t) rmf_message_read_uint32 (message, &offset);
+        }
+    }
 }
 
 /******************************************************************************/

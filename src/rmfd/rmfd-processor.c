@@ -467,6 +467,7 @@ typedef enum {
     GET_SIM_INFO_STEP_FIRST,
     GET_SIM_INFO_STEP_IMSI,
     GET_SIM_INFO_STEP_EFAD,
+    GET_SIM_INFO_STEP_EFOPLMNWACT,
     GET_SIM_INFO_STEP_LAST
 } GetSimInfoStep;
 
@@ -474,17 +475,152 @@ typedef struct {
     gchar *imsi;
     guint32 mcc;
     guint32 mnc;
+    GArray *plmns;
     GetSimInfoStep step;
 } GetSimInfoContext;
 
 static void
 get_sim_info_context_free (GetSimInfoContext *ctx)
 {
+    if (ctx->plmns)
+        g_array_unref (ctx->plmns);
     g_free (ctx->imsi);
     g_free (ctx);
 }
 
 static void get_sim_info_step (RunContext *ctx);
+
+static void
+read_bcd_encoded_mccmnc (const guint8 *data,
+                         guint32 data_len,
+                         guint32 *mcc,
+                         guint32 *mnc)
+{
+    static const gchar bcd_chars[] = "0123456789\0\0\0\0\0\0";
+    gchar mcc_str[4];
+    gchar mnc_str[4];
+
+    if (data_len < 3) {
+        *mcc = 0;
+        *mnc = 0;
+        return;
+    }
+
+    mcc_str[0] = bcd_chars[(data[0] >> 4) & 0xF];
+    mcc_str[1] = bcd_chars[data[0] & 0xF];
+    mcc_str[2] = bcd_chars[(data[1] >> 4) & 0xF];
+    mcc_str[3] = '\0';
+    *mcc = atoi (mcc_str);
+
+    mnc_str[0] = bcd_chars[data[1] & 0xF];
+    mnc_str[1] = bcd_chars[(data[2] >> 4) & 0xF];
+    mnc_str[2] = bcd_chars[data[2] & 0xF];
+    /* This one may be '1111' if 2-digit MNC, which will translate to '\0' anyway */
+    mnc_str[3] = '\0';
+    *mnc = atoi (mnc_str);
+}
+
+static void
+read_act (const guint8 *data,
+          guint32 data_len,
+          guint8 *gsm,
+          guint8 *umts,
+          guint8 *lte)
+{
+    *gsm = FALSE;
+    *umts = FALSE;
+    *lte = FALSE;
+
+    if (data_len < 2)
+        return;
+
+    if (data[0] & 0x80)
+        *umts = TRUE;
+    if (data[0] & 0x40)
+        *lte = TRUE;
+    if (data[1] & 0x80)
+        *gsm = TRUE;
+}
+
+static void
+parse_plmns (GetSimInfoContext *get_sim_info_ctx,
+             const guint8 *bytearray,
+             guint32 bytearray_size)
+{
+    guint i;
+
+    if (!bytearray || !bytearray_size)
+        return;
+
+    get_sim_info_ctx->plmns = g_array_sized_new (FALSE,
+                                                 FALSE,
+                                                 sizeof (RmfPlmnInfo),
+                                                 (bytearray_size / 5) + 1);
+
+    for (i = 0; (bytearray_size - i) >= 5; i+=5) {
+        RmfPlmnInfo plmn;
+
+        read_bcd_encoded_mccmnc (&bytearray[i],
+                                 bytearray_size - i,
+                                 &plmn.mcc,
+                                 &plmn.mnc);
+
+        read_act (&bytearray[i + 3],
+                  bytearray_size - i - 3,
+                  &plmn.gsm,
+                  &plmn.umts,
+                  &plmn.lte);
+
+        g_array_append_val (get_sim_info_ctx->plmns, plmn);
+    }
+}
+
+static void
+sim_info_efoplmnwact_uim_read_transparent_ready (QmiClientUim *client,
+                                                 GAsyncResult *res,
+                                                 RunContext   *ctx)
+{
+    GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
+    QmiMessageUimReadTransparentOutput *output;
+
+    /* Enable for testing */
+#if 0
+    {
+        static const guint8 example[] = {
+            0x21, 0x40, 0x3F, 0x40, 0x00, /* MCC:214, MNC:03, LTE */
+            0x21, 0x40, 0x3F, 0x80, 0x80, /* MCC:214, MNC:03, GSM, UMTS */
+            0x21, 0x40, 0x3F, 0xC0, 0x80, /* MCC:214, MNC:03, GSM, UMTS, LTE */
+        };
+
+        parse_plmns (get_sim_info_ctx, example, G_N_ELEMENTS (example));
+
+        /* Always call finish() for completeness */
+        output = qmi_client_uim_read_transparent_finish (client, res, NULL);
+    }
+#else
+    {
+        GError *error = NULL;
+        GArray *read_result = NULL;
+
+        output = qmi_client_uim_read_transparent_finish (client, res, &error);
+        if (!output || !qmi_message_uim_read_transparent_output_get_result (output, &error)) {
+            g_error_free (error);
+        } else if (qmi_message_uim_read_transparent_output_get_read_result (
+                       output,
+                       &read_result,
+                       NULL)) {
+            parse_plmns (get_sim_info_ctx, read_result->data, read_result->len);
+        }
+    }
+#endif
+
+    if (output)
+        qmi_message_uim_read_transparent_output_unref (output);
+
+    /* And go on */
+    get_sim_info_ctx->step++;
+    get_sim_info_step (ctx);
+}
 
 static void
 sim_info_efad_uim_read_transparent_ready (QmiClientUim *client,
@@ -572,7 +708,8 @@ typedef struct {
 } SimFile;
 
 static const SimFile sim_files[] = {
-    { "EFad", { 0x3F00, 0x7F20, 0x6FAD } },
+    { "EFad",        { 0x3F00, 0x7F20, 0x6FAD } },
+    { "EFoplmnwact", { 0x3F00, 0x7F20, 0x6F61 } },
 };
 
 static void
@@ -658,12 +795,45 @@ get_sim_info_step (RunContext *ctx)
         return;
     }
 
+    case GET_SIM_INFO_STEP_EFOPLMNWACT: {
+        QmiMessageUimReadTransparentInput *input;
+        guint16 file_id = 0;
+        GArray *file_path = NULL;
+
+        get_sim_file_id_and_path ("EFoplmnwact", &file_id, &file_path);
+
+        input = qmi_message_uim_read_transparent_input_new ();
+        qmi_message_uim_read_transparent_input_set_session_information (
+            input,
+            QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
+            "",
+            NULL);
+        qmi_message_uim_read_transparent_input_set_file (
+            input,
+            file_id,
+            file_path,
+            NULL);
+        qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
+        g_array_unref (file_path);
+
+        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (ctx->self->priv->uim),
+                                         input,
+                                         10,
+                                         NULL,
+                                         (GAsyncReadyCallback)sim_info_efoplmnwact_uim_read_transparent_ready,
+                                         ctx);
+        qmi_message_uim_read_transparent_input_unref (input);
+        return;
+    }
+
     case GET_SIM_INFO_STEP_LAST: {
         /* Build result */
         guint8 *response;
 
         response = rmf_message_get_sim_info_response_new (get_sim_info_ctx->mcc,
-                                                          get_sim_info_ctx->mnc);
+                                                          get_sim_info_ctx->mnc,
+                                                          get_sim_info_ctx->plmns ? get_sim_info_ctx->plmns->len : 0,
+                                                          get_sim_info_ctx->plmns ? (const RmfPlmnInfo *)get_sim_info_ctx->plmns->data : NULL);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                    g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                    (GDestroyNotify)g_byte_array_unref);

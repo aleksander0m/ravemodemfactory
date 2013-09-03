@@ -529,7 +529,8 @@ Modem::GetIccid (void)
 
 void
 Modem::GetSimInfo (uint16_t &operatorMcc,
-                   uint16_t &operatorMnc)
+                   uint16_t &operatorMnc,
+                   std::vector<struct PlmnInfo>&plmns)
 {
     uint8_t *request;
     uint8_t *response;
@@ -537,6 +538,9 @@ Modem::GetSimInfo (uint16_t &operatorMcc,
     uint32_t operator_mcc;
     uint32_t operator_mnc;
     int ret;
+    RmfPlmnInfo *infos;
+    uint32_t n_infos;
+    uint32_t i;
 
     request = rmf_message_get_sim_info_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -549,7 +553,9 @@ Modem::GetSimInfo (uint16_t &operatorMcc,
         response,
         &status,
         &operator_mcc,
-        &operator_mnc);
+        &operator_mnc,
+        &n_infos,
+        &infos);
 
     if (status != RMF_RESPONSE_STATUS_OK) {
         free (response);
@@ -558,6 +564,19 @@ Modem::GetSimInfo (uint16_t &operatorMcc,
 
     operatorMcc = (uint16_t)operator_mcc;
     operatorMnc = (uint16_t)operator_mnc;
+    for (i = 0; i < n_infos; i++) {
+        struct PlmnInfo plmn;
+
+        plmn.mcc  = (uint16_t)infos[i].mcc;
+        plmn.mnc  = (uint16_t)infos[i].mnc;
+        plmn.gsm  = (bool)infos[i].gsm;
+        plmn.umts = (bool)infos[i].umts;
+        plmn.lte  = (bool)infos[i].lte;
+        plmns.push_back (plmn);
+    }
+
+    if (infos)
+        free (infos);
 
     free (response);
 }
