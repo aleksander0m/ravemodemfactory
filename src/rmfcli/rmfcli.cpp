@@ -643,7 +643,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeioU:E:G:C:pP:asrcxC:D", longopts, &index);
+        iarg = getopt_long (argc, argv, "vhfdjkeioLU:E:G:C:pP:asrcxC:D", longopts, &index);
 
         switch (iarg) {
         case 'h':
