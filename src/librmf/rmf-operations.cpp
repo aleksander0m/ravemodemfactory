@@ -518,7 +518,7 @@ Modem::GetIccid (void)
 
 /*****************************************************************************/
 
-uint8_t
+bool
 Modem::IsLocked (void)
 {
     uint8_t *request;
@@ -540,7 +540,7 @@ Modem::IsLocked (void)
     if (status != RMF_RESPONSE_STATUS_OK)
         throw_response_error (status);
 
-    return locked;
+    return (bool)locked;
 }
 
 /*****************************************************************************/

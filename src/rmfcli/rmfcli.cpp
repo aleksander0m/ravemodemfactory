@@ -205,7 +205,7 @@ unlock (const std::string str)
 static int
 isLocked (void)
 {
-    uint8_t locked;
+    bool locked;
 
     try {
         locked = Modem::IsLocked ();
@@ -214,7 +214,7 @@ isLocked (void)
         return -1;
     }
 
-    if (locked == 0)
+    if (!locked)
         std::cout << "PIN is unlocked" << std::endl;
     else
         std::cout << "PIN is locked" << std::endl;

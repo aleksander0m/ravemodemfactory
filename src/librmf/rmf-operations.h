@@ -107,7 +107,7 @@ namespace Modem {
      *
      * Gets whether the modem is locked.
      */
-    uint8_t IsLocked (void);
+    bool IsLocked (void);
 
     /**
      * Unlock:
