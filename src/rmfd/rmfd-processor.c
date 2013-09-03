@@ -1990,6 +1990,7 @@ rmfd_processor_run (RmfdProcessor       *self,
         return;
     case RMF_MESSAGE_COMMAND_IS_LOCKED:
         is_locked (ctx);
+        return;
     case RMF_MESSAGE_COMMAND_UNLOCK:
         unlock (ctx);
         return;
