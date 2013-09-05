@@ -1063,7 +1063,6 @@ Modem::Connect (const string apn,
     uint8_t *request;
     uint8_t *response;
     uint32_t status;
-    const char *error_str;
     int ret;
 
     request = rmf_message_connect_request_new (apn.c_str(),
@@ -1076,12 +1075,15 @@ Modem::Connect (const string apn,
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_connect_response_parse (response, &status);
-    rmf_message_error_response_parse (response, NULL, &error_str);
-    free (response);
 
     if (status != RMF_RESPONSE_STATUS_OK) {
+        const char *error_str;
+
+        rmf_message_error_response_parse (response, NULL, &error_str);
         throw_verbose_response_error (status, error_str);
     }
+
+    free (response);
 }
 
 /*****************************************************************************/
