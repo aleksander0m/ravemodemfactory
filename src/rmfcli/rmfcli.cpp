@@ -65,6 +65,7 @@ printHelp (void)
     std::cout << "\t-x, --get-connection-stats" << std::endl;
     std::cout << "\t-C, --connect=\"apn user password\"" << std::endl;
     std::cout << "\t-D, --disconnect" << std::endl;
+    std::cout << "\t-A, --is-available" << std::endl;
     std::cout << std::endl;
 }
 
