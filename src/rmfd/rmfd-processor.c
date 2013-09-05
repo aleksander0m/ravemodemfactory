@@ -2054,15 +2054,23 @@ wds_start_network_ready (QmiClientWds *client,
                 QmiWdsCallEndReason cer;
                 QmiWdsVerboseCallEndReasonType verbose_cer_type;
                 gint16 verbose_cer_reason;
-                const gchar *error_str;
+                GString *error_str;
 
+                error_str = g_string_new ("");
                 if (qmi_message_wds_start_network_output_get_call_end_reason (
                         output,
                         &cer,
                         NULL)) {
-                    error_str = qmi_wds_call_end_reason_get_string (cer);
+                    const gchar *str;
+
+                    str = qmi_wds_call_end_reason_get_string (cer);
                     g_warning ("call end reason (%u): '%s'",
-                               cer, error_str);
+                               cer, str ? str : "unknown error");
+                    if (str)
+                        g_string_append_printf (error_str,
+                                                "%s (%u)",
+                                                str,
+                                                (guint)cer);
                 }
 
                 if (qmi_message_wds_start_network_output_get_verbose_call_end_reason (
@@ -2070,17 +2078,32 @@ wds_start_network_ready (QmiClientWds *client,
                         &verbose_cer_type,
                         &verbose_cer_reason,
                         NULL)) {
-                    error_str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
+                    const gchar *str;
+                    const gchar *domain_str;
 
+                    domain_str = qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type),
+                    str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
                     g_warning ("verbose call end reason (%u,%d): [%s] %s",
                                verbose_cer_type,
                                verbose_cer_reason,
-                               qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type),
-                               error_str);
+                               domain_str,
+                               str);
+
+                    if (domain_str || str)
+                        g_string_append_printf (error_str,
+                                                "%s[%s (%u)] %s (%d)",
+                                                error_str->len > 0 ? ": " : "",
+                                                domain_str ? domain_str : "unknown domain",
+                                                (guint)verbose_cer_type,
+                                                str ? str : "unknown error",
+                                                verbose_cer_reason);
                 }
 
-                error_message = rmfd_error_message_new_from_error (ctx->request, error->domain,
-                                                                   error->code, error_str);
+                error_message = rmfd_error_message_new_from_error (ctx->request,
+                                                                   error->domain,
+                                                                   error->code,
+                                                                   error_str->len > 0 ? error_str->str : "unknown error");
+                g_string_free (error_str, TRUE);
             }
         }
     }
