@@ -48,15 +48,19 @@ command ()
     fi
 }
 
+command rmfcli --is-available
 command rmfcli --get-manufacturer
 command rmfcli --get-model
 command rmfcli --get-software-revision
 command rmfcli --get-hardware-revision
 command rmfcli --get-imei
 command rmfcli --get-iccid
+command rmfcli --is-locked
 command rmfcli --unlock=$PIN
+command rmfcli --is-locked
 # IMSI readable only after PIN unlocked
 command rmfcli --get-imsi
+command rmfcli --get-sim-info
 command rmfcli --disable-pin=$PIN
 command rmfcli --enable-pin=$PIN
 command rmfcli --change-pin=\"$PIN 0000\"

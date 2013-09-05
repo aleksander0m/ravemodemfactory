@@ -3,6 +3,9 @@ This tester runs all available commands one after the other.
 
 $ sudo ./test/rmfcli-test-all 7423 ac.vodafone.es
 ======================================
+rmfcli --is-available
+Modem is available
+======================================
 rmfcli --get-manufacturer
 Manufacturer: Sierra Wireless, Incorporated
 ======================================
@@ -21,9 +24,22 @@ IMEI: 358178040668164
 rmfcli --get-iccid
 ICCID: 8934565521300460932
 ======================================
+rmfcli --is-locked
+PIN is unlocked
+======================================
 rmfcli --unlock=7423
+PIN successfully unlocked
+======================================
+rmfcli --is-locked
+PIN is unlocked
+======================================
 rmfcli --get-imsi
 IMSI: 214015515415848
+======================================
+rmfcli --get-sim-info
+MCC: 214
+MNC: 1
+No additional PLMN info available
 ======================================
 rmfcli --disable-pin=7423
 PIN successfully disabled
@@ -48,8 +64,8 @@ Power status successfully changed
 ======================================
 rmfcli --get-signal-info
 UMTS:
-	RSSI: -84 dBm
-	Quality: 47%
+	RSSI: -81 dBm
+	Quality: 52%
 ======================================
 rmfcli --get-registration-status
 Registration status: Home
@@ -57,7 +73,7 @@ MCC: 214
 MNC: 1
 Operator: vodafone ES
 Location Area code: 12741
-Cell ID: 8592480
+Cell ID: 8648653
 ======================================
 rmfcli --get-connection-status
 Connection status: Disconnected
@@ -65,20 +81,23 @@ Connection status: Disconnected
 rmfcli --connect=ac.vodafone.es
 Modem successfully connected
 ======================================
+rmfcli --get-connection-status
+Connection status: Connected
+======================================
 rmfcli --get-power-info
 UMTS:
 	In traffic: yes
-	TX power: 0 dBm
+	TX power: -0.1 dBm
 	RX 0 tuned: yes
-	RX 0 power: -84 dBm
+	RX 0 power: -79.2 dBm
 	RX 1 tuned: yes
 	RX 1 power: -106 dBm
 ======================================
 rmfcli --get-connection-stats
 Connection stats:
-	TX Packets Ok: 15
+	TX Packets Ok: 19
 	RX Packets Ok: 4
-	TX Bytes Ok: 2799
+	TX Bytes Ok: 6085
 	RX Bytes Ok: 456
 ======================================
 rmfcli --disconnect
