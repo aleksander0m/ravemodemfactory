@@ -629,37 +629,41 @@ sim_info_efad_uim_read_transparent_ready (QmiClientUim *client,
 {
     GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
     QmiMessageUimReadTransparentOutput *output;
-    GError *error = NULL;
     GArray *read_result = NULL;
-    guint8 mnc_length = 2; /* default */
+    guint8 mnc_length = 0; /* just to mark it invalid */
 
-    output = qmi_client_uim_read_transparent_finish (client, res, &error);
-    if (!output || !qmi_message_uim_read_transparent_output_get_result (output, &error)) {
-        /* Ignore the error; assume MNC length is 3 */
-        g_error_free (error);
-    } else if (qmi_message_uim_read_transparent_output_get_read_result (
-                   output,
-                   &read_result,
-                   NULL)) {
+    output = qmi_client_uim_read_transparent_finish (client, res, NULL);
+    if (output &&
+        qmi_message_uim_read_transparent_output_get_result (output, NULL) &&
+        qmi_message_uim_read_transparent_output_get_read_result (
+            output,
+            &read_result,
+            NULL)) {
         /* MCN length is optional; available in the 4th byte of the EFad field */
         if (read_result->len >= 4) {
             mnc_length = g_array_index (read_result, guint8, 3);
             if (mnc_length != 3 && mnc_length != 2)
                 /* It must be either 3 or 2, no other values allowed. */
-                mnc_length = 2;
+                mnc_length = 0; /* invalid */
         }
     }
 
-    if (strlen (get_sim_info_ctx->imsi) >= (3 + mnc_length)) {
+    /* Compute MCC and MNC values */
+    if (strlen (get_sim_info_ctx->imsi) >= 3) {
         gchar aux[4];
 
-        /* Compute MCC and MNC values */
         memcpy (aux, get_sim_info_ctx->imsi, 3);
         aux[3] = '\0';
         get_sim_info_ctx->mcc = atoi (aux);
-        memcpy (aux, &get_sim_info_ctx->imsi[3], mnc_length);
-        aux[mnc_length] = '\0';
-        get_sim_info_ctx->mnc = atoi (aux);
+
+        if (mnc_length == 0)
+            mnc_length = rmfd_utils_get_mnc_length_for_mcc (aux);
+
+        if (strlen (get_sim_info_ctx->imsi) >= (3 + mnc_length)) {
+            memcpy (aux, &get_sim_info_ctx->imsi[3], mnc_length);
+            aux[mnc_length] = '\0';
+            get_sim_info_ctx->mnc = atoi (aux);
+        }
     }
 
     if (output)
