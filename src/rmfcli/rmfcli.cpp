@@ -27,6 +27,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <cstdlib>
 #include <getopt.h>
 
 #include <rmf-types.h>
@@ -61,6 +62,8 @@ printHelp (void)
     std::cout << "\t-a, --get-power-info" << std::endl;
     std::cout << "\t-s, --get-signal-info" << std::endl;
     std::cout << "\t-r, --get-registration-status" << std::endl;
+    std::cout << "\t-t, --get-registration-timeout" << std::endl;
+    std::cout << "\t-T, --set-registration-timeout=\"timeout\"" << std::endl;
     std::cout << "\t-c, --get-connection-status" << std::endl;
     std::cout << "\t-x, --get-connection-stats" << std::endl;
     std::cout << "\t-C, --connect=\"apn user password\"" << std::endl;
@@ -511,6 +514,44 @@ getRegistrationStatus (void)
 }
 
 static int
+getRegistrationTimeout (void)
+{
+    uint32_t timeout;
+
+    try {
+        timeout = Modem::GetRegistrationTimeout ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "Registration timeout: " << timeout << std::endl;
+    return 0;
+}
+
+static int
+setRegistrationTimeout (const std::string str)
+{
+    int32_t timeout;
+
+    timeout = atoi (str.c_str());
+    if (timeout <= 0) {
+        std::cout << "Invalid timeout value given: " << str << std::endl;
+        return -1;
+    }
+
+    try {
+        Modem::SetRegistrationTimeout ((uint32_t)timeout);
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "Registration timeout correctly updated " << std::endl;
+    return 0;
+}
+
+static int
 getConnectionStatus (void)
 {
     Modem::ConnectionStatus connectionStatus;
@@ -665,32 +706,34 @@ main (int argc, char **argv)
     int iarg = 0;
 
     const struct option longopts[] = {
-        { "version",                 no_argument, 0, 'v' },
-        { "help",                    no_argument, 0, 'h' },
-        { "get-manufacturer",        no_argument, 0, 'f' },
-        { "get-model",               no_argument, 0, 'd' },
-        { "get-software-revision",   no_argument, 0, 'j' },
-        { "get-hardware-revision",   no_argument, 0, 'k' },
-        { "get-imei",                no_argument, 0, 'e' },
-        { "get-imsi",                no_argument, 0, 'i' },
-        { "get-iccid",               no_argument, 0, 'o' },
-        { "get-sim-info",            no_argument, 0, 'z' },
-        { "is-locked",               no_argument, 0, 'L' },
-        { "unlock",                  required_argument, 0, 'U' },
-        { "enable-pin",              required_argument, 0, 'E' },
-        { "disable-pin",             required_argument, 0, 'G' },
-        { "change-pin",              required_argument, 0, 'F' },
-        { "get-power-status",        no_argument,       0, 'p' },
-        { "set-power-status",        required_argument, 0, 'P' },
-        { "get-power-info",          no_argument,       0, 'a' },
-        { "get-signal-info",         no_argument,       0, 's' },
-        { "get-registration-status", no_argument,       0, 'r' },
-        { "get-connection-status",   no_argument,       0, 'c' },
-        { "get-connection-stats",    no_argument,       0, 'x' },
-        { "connect",                 required_argument, 0, 'C' },
-        { "disconnect",              no_argument      , 0, 'D' },
-        { "is-available",            no_argument,       0, 'A' },
-        { 0,                         0,                 0, 0   },
+        { "version",                  no_argument, 0, 'v' },
+        { "help",                     no_argument, 0, 'h' },
+        { "get-manufacturer",         no_argument, 0, 'f' },
+        { "get-model",                no_argument, 0, 'd' },
+        { "get-software-revision",    no_argument, 0, 'j' },
+        { "get-hardware-revision",    no_argument, 0, 'k' },
+        { "get-imei",                 no_argument, 0, 'e' },
+        { "get-imsi",                 no_argument, 0, 'i' },
+        { "get-iccid",                no_argument, 0, 'o' },
+        { "get-sim-info",             no_argument, 0, 'z' },
+        { "is-locked",                no_argument, 0, 'L' },
+        { "unlock",                   required_argument, 0, 'U' },
+        { "enable-pin",               required_argument, 0, 'E' },
+        { "disable-pin",              required_argument, 0, 'G' },
+        { "change-pin",               required_argument, 0, 'F' },
+        { "get-power-status",         no_argument,       0, 'p' },
+        { "set-power-status",         required_argument, 0, 'P' },
+        { "get-power-info",           no_argument,       0, 'a' },
+        { "get-signal-info",          no_argument,       0, 's' },
+        { "get-registration-status",  no_argument,       0, 'r' },
+        { "get-registration-timeout", no_argument,       0, 't' },
+        { "set-registration-timeout", required_argument, 0, 'T' },
+        { "get-connection-status",    no_argument,       0, 'c' },
+        { "get-connection-stats",     no_argument,       0, 'x' },
+        { "connect",                  required_argument, 0, 'C' },
+        { "disconnect",               no_argument      , 0, 'D' },
+        { "is-available",             no_argument,       0, 'A' },
+        { 0,                          0,                 0, 0   },
     };
 
     if (argc != 2) {
@@ -702,7 +745,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrcxC:DA", longopts, &index);
+        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrtT:cxC:DA", longopts, &index);
 
         switch (iarg) {
         case 'h':
@@ -747,6 +790,10 @@ main (int argc, char **argv)
             return getSignalInfo ();
         case 'r':
             return getRegistrationStatus ();
+        case 't':
+            return getRegistrationTimeout ();
+        case 'T':
+            return setRegistrationTimeout (optarg);
         case 'c':
             return getConnectionStatus ();
         case 'x':
