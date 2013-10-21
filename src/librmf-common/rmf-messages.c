@@ -1528,3 +1528,106 @@ rmf_message_is_modem_available_response_parse (const uint8_t *message,
     if (available)
         *available = (uint8_t) rmf_message_read_uint32 (message, &offset);
 }
+
+/******************************************************************************/
+/* Modem Get Registration Timeout */
+
+uint8_t *
+rmf_message_get_registration_timeout_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_get_registration_timeout_response_new (uint32_t timeout)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, timeout);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_get_registration_timeout_response_parse (const uint8_t *message,
+                                                     uint32_t      *status,
+                                                     uint32_t      *timeout)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (timeout)
+        *timeout = rmf_message_read_uint32 (message, &offset);
+}
+
+/******************************************************************************/
+/* Modem Set Registration Timeout */
+
+uint8_t *
+rmf_message_set_registration_timeout_request_new (uint32_t timeout)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, timeout);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_set_registration_timeout_request_parse (const uint8_t *message,
+                                                    uint32_t      *timeout)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT);
+
+    if (timeout)
+        *timeout = rmf_message_read_uint32 (message, &offset);
+}
+
+uint8_t *
+rmf_message_set_registration_timeout_response_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_set_registration_timeout_response_parse (const uint8_t *message,
+                                                     uint32_t      *status)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+}

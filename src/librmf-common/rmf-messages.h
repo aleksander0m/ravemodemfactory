@@ -162,29 +162,31 @@ enum RmfMessageType {
 };
 
 enum RmfMessageCommand {
-    RMF_MESSAGE_COMMAND_UNKNOWN                 = 0,
-    RMF_MESSAGE_COMMAND_GET_MANUFACTURER        = 1,
-    RMF_MESSAGE_COMMAND_GET_MODEL               = 2,
-    RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION   = 3,
-    RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION   = 4,
-    RMF_MESSAGE_COMMAND_GET_IMEI                = 5,
-    RMF_MESSAGE_COMMAND_GET_IMSI                = 6,
-    RMF_MESSAGE_COMMAND_GET_ICCID               = 7,
-    RMF_MESSAGE_COMMAND_UNLOCK                  = 8,
-    RMF_MESSAGE_COMMAND_ENABLE_PIN              = 9,
-    RMF_MESSAGE_COMMAND_CHANGE_PIN              = 10,
-    RMF_MESSAGE_COMMAND_GET_POWER_STATUS        = 11,
-    RMF_MESSAGE_COMMAND_SET_POWER_STATUS        = 12,
-    RMF_MESSAGE_COMMAND_GET_POWER_INFO          = 13,
-    RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO         = 14,
-    RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS = 15,
-    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS   = 16,
-    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS    = 17,
-    RMF_MESSAGE_COMMAND_CONNECT                 = 18,
-    RMF_MESSAGE_COMMAND_DISCONNECT              = 19,
-    RMF_MESSAGE_COMMAND_IS_SIM_LOCKED           = 20,
-    RMF_MESSAGE_COMMAND_IS_MODEM_AVAILABLE      = 21,
-    RMF_MESSAGE_COMMAND_GET_SIM_INFO            = 22,
+    RMF_MESSAGE_COMMAND_UNKNOWN                  = 0,
+    RMF_MESSAGE_COMMAND_GET_MANUFACTURER         = 1,
+    RMF_MESSAGE_COMMAND_GET_MODEL                = 2,
+    RMF_MESSAGE_COMMAND_GET_SOFTWARE_REVISION    = 3,
+    RMF_MESSAGE_COMMAND_GET_HARDWARE_REVISION    = 4,
+    RMF_MESSAGE_COMMAND_GET_IMEI                 = 5,
+    RMF_MESSAGE_COMMAND_GET_IMSI                 = 6,
+    RMF_MESSAGE_COMMAND_GET_ICCID                = 7,
+    RMF_MESSAGE_COMMAND_UNLOCK                   = 8,
+    RMF_MESSAGE_COMMAND_ENABLE_PIN               = 9,
+    RMF_MESSAGE_COMMAND_CHANGE_PIN               = 10,
+    RMF_MESSAGE_COMMAND_GET_POWER_STATUS         = 11,
+    RMF_MESSAGE_COMMAND_SET_POWER_STATUS         = 12,
+    RMF_MESSAGE_COMMAND_GET_POWER_INFO           = 13,
+    RMF_MESSAGE_COMMAND_GET_SIGNAL_INFO          = 14,
+    RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS  = 15,
+    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS    = 16,
+    RMF_MESSAGE_COMMAND_GET_CONNECTION_STATS     = 17,
+    RMF_MESSAGE_COMMAND_CONNECT                  = 18,
+    RMF_MESSAGE_COMMAND_DISCONNECT               = 19,
+    RMF_MESSAGE_COMMAND_IS_SIM_LOCKED            = 20,
+    RMF_MESSAGE_COMMAND_IS_MODEM_AVAILABLE       = 21,
+    RMF_MESSAGE_COMMAND_GET_SIM_INFO             = 22,
+    RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT = 23,
+    RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT = 24
 };
 
 /******************************************************************************/
@@ -522,6 +524,25 @@ uint8_t *rmf_message_is_modem_available_response_new   (uint8_t        available
 void     rmf_message_is_modem_available_response_parse (const uint8_t *message,
                                                         uint32_t      *status,
                                                         uint8_t       *available);
+
+/******************************************************************************/
+/* Modem Get Registration Timeout */
+
+uint8_t *rmf_message_get_registration_timeout_request_new    (void);
+uint8_t *rmf_message_get_registration_timeout_response_new   (uint32_t       timeout);
+void     rmf_message_get_registration_timeout_response_parse (const uint8_t *message,
+                                                              uint32_t      *status,
+                                                              uint32_t      *timeout);
+
+/******************************************************************************/
+/* Modem Set Registration Timeout */
+
+uint8_t *rmf_message_set_registration_timeout_request_new    (uint32_t      timeout);
+void     rmf_message_set_registration_timeout_request_parse  (const uint8_t *message,
+                                                              uint32_t      *timeout);
+uint8_t *rmf_message_set_registration_timeout_response_new   (void);
+void     rmf_message_set_registration_timeout_response_parse (const uint8_t *message,
+                                                              uint32_t      *status);
 
 
 #endif /* _RMF_MESSAGES_H_ */

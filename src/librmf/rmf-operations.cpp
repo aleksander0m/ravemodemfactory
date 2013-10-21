@@ -1136,3 +1136,54 @@ Modem::IsModemAvailable (void)
 
     return (bool)available;
 }
+
+/*****************************************************************************/
+
+uint32_t
+Modem::GetRegistrationTimeout (void)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    uint32_t timeout;
+    int ret;
+
+    request = rmf_message_get_registration_timeout_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_registration_timeout_response_parse (response, &status, &timeout);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw_response_error (status);
+
+    return timeout;
+}
+
+/*****************************************************************************/
+
+void
+Modem::SetRegistrationTimeout (uint32_t timeout)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+
+    request = rmf_message_set_registration_timeout_request_new (timeout);
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_set_registration_timeout_response_parse (response, &status);
+    free (response);
+
+    if (status != RMF_RESPONSE_STATUS_OK)
+        throw_response_error (status);
+}

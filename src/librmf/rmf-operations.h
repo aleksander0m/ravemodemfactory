@@ -211,6 +211,24 @@ namespace Modem {
                                               uint32_t      &cid);
 
     /**
+     * GetRegistrationTimeout:
+     *
+     * Gets the internal registration timeout.
+     *
+     * Returns: number of seconds to consider a registration attempt as timed out.
+     */
+    uint32_t GetRegistrationTimeout (void);
+
+
+    /**
+     * SetRegistrationTimeout:
+     * @timeout: number of seconds to consider a registration attempt as timed out.
+     *
+     * Sets the internal registration timeout.
+     */
+    void SetRegistrationTimeout (uint32_t timeout);
+
+    /**
      * GetConnectionStatus:
      *
      * Get connection status.
