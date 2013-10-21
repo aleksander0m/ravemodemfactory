@@ -40,6 +40,8 @@ G_DEFINE_TYPE_EXTENDED (RmfdProcessor, rmfd_processor, G_TYPE_OBJECT, 0,
 
 #define GLOBAL_PACKET_DATA_HANDLE 0xFFFFFFFF
 
+#define DEFAULT_REGISTRATION_TIMEOUT_SECS 60
+
 enum {
     PROP_0,
     PROP_FILE,
@@ -59,6 +61,8 @@ struct _RmfdProcessorPrivate {
     /* Connection related info */
     RmfConnectionStatus connection_status;
     guint32 packet_data_handle;
+    /* Registration related info */
+    guint32 registration_timeout;
 };
 
 /*****************************************************************************/
@@ -1863,6 +1867,41 @@ get_registration_status (RunContext *ctx)
                                        ctx);
 }
 
+/****************************/
+/* Get registration timeout */
+
+static void
+get_registration_timeout (RunContext *ctx)
+{
+    guint8 *response;
+
+    response = rmf_message_get_registration_timeout_response_new (ctx->self->priv->registration_timeout);
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+/****************************/
+/* Set registration timeout */
+
+static void
+set_registration_timeout (RunContext *ctx)
+{
+    guint8 *response;
+    guint32 timeout;
+
+    rmf_message_set_registration_timeout_request_parse (ctx->request->data, &timeout);
+
+    ctx->self->priv->registration_timeout = timeout;
+
+    response = rmf_message_set_registration_timeout_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
 /**********************/
 /* Get connection status */
 
@@ -2460,6 +2499,12 @@ rmfd_processor_run (RmfdProcessor       *self,
     case RMF_MESSAGE_COMMAND_GET_REGISTRATION_STATUS:
         get_registration_status (ctx);
         return;
+    case RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT:
+        get_registration_timeout (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT:
+        set_registration_timeout (ctx);
+        return;
     case RMF_MESSAGE_COMMAND_GET_CONNECTION_STATUS:
         get_connection_status (ctx);
         return;
@@ -2717,6 +2762,7 @@ rmfd_processor_init (RmfdProcessor *self)
                                               RMFD_TYPE_PROCESSOR,
                                               RmfdProcessorPrivate);
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+    self->priv->registration_timeout = DEFAULT_REGISTRATION_TIMEOUT_SECS;
 }
 
 static void
