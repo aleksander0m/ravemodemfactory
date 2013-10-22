@@ -2072,12 +2072,20 @@ set_registration_timeout (RunContext *ctx)
 
     rmf_message_set_registration_timeout_request_parse (ctx->request->data, &timeout);
 
-    ctx->self->priv->registration_timeout = timeout;
+    if (timeout < 10) {
+        g_simple_async_result_set_error (ctx->result,
+                                         RMFD_ERROR,
+                                         RMFD_ERROR_UNKNOWN,
+                                         "Timeout is too short");
+    } else {
+        ctx->self->priv->registration_timeout = timeout;
 
-    response = rmf_message_set_registration_timeout_response_new ();
-    g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                               (GDestroyNotify)g_byte_array_unref);
+        response = rmf_message_set_registration_timeout_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
     run_context_complete_and_free (ctx);
 }
 
