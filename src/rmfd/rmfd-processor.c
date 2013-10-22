@@ -266,7 +266,6 @@ process_serving_system_info (RmfdProcessor *self,
 {
     QmiNasRegistrationState registration_state = QMI_NAS_REGISTRATION_STATE_UNKNOWN;
     QmiNasRoamingIndicatorStatus roaming = QMI_NAS_ROAMING_INDICATOR_STATUS_OFF;
-    const gchar *description = NULL;
 
     g_assert ((response && !indication) || (!response && indication));
 
@@ -308,14 +307,24 @@ process_serving_system_info (RmfdProcessor *self,
     }
 
     /* Operator info */
-    if (indication)
-        qmi_indication_nas_serving_system_output_get_current_plmn (
-            indication, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
-    else
-        qmi_message_nas_get_serving_system_output_get_current_plmn (
-            response, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
-    g_free (self->priv->operator_description);
-    self->priv->operator_description = g_strdup (description);
+    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_HOME ||
+        self->priv->registration_status == RMF_REGISTRATION_STATUS_ROAMING) {
+        const gchar *description = NULL;
+
+        if (indication)
+            qmi_indication_nas_serving_system_output_get_current_plmn (
+                indication, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
+        else
+            qmi_message_nas_get_serving_system_output_get_current_plmn (
+                response, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
+        if (description) {
+            g_free (self->priv->operator_description);
+            self->priv->operator_description = g_strdup (description);
+        }
+    } else {
+        g_free (self->priv->operator_description);
+        self->priv->operator_description = NULL;
+    }
 
     /* LAC/CI */
     if (indication) {
