@@ -41,6 +41,7 @@ G_DEFINE_TYPE_EXTENDED (RmfdProcessor, rmfd_processor, G_TYPE_OBJECT, 0,
 #define GLOBAL_PACKET_DATA_HANDLE 0xFFFFFFFF
 
 #define DEFAULT_REGISTRATION_TIMEOUT_SECS 60
+#define DEFAULT_REGISTRATION_TIMEOUT_LOGGING_SECS 10
 
 enum {
     PROP_0,
@@ -67,8 +68,7 @@ struct _RmfdProcessorPrivate {
 
     /* Registration related info */
     guint32 registration_timeout;
-    guint registration_timeout_id;
-    GCancellable *scanning;
+    gpointer *registration_ctx;
     guint serving_system_indication_id;
     RmfRegistrationStatus registration_status;
     guint16 operator_mcc;
@@ -78,24 +78,53 @@ struct _RmfdProcessorPrivate {
     guint32 cid;
 };
 
-/*****************************************************************************/
-/* Background request to register automatically */
+static void initiate_registration (RmfdProcessor *self, gboolean with_timeout);
 
-static void initiate_registration (RmfdProcessor *self,
-                                   gboolean with_timeout);
+/*****************************************************************************/
+/* Registration timeout handling */
+
+typedef struct {
+    guint timeout_secs;
+    guint ongoing_secs;
+    guint timeout_id;
+    GCancellable *scanning;
+} RegistrationContext;
+
+static void registration_context_step (RmfdProcessor *self);
 
 static void
-cancel_network_scan (RmfdProcessor *self)
+registration_context_cleanup (RmfdProcessor *self)
 {
-    if (!self->priv->scanning)
+    RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
+
+    if (!ctx)
         return;
 
-    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_SCANNING)
-        self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+    if (ctx->timeout_id)
+        g_source_remove (ctx->timeout_id);
 
-    if (!g_cancellable_is_cancelled (self->priv->scanning))
-        g_cancellable_cancel (self->priv->scanning);
-    g_clear_object (&self->priv->scanning);
+    if (ctx->scanning) {
+        if (self->priv->registration_status == RMF_REGISTRATION_STATUS_SCANNING)
+            self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+        g_object_unref (ctx->scanning);
+    }
+
+    g_slice_free (RegistrationContext, ctx);
+    self->priv->registration_ctx = NULL;
+}
+
+static void
+registration_context_cancel (RmfdProcessor *self)
+{
+    RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
+
+    if (!ctx)
+        return;
+
+    if (ctx->scanning && !g_cancellable_is_cancelled (ctx->scanning))
+        g_cancellable_cancel (ctx->scanning);
+
+    registration_context_cleanup (self);
 }
 
 static void
@@ -103,58 +132,94 @@ nas_network_scan_ready (QmiClientNas *client,
                         GAsyncResult *res,
                         RmfdProcessor *self)
 {
+    RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
     QmiMessageNasNetworkScanOutput *output;
+    gboolean needs_registration_again = TRUE;
 
     /* Ignore the result of the scan */
     output = qmi_client_nas_network_scan_finish (client, res, NULL);
-    qmi_message_nas_network_scan_output_unref (output);
+    if (output)
+        qmi_message_nas_network_scan_output_unref (output);
+    else if (g_cancellable_is_cancelled (ctx->scanning))
+        needs_registration_again = FALSE;
 
-    /* Cleanup the cancellable (if any) */
-    cancel_network_scan (self);
+    /* Stop registration context */
+    registration_context_cleanup (self);
 
     /* Relaunch automatic registration without timeout */
-    initiate_registration (self, FALSE);
+    if (needs_registration_again)
+        initiate_registration (self, FALSE);
 
     g_object_unref (self);
 }
 
 static gboolean
-registration_timeout_cb (RmfdProcessor *self)
+registration_context_timeout_cb (RmfdProcessor *self)
 {
-    self->priv->registration_timeout_id = 0;
+    RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
-    g_debug ("Automatic network registration timed out... launching network scan");
+    g_assert (ctx != NULL);
 
-    /* Explicit network scan... */
-    g_assert (self->priv->scanning == NULL);
-    self->priv->scanning = g_cancellable_new ();
-    self->priv->registration_status = RMF_REGISTRATION_STATUS_SCANNING;
-    qmi_client_nas_network_scan (QMI_CLIENT_NAS (self->priv->nas),
-                                 NULL,
-                                 120,
-                                 self->priv->scanning,
-                                 (GAsyncReadyCallback)nas_network_scan_ready,
-                                 g_object_ref (self));
-
+    ctx->timeout_id = 0;
+    registration_context_step (self);
     return FALSE;
 }
 
 static void
-reset_registration_timeout (RmfdProcessor *self,
-                            gboolean restart)
+registration_context_step (RmfdProcessor *self)
 {
-    if (self->priv->registration_timeout_id != 0)
-        g_source_remove (self->priv->registration_timeout_id);
+    RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
-    cancel_network_scan (self);
+    g_assert (ctx != NULL);
+    g_assert (ctx->timeout_id == 0);
 
-    if (restart)
-        self->priv->registration_timeout_id = g_timeout_add_seconds (self->priv->registration_timeout,
-                                                                     (GSourceFunc)registration_timeout_cb,
-                                                                     self);
-    else
-        self->priv->registration_timeout_id = 0;
+    if (ctx->timeout_secs > ctx->ongoing_secs) {
+        guint next_timeout_secs;
+
+        g_debug ("Automatic network registration ongoing... (%u seconds elapsed)", ctx->ongoing_secs);
+
+        next_timeout_secs = MIN (DEFAULT_REGISTRATION_TIMEOUT_LOGGING_SECS,
+                                 ctx->timeout_secs - ctx->ongoing_secs);
+        ctx->ongoing_secs += next_timeout_secs;
+        ctx->timeout_id = g_timeout_add_seconds (next_timeout_secs,
+                                                 (GSourceFunc)registration_context_timeout_cb,
+                                                 self);
+        return;
+    }
+
+    /* Expired... */
+    g_debug ("Automatic network registration timed out... launching network scan");
+
+    /* Explicit network scan... */
+    self->priv->registration_status = RMF_REGISTRATION_STATUS_SCANNING;
+
+    g_assert (ctx->scanning == NULL);
+    ctx->scanning = g_cancellable_new ();
+    qmi_client_nas_network_scan (QMI_CLIENT_NAS (self->priv->nas),
+                                 NULL,
+                                 120,
+                                 ctx->scanning,
+                                 (GAsyncReadyCallback)nas_network_scan_ready,
+                                 g_object_ref (self));
 }
+
+static void
+registration_context_start (RmfdProcessor *self)
+{
+    RegistrationContext *ctx;
+
+    g_assert (self->priv->registration_ctx == NULL);
+    g_assert (self->priv->registration_timeout >= 10);
+
+    ctx = g_slice_new0 (RegistrationContext);
+    ctx->timeout_secs = self->priv->registration_timeout;
+
+    self->priv->registration_ctx = (gpointer)ctx;
+    registration_context_step (self);
+}
+
+/*****************************************************************************/
+/* Explicit registration request */
 
 static void
 initiate_registration (RmfdProcessor *self,
@@ -165,7 +230,8 @@ initiate_registration (RmfdProcessor *self,
     if (with_timeout) {
         g_debug ("Launching automatic network registration... (with %u seconds timeout)",
                  self->priv->registration_timeout);
-        reset_registration_timeout (self, TRUE);
+        registration_context_cancel (self);
+        registration_context_start (self);
     } else {
         g_debug ("Launching automatic network registration...");
     }
@@ -219,20 +285,20 @@ process_serving_system_info (RmfdProcessor *self,
                                            RMF_REGISTRATION_STATUS_HOME);
 
         /* If we had a timeout waiting to get registered, remove it */
-        if (self->priv->registration_timeout_id) {
-            g_source_remove (self->priv->registration_timeout_id);
-            self->priv->registration_timeout_id = 0;
-        }
-
+        registration_context_cancel (self);
         break;
     case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED_SEARCHING:
-        self->priv->registration_status = RMF_REGISTRATION_STATUS_SEARCHING;
+        /* Don't overwrite the 'scanning state' */
+        if (self->priv->registration_status != RMF_REGISTRATION_STATUS_SCANNING)
+            self->priv->registration_status = RMF_REGISTRATION_STATUS_SEARCHING;
         break;
     case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED:
     case QMI_NAS_REGISTRATION_STATE_REGISTRATION_DENIED:
     case QMI_NAS_REGISTRATION_STATE_UNKNOWN:
     default:
-        self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+        /* Don't overwrite the 'scanning state' */
+        if (self->priv->registration_status != RMF_REGISTRATION_STATUS_SCANNING)
+            self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
         break;
     }
 
@@ -3000,7 +3066,7 @@ dispose (GObject *object)
 {
     RmfdProcessor *self = RMFD_PROCESSOR (object);
 
-    reset_registration_timeout (self, FALSE);
+    registration_context_cancel (self);
     unregister_indications (self);
 
     if (self->priv->qmi_device  && qmi_device_is_open (self->priv->qmi_device)) {
