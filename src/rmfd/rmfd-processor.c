@@ -68,6 +68,7 @@ struct _RmfdProcessorPrivate {
     /* Registration related info */
     guint32 registration_timeout;
     guint registration_timeout_id;
+    GCancellable *scanning;
     guint serving_system_indication_id;
     RmfRegistrationStatus registration_status;
     guint16 operator_mcc;
@@ -80,12 +81,60 @@ struct _RmfdProcessorPrivate {
 /*****************************************************************************/
 /* Background request to register automatically */
 
+static void initiate_registration (RmfdProcessor *self,
+                                   gboolean with_timeout);
+
+static void
+cancel_network_scan (RmfdProcessor *self)
+{
+    if (!self->priv->scanning)
+        return;
+
+    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_SCANNING)
+        self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+
+    if (!g_cancellable_is_cancelled (self->priv->scanning))
+        g_cancellable_cancel (self->priv->scanning);
+    g_clear_object (&self->priv->scanning);
+}
+
+static void
+nas_network_scan_ready (QmiClientNas *client,
+                        GAsyncResult *res,
+                        RmfdProcessor *self)
+{
+    QmiMessageNasNetworkScanOutput *output;
+
+    /* Ignore the result of the scan */
+    output = qmi_client_nas_network_scan_finish (client, res, NULL);
+    qmi_message_nas_network_scan_output_unref (output);
+
+    /* Cleanup the cancellable (if any) */
+    cancel_network_scan (self);
+
+    /* Relaunch automatic registration without timeout */
+    initiate_registration (self, FALSE);
+
+    g_object_unref (self);
+}
+
 static gboolean
 registration_timeout_cb (RmfdProcessor *self)
 {
     self->priv->registration_timeout_id = 0;
 
-    g_debug ("Automatic network registration timed out...");
+    g_debug ("Automatic network registration timed out... launching network scan");
+
+    /* Explicit network scan... */
+    g_assert (self->priv->scanning == NULL);
+    self->priv->scanning = g_cancellable_new ();
+    self->priv->registration_status = RMF_REGISTRATION_STATUS_SCANNING;
+    qmi_client_nas_network_scan (QMI_CLIENT_NAS (self->priv->nas),
+                                 NULL,
+                                 120,
+                                 self->priv->scanning,
+                                 (GAsyncReadyCallback)nas_network_scan_ready,
+                                 g_object_ref (self));
 
     return FALSE;
 }
@@ -97,6 +146,8 @@ reset_registration_timeout (RmfdProcessor *self,
     if (self->priv->registration_timeout_id != 0)
         g_source_remove (self->priv->registration_timeout_id);
 
+    cancel_network_scan (self);
+
     if (restart)
         self->priv->registration_timeout_id = g_timeout_add_seconds (self->priv->registration_timeout,
                                                                      (GSourceFunc)registration_timeout_cb,
@@ -106,11 +157,19 @@ reset_registration_timeout (RmfdProcessor *self,
 }
 
 static void
-initiate_registration (RmfdProcessor *self)
+initiate_registration (RmfdProcessor *self,
+                       gboolean with_timeout)
 {
     QmiMessageNasInitiateNetworkRegisterInput *input;
 
-    g_debug ("Launching automatic network registration...");
+    if (with_timeout) {
+        g_debug ("Launching automatic network registration... (with %u seconds timeout)",
+                 self->priv->registration_timeout);
+        reset_registration_timeout (self, TRUE);
+    } else {
+        g_debug ("Launching automatic network registration...");
+    }
+
     input = qmi_message_nas_initiate_network_register_input_new ();
     qmi_message_nas_initiate_network_register_input_set_action (
         input,
@@ -1177,7 +1236,7 @@ dms_uim_get_pin_status_after_unlock_ready (QmiClientDms *client,
             qmi_message_dms_uim_get_pin_status_output_unref (output);
 
             /* Launch automatic registration */
-            initiate_registration (ctx->self);
+            initiate_registration (ctx->self, TRUE);
 
             run_context_complete_and_free (ctx);
             return;
@@ -1308,7 +1367,7 @@ dms_uim_get_pin_status_ready (QmiClientDms *client,
                                                        (GDestroyNotify)g_byte_array_unref);
 
             /* Launch automatic registration */
-            initiate_registration (ctx->self);
+            initiate_registration (ctx->self, TRUE);
 
             break;
         }
@@ -1627,7 +1686,7 @@ dms_set_operating_mode_ready (QmiClientDms *client,
         power_ctx = (PowerContext *)ctx->additional_context;
         if (power_ctx->mode == RMF_POWER_STATUS_FULL)
             /* Launch automatic registration */
-            initiate_registration (ctx->self);
+            initiate_registration (ctx->self, TRUE);
     }
 
     if (output)

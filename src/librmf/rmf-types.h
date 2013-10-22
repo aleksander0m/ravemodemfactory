@@ -38,9 +38,10 @@ namespace Modem {
     /**
      * RegistrationStatus:
      * @Idle: Modem is not registered to any network, and not looking for one.
-     * @Searching: Modem is searching networks.
+     * @Searching: Modem is searching networks, trying to register.
      * @Home: Modem is registered in the home network.
      * @Roaming: Modem is registered in a roaming network.
+     * @Scanning: Modem is performing a network scan.
      *
      * Registration status of the modem.
      */
@@ -48,7 +49,8 @@ namespace Modem {
         Idle,
         Searching,
         Home,
-        Roaming
+        Roaming,
+        Scanning
     };
 
     /**

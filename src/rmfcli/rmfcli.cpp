@@ -497,6 +497,9 @@ getRegistrationStatus (void)
     case Modem::Roaming:
         std::cout << "Registration status: Roaming" << std::endl;
         break;
+    case Modem::Scanning:
+        std::cout << "Registration status: Scanning" << std::endl;
+        break;
     default:
         std::cout << "Registration status: Unknown" << std::endl;
         break;
