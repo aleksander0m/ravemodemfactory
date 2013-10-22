@@ -51,25 +51,62 @@ enum {
 struct _RmfdProcessorPrivate {
     /* QMI device file */
     GFile *file;
+
     /* QMI device */
     QmiDevice *qmi_device;
+
     /* QMI clients */
     QmiClient *dms;
     QmiClient *nas;
     QmiClient *wds;
     QmiClient *uim;
+
     /* Connection related info */
     RmfConnectionStatus connection_status;
     guint32 packet_data_handle;
+
     /* Registration related info */
     guint32 registration_timeout;
+    guint registration_timeout_id;
+    guint serving_system_indication_id;
+    RmfRegistrationStatus registration_status;
+    guint16 operator_mcc;
+    guint16 operator_mnc;
+    gchar *operator_description;
+    guint16 lac;
+    guint32 cid;
 };
 
 /*****************************************************************************/
 /* Background request to register automatically */
 
+static gboolean
+registration_timeout_cb (RmfdProcessor *self)
+{
+    self->priv->registration_timeout_id = 0;
+
+    g_debug ("Automatic network registration timed out...");
+
+    return FALSE;
+}
+
 static void
-initiate_network_register (RmfdProcessor *self)
+reset_registration_timeout (RmfdProcessor *self,
+                            gboolean restart)
+{
+    if (self->priv->registration_timeout_id != 0)
+        g_source_remove (self->priv->registration_timeout_id);
+
+    if (restart)
+        self->priv->registration_timeout_id = g_timeout_add_seconds (self->priv->registration_timeout,
+                                                                     (GSourceFunc)registration_timeout_cb,
+                                                                     self);
+    else
+        self->priv->registration_timeout_id = 0;
+}
+
+static void
+initiate_registration (RmfdProcessor *self)
 {
     QmiMessageNasInitiateNetworkRegisterInput *input;
 
@@ -87,6 +124,149 @@ initiate_network_register (RmfdProcessor *self)
         NULL,
         NULL);
     qmi_message_nas_initiate_network_register_input_unref (input);
+}
+
+/*****************************************************************************/
+/* Registration info gathering via indications */
+
+static void
+process_serving_system_info (RmfdProcessor *self,
+                             QmiMessageNasGetServingSystemOutput *response,
+                             QmiIndicationNasServingSystemOutput *indication)
+{
+    QmiNasRegistrationState registration_state = QMI_NAS_REGISTRATION_STATE_UNKNOWN;
+    QmiNasRoamingIndicatorStatus roaming = QMI_NAS_ROAMING_INDICATOR_STATUS_OFF;
+    const gchar *description = NULL;
+
+    g_assert ((response && !indication) || (!response && indication));
+
+    /* Registration state */
+    if (indication) {
+        qmi_indication_nas_serving_system_output_get_serving_system (
+            indication, &registration_state, NULL, NULL, NULL, NULL, NULL);
+        qmi_indication_nas_serving_system_output_get_roaming_indicator (
+            indication, &roaming, NULL);
+    } else {
+        qmi_message_nas_get_serving_system_output_get_serving_system (
+            response, &registration_state, NULL, NULL, NULL, NULL, NULL);
+        qmi_message_nas_get_serving_system_output_get_roaming_indicator (
+            response, &roaming, NULL);
+    }
+
+    switch (registration_state) {
+    case QMI_NAS_REGISTRATION_STATE_REGISTERED:
+        self->priv->registration_status = (roaming == QMI_NAS_ROAMING_INDICATOR_STATUS_ON ?
+                                           RMF_REGISTRATION_STATUS_ROAMING :
+                                           RMF_REGISTRATION_STATUS_HOME);
+
+        /* If we had a timeout waiting to get registered, remove it */
+        if (self->priv->registration_timeout_id) {
+            g_source_remove (self->priv->registration_timeout_id);
+            self->priv->registration_timeout_id = 0;
+        }
+
+        break;
+    case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED_SEARCHING:
+        self->priv->registration_status = RMF_REGISTRATION_STATUS_SEARCHING;
+        break;
+    case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED:
+    case QMI_NAS_REGISTRATION_STATE_REGISTRATION_DENIED:
+    case QMI_NAS_REGISTRATION_STATE_UNKNOWN:
+    default:
+        self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+        break;
+    }
+
+    /* Operator info */
+    if (indication)
+        qmi_indication_nas_serving_system_output_get_current_plmn (
+            indication, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
+    else
+        qmi_message_nas_get_serving_system_output_get_current_plmn (
+            response, &self->priv->operator_mcc, &self->priv->operator_mnc, &description, NULL);
+    g_free (self->priv->operator_description);
+    self->priv->operator_description = g_strdup (description);
+
+    /* LAC/CI */
+    if (indication) {
+        qmi_indication_nas_serving_system_output_get_lac_3gpp (
+            indication, &self->priv->lac, NULL);
+        qmi_indication_nas_serving_system_output_get_cid_3gpp (
+            indication, &self->priv->cid, NULL);
+    } else {
+        qmi_message_nas_get_serving_system_output_get_lac_3gpp (
+            response, &self->priv->lac, NULL);
+        qmi_message_nas_get_serving_system_output_get_cid_3gpp (
+            response, &self->priv->cid, NULL);
+    }
+}
+
+static void
+serving_system_indication_cb (QmiClientNas *client,
+                              QmiIndicationNasServingSystemOutput *output,
+                              RmfdProcessor *self)
+{
+    process_serving_system_info (self, NULL, output);
+}
+
+static void
+serving_system_response_cb (QmiClientNas *client,
+                            GAsyncResult *res,
+                            RmfdProcessor *self)
+{
+    QmiMessageNasGetServingSystemOutput *output;
+
+    output = qmi_client_nas_get_serving_system_finish (client, res, NULL);
+    if (output) {
+        if (qmi_message_nas_get_serving_system_output_get_result (output, NULL))
+            process_serving_system_info (self, output, NULL);
+        qmi_message_nas_get_serving_system_output_unref (output);
+    }
+    g_object_unref (self);
+}
+
+static void
+unregister_indications (RmfdProcessor *self)
+{
+    QmiMessageNasRegisterIndicationsInput *input;
+
+    if (self->priv->serving_system_indication_id == 0)
+        return;
+
+    g_signal_handler_disconnect (self->priv->nas, self->priv->serving_system_indication_id);
+    self->priv->serving_system_indication_id = 0;
+
+    input = qmi_message_nas_register_indications_input_new ();
+    qmi_message_nas_register_indications_input_set_serving_system_events (input, FALSE, NULL);
+    qmi_client_nas_register_indications (QMI_CLIENT_NAS (self->priv->nas), input, 5, NULL, NULL, NULL);
+    qmi_message_nas_register_indications_input_unref (input);
+}
+
+static void
+register_indications (RmfdProcessor *self)
+{
+    QmiMessageNasRegisterIndicationsInput *input;
+
+    g_assert (self->priv->nas != NULL);
+    g_assert (self->priv->serving_system_indication_id == 0);
+
+    self->priv->serving_system_indication_id =
+        g_signal_connect (self->priv->nas,
+                          "serving-system",
+                          G_CALLBACK (serving_system_indication_cb),
+                          self);
+
+    input = qmi_message_nas_register_indications_input_new ();
+    qmi_message_nas_register_indications_input_set_serving_system_events (input, TRUE, NULL);
+    qmi_client_nas_register_indications (QMI_CLIENT_NAS (self->priv->nas), input, 5, NULL, NULL, NULL);
+    qmi_message_nas_register_indications_input_unref (input);
+
+    qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (self->priv->nas),
+                                       NULL,
+                                       10,
+                                       NULL,
+                                       (GAsyncReadyCallback)serving_system_response_cb,
+                                       g_object_ref (self));
 }
 
 /*****************************************************************************/
@@ -997,7 +1177,7 @@ dms_uim_get_pin_status_after_unlock_ready (QmiClientDms *client,
             qmi_message_dms_uim_get_pin_status_output_unref (output);
 
             /* Launch automatic registration */
-            initiate_network_register (ctx->self);
+            initiate_registration (ctx->self);
 
             run_context_complete_and_free (ctx);
             return;
@@ -1128,7 +1308,7 @@ dms_uim_get_pin_status_ready (QmiClientDms *client,
                                                        (GDestroyNotify)g_byte_array_unref);
 
             /* Launch automatic registration */
-            initiate_network_register (ctx->self);
+            initiate_registration (ctx->self);
 
             break;
         }
@@ -1447,7 +1627,7 @@ dms_set_operating_mode_ready (QmiClientDms *client,
         power_ctx = (PowerContext *)ctx->additional_context;
         if (power_ctx->mode == RMF_POWER_STATUS_FULL)
             /* Launch automatic registration */
-            initiate_network_register (ctx->self);
+            initiate_registration (ctx->self);
     }
 
     if (output)
@@ -1785,86 +1965,26 @@ get_signal_info (RunContext *ctx)
                                     ctx);
 }
 
-/**********************/
+/***************************/
 /* Get Registration Status */
-
-static void
-nas_get_serving_system_ready (QmiClientNas *client,
-                              GAsyncResult *res,
-                              RunContext   *ctx)
-{
-    QmiMessageNasGetServingSystemOutput *output;
-    GError *error = NULL;
-
-    output = qmi_client_nas_get_serving_system_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_nas_get_serving_system_output_get_result (output, &error)) {
-        g_prefix_error (&error, "couldn't get serving system: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        guint8 *response;
-        guint32 rmf_registration_state;
-        QmiNasRegistrationState registration_state = QMI_NAS_REGISTRATION_STATE_UNKNOWN;
-        QmiNasRoamingIndicatorStatus roaming = QMI_NAS_ROAMING_INDICATOR_STATUS_OFF;
-        guint16 mcc = 0;
-        guint16 mnc = 0;
-        const gchar *description = NULL;
-        guint16 lac = 0;
-        guint32 cid = 0;
-
-        qmi_message_nas_get_serving_system_output_get_serving_system (
-            output, &registration_state, NULL, NULL, NULL, NULL, NULL);
-        qmi_message_nas_get_serving_system_output_get_roaming_indicator (
-            output, &roaming, NULL);
-        qmi_message_nas_get_serving_system_output_get_current_plmn (
-            output, &mcc, &mnc, &description, NULL);
-        qmi_message_nas_get_serving_system_output_get_lac_3gpp (
-            output, &lac, NULL);
-        qmi_message_nas_get_serving_system_output_get_cid_3gpp (
-            output, &cid, NULL);
-
-        switch (registration_state) {
-        case QMI_NAS_REGISTRATION_STATE_REGISTERED:
-            rmf_registration_state = (roaming == QMI_NAS_ROAMING_INDICATOR_STATUS_ON ?
-                                      RMF_REGISTRATION_STATUS_ROAMING :
-                                      RMF_REGISTRATION_STATUS_HOME);
-            break;
-        case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED_SEARCHING:
-            rmf_registration_state = RMF_REGISTRATION_STATUS_SEARCHING;
-            break;
-        case QMI_NAS_REGISTRATION_STATE_NOT_REGISTERED:
-        case QMI_NAS_REGISTRATION_STATE_REGISTRATION_DENIED:
-        case QMI_NAS_REGISTRATION_STATE_UNKNOWN:
-        default:
-            rmf_registration_state = RMF_REGISTRATION_STATUS_IDLE;
-            break;
-        }
-
-        response = (rmf_message_get_registration_status_response_new   (
-                        rmf_registration_state, description, mcc, mnc, lac, cid));
-
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                   (GDestroyNotify)g_byte_array_unref);
-    }
-
-    if (output)
-        qmi_message_nas_get_serving_system_output_unref (output);
-
-    run_context_complete_and_free (ctx);
-}
 
 static void
 get_registration_status (RunContext *ctx)
 {
-    qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (ctx->self->priv->nas),
-                                       NULL,
-                                       10,
-                                       NULL,
-                                       (GAsyncReadyCallback)nas_get_serving_system_ready,
-                                       ctx);
+    guint8 *response;
+
+    response = (rmf_message_get_registration_status_response_new (
+                    ctx->self->priv->registration_status,
+                    ctx->self->priv->operator_description,
+                    ctx->self->priv->operator_mcc,
+                    ctx->self->priv->operator_mnc,
+                    ctx->self->priv->lac,
+                    ctx->self->priv->cid));
+
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
 }
 
 /****************************/
@@ -2612,6 +2732,8 @@ allocate_nas_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI NAS client created");
+    register_indications (ctx->self);
+
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_WDS,
                                 QMI_CID_NONE,
@@ -2636,6 +2758,7 @@ allocate_dms_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI DMS client created");
+
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_NAS,
                                 QMI_CID_NONE,
@@ -2659,6 +2782,7 @@ device_open_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI device opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
+
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_DMS,
                                 QMI_CID_NONE,
@@ -2763,6 +2887,7 @@ rmfd_processor_init (RmfdProcessor *self)
                                               RmfdProcessorPrivate);
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
     self->priv->registration_timeout = DEFAULT_REGISTRATION_TIMEOUT_SECS;
+    self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
 }
 
 static void
@@ -2806,45 +2931,48 @@ get_property (GObject *object,
 static void
 dispose (GObject *object)
 {
-    RmfdProcessorPrivate *priv = RMFD_PROCESSOR (object)->priv;
+    RmfdProcessor *self = RMFD_PROCESSOR (object);
 
-    if (priv->qmi_device  && qmi_device_is_open (priv->qmi_device)) {
+    reset_registration_timeout (self, FALSE);
+    unregister_indications (self);
+
+    if (self->priv->qmi_device  && qmi_device_is_open (self->priv->qmi_device)) {
         GError *error = NULL;
 
-        if (priv->dms)
-            qmi_device_release_client (priv->qmi_device,
-                                       priv->dms,
+        if (self->priv->dms)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->dms,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
-        if (priv->nas)
-            qmi_device_release_client (priv->qmi_device,
-                                       priv->nas,
+        if (self->priv->nas)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->nas,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
-        if (priv->wds)
-            qmi_device_release_client (priv->qmi_device,
-                                       priv->wds,
+        if (self->priv->wds)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->wds,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
-        if (priv->uim)
-            qmi_device_release_client (priv->qmi_device,
-                                       priv->uim,
+        if (self->priv->uim)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->uim,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
 
-        if (!qmi_device_close (priv->qmi_device, &error)) {
+        if (!qmi_device_close (self->priv->qmi_device, &error)) {
             g_warning ("error closing QMI device: %s", error->message);
             g_error_free (error);
         } else
-            g_debug ("QmiDevice closed: %s", qmi_device_get_path (priv->qmi_device));
+            g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
     }
 
-    g_clear_object (&priv->dms);
-    g_clear_object (&priv->nas);
-    g_clear_object (&priv->wds);
-    g_clear_object (&priv->uim);
-    g_clear_object (&priv->qmi_device);
-    g_clear_object (&priv->file);
+    g_clear_object (&self->priv->dms);
+    g_clear_object (&self->priv->nas);
+    g_clear_object (&self->priv->wds);
+    g_clear_object (&self->priv->uim);
+    g_clear_object (&self->priv->qmi_device);
+    g_clear_object (&self->priv->file);
 
     G_OBJECT_CLASS (rmfd_processor_parent_class)->dispose (object);
 }
