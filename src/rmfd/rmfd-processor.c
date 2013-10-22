@@ -221,25 +221,10 @@ registration_context_start (RmfdProcessor *self)
 /*****************************************************************************/
 /* Explicit registration request */
 
-static void
-initiate_registration (RmfdProcessor *self,
-                       gboolean with_timeout)
+static gboolean
+initiate_registration_idle_cb (RmfdProcessor *self)
 {
     QmiMessageNasInitiateNetworkRegisterInput *input;
-
-    /* Don't relaunch if already registered */
-    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_HOME ||
-        self->priv->registration_status == RMF_REGISTRATION_STATUS_ROAMING)
-        return;
-
-    if (with_timeout) {
-        g_debug ("Launching automatic network registration... (with %u seconds timeout)",
-                 self->priv->registration_timeout);
-        registration_context_cancel (self);
-        registration_context_start (self);
-    } else {
-        g_debug ("Launching automatic network registration...");
-    }
 
     input = qmi_message_nas_initiate_network_register_input_new ();
     qmi_message_nas_initiate_network_register_input_set_action (
@@ -254,6 +239,31 @@ initiate_registration (RmfdProcessor *self,
         NULL,
         NULL);
     qmi_message_nas_initiate_network_register_input_unref (input);
+
+    g_object_unref (self);
+    return FALSE;
+}
+
+static void
+initiate_registration (RmfdProcessor *self,
+                       gboolean with_timeout)
+{
+    /* Don't relaunch if already registered */
+    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_HOME ||
+        self->priv->registration_status == RMF_REGISTRATION_STATUS_ROAMING)
+        return;
+
+    if (with_timeout) {
+        g_debug ("Launching automatic network registration... (with %u seconds timeout)",
+                 self->priv->registration_timeout);
+        registration_context_cancel (self);
+        registration_context_start (self);
+    } else {
+        g_debug ("Launching automatic network registration...");
+    }
+
+    /* Launch in idle to make sure we cancel the previous registration attempt, if any */
+    g_idle_add ((GSourceFunc)initiate_registration_idle_cb, g_object_ref (self));
 }
 
 /*****************************************************************************/
