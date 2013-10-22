@@ -227,6 +227,11 @@ initiate_registration (RmfdProcessor *self,
 {
     QmiMessageNasInitiateNetworkRegisterInput *input;
 
+    /* Don't relaunch if already registered */
+    if (self->priv->registration_status == RMF_REGISTRATION_STATUS_HOME ||
+        self->priv->registration_status == RMF_REGISTRATION_STATUS_ROAMING)
+        return;
+
     if (with_timeout) {
         g_debug ("Launching automatic network registration... (with %u seconds timeout)",
                  self->priv->registration_timeout);
