@@ -25,6 +25,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -307,7 +308,7 @@ failed:
 
     /* 6th step: shutdown() */
     if (fd >= 0)
-        shutdown (fd, 2);
+        close (fd);
 
     if (buffer) {
         if (ret != ERROR_NONE)
