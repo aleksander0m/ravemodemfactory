@@ -2846,6 +2846,10 @@ allocate_uim_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI UIM client created");
+
+    /* Last step, launch automatic network registration explicitly */
+    initiate_registration (ctx->self, TRUE);
+
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     init_context_complete_and_free (ctx);
 }
