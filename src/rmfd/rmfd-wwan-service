@@ -97,11 +97,11 @@ stop_network ()
 
     if [ $ERR -eq 0 ]; then
         echodbg "WWAN interface '$DEVICE' stopped successfully"
-
-	if [ -f $RESOLV_CONF_BACKUP ]; then
-            echodbg "Restoring resolv.conf file"
-	    mv $RESOLV_CONF_BACKUP /etc/resolv.conf
-	fi
+        if [ -f $RESOLV_CONF_BACKUP ]; then
+            echodbg "restoring resolv.conf file"
+            cat $RESOLV_CONF_BACKUP > /etc/resolv.conf
+            rm $RESOLV_CONF_BACKUP
+        fi
     fi
     exit $ERR
 }
