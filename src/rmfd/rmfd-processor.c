@@ -1200,12 +1200,175 @@ get_sim_info (RunContext *ctx)
 }
 
 /**********************/
-/* Is Locked */
+/* Common unlock + ready check */
+
+typedef enum {
+    COMMON_UNLOCK_CHECK_STEP_FIRST,
+    COMMON_UNLOCK_CHECK_STEP_LOCK_STATUS,
+    COMMON_UNLOCK_CHECK_STEP_SIM_READY_STATUS,
+    COMMON_UNLOCK_CHECK_STEP_LAST,
+} CommonUnlockCheckStep;
+
+typedef struct {
+    RmfdProcessor *self;
+    GSimpleAsyncResult *simple;
+    CommonUnlockCheckStep step;
+    gboolean unlocked;
+} CommonUnlockCheckContext;
 
 static void
-dms_uim_get_locked_status_ready (QmiClientDms *client,
-                                 GAsyncResult *res,
-                                 RunContext   *ctx)
+common_unlock_check_context_complete_and_free (CommonUnlockCheckContext *ctx)
+{
+    g_simple_async_result_complete (ctx->simple);
+    g_object_unref (ctx->simple);
+    g_object_unref (ctx->self);
+    g_slice_free (CommonUnlockCheckContext, ctx);
+}
+
+static gboolean
+common_unlock_check_finish (RmfdProcessor  *self,
+                            GAsyncResult   *res,
+                            gboolean       *unlocked,
+                            GError        **error)
+{
+    g_assert (unlocked != NULL);
+
+    if (g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error))
+        return FALSE;
+
+    *unlocked = g_simple_async_result_get_op_res_gboolean (G_SIMPLE_ASYNC_RESULT (res));
+    return TRUE;
+}
+
+static void common_unlock_check_context_step (CommonUnlockCheckContext *ctx);
+
+static void
+get_card_status_ready (QmiClientUim *client,
+                       GAsyncResult *res,
+                       CommonUnlockCheckContext *ctx)
+{
+    QmiMessageUimGetCardStatusOutput *output;
+    GError *error = NULL;
+    GArray *cards;
+    guint i;
+
+    output = qmi_client_uim_get_card_status_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->simple, error);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (!qmi_message_uim_get_card_status_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get card status: ");
+        g_simple_async_result_take_error (ctx->simple, error);
+        qmi_message_uim_get_card_status_output_unref (output);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    qmi_message_uim_get_card_status_output_get_card_status (
+        output,
+        NULL, /* index_gw_primary */
+        NULL, /* index_1x_primary */
+        NULL, /* index_gw_secondary */
+        NULL, /* index_1x_secondary */
+        &cards,
+        NULL);
+
+    if (cards->len == 0) {
+        g_simple_async_result_set_error (ctx->simple,
+                                         RMFD_ERROR,
+                                         RMFD_ERROR_UNKNOWN,
+                                         "No cards reported");
+        qmi_message_uim_get_card_status_output_unref (output);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (cards->len > 1)
+        g_warning ("Too many cards reported: %u", cards->len);
+
+    /* All applications in all cards will need to be in READY state for us to
+     * consider UNLOCKED */
+    for (i = 0; i < cards->len; i++) {
+        QmiMessageUimGetCardStatusOutputCardStatusCardsElement *card;
+
+        card = &g_array_index (cards, QmiMessageUimGetCardStatusOutputCardStatusCardsElement, i);
+
+        switch (card->card_state) {
+        case QMI_UIM_CARD_STATE_PRESENT: {
+            guint j;
+
+            if (card->applications->len == 0) {
+                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                                 "No applications reported in card [%u]", i);
+                qmi_message_uim_get_card_status_output_unref (output);
+                common_unlock_check_context_complete_and_free (ctx);
+                return;
+            }
+
+            if (card->applications->len > 1)
+                g_warning ("Too many applications reported in card [%u]: %u", i, card->applications->len);
+
+            for (j = 0; j < card->applications->len; j++) {
+                QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement *app;
+
+                app = &g_array_index (card->applications, QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement, j);
+
+                if (app->state != QMI_UIM_CARD_APPLICATION_STATE_READY) {
+                    g_debug ("Application [%u] in card [%u] not ready: %s",
+                             j, i, qmi_uim_card_application_state_get_string (app->state));
+                    ctx->unlocked = FALSE;
+                    ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
+                    qmi_message_uim_get_card_status_output_unref (output);
+                    common_unlock_check_context_step (ctx);
+                    return;
+                }
+
+                /* go on to next application */
+                g_debug ("Application [%u] in card [%u] is ready", j, i);
+            }
+            break;
+        }
+
+        case QMI_UIM_CARD_STATE_ABSENT:
+            g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                             "Card '%u' is absent", i);
+            qmi_message_uim_get_card_status_output_unref (output);
+            common_unlock_check_context_complete_and_free (ctx);
+            return;
+
+        case QMI_UIM_CARD_STATE_ERROR:
+        default:
+            if (qmi_uim_card_error_get_string (card->error_code) != NULL)
+                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                                 "Card '%u' is unusable: %s",
+                                                 i, qmi_uim_card_error_get_string (card->error_code));
+            else
+                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                                 "Card '%u' is unusable: unknown error (%u)",
+                                                 i, card->error_code);
+
+            qmi_message_uim_get_card_status_output_unref (output);
+            common_unlock_check_context_complete_and_free (ctx);
+            return;
+        }
+
+        /* go on to next card */
+    }
+
+    /* We're done */
+    ctx->unlocked = TRUE;
+    ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
+    common_unlock_check_context_step (ctx);
+}
+
+static void
+get_pin_status_ready (QmiClientDms             *client,
+                      GAsyncResult             *res,
+                      CommonUnlockCheckContext *ctx)
 {
     QmiMessageDmsUimGetPinStatusOutput *output = NULL;
     GError *error = NULL;
@@ -1215,58 +1378,162 @@ dms_uim_get_locked_status_ready (QmiClientDms *client,
     output = qmi_client_dms_uim_get_pin_status_finish (client, res, &error);
     if (!output) {
         g_prefix_error (&error, "QMI operation failed: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_pin_status_output_get_result (output, &error)) {
+        g_simple_async_result_take_error (ctx->simple, error);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (!qmi_message_dms_uim_get_pin_status_output_get_result (output, &error)) {
         /* QMI error internal when checking PIN status likely means NO SIM */
         if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INTERNAL)) {
             g_error_free (error);
-            error = g_error_new (QMI_PROTOCOL_ERROR,
-                                 QMI_PROTOCOL_ERROR_NO_SIM,
-                                 "missing SIM");
+            error = g_error_new (QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_NO_SIM, "missing SIM");
         }
         g_prefix_error (&error, "couldn't get PIN status: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
-                   output,
-                   &current_status,
-                   NULL, /* verify_retries_left */
-                   NULL, /* unblock_retries_left */
-                   &error)) {
-        g_prefix_error (&error, "couldn't get PIN1 status: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        switch (current_status) {
-        case QMI_DMS_UIM_PIN_STATUS_CHANGED:
-            /* This state is possibly given when after an ChangePin() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
-            /* This state is possibly given when after an Unblock() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_DISABLED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED:
-            response = rmf_message_is_sim_locked_response_new (FALSE);
-            g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                       (GDestroyNotify)g_byte_array_unref);
-            break;
-        case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
-        case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
-        case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
-            response = rmf_message_is_sim_locked_response_new (TRUE);
-            g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                       (GDestroyNotify)g_byte_array_unref);
-            break;
-        default:
-            g_simple_async_result_set_error (ctx->result,
-                                             RMFD_ERROR,
-                                             RMFD_ERROR_UNKNOWN,
-                                             "Unknown lock status");
-            break;
-        }
+        g_simple_async_result_take_error (ctx->simple, error);
+        qmi_message_dms_uim_get_pin_status_output_unref (output);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
+    if (!qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
+            output,
+            &current_status,
+            NULL, /* verify_retries_left */
+            NULL, /* unblock_retries_left */
+            &error)) {
+        g_prefix_error (&error, "couldn't get PIN1 status: ");
+        g_simple_async_result_take_error (ctx->simple, error);
         qmi_message_dms_uim_get_pin_status_output_unref (output);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("Current PIN1 status retrieved: '%s'", qmi_dms_uim_pin_status_get_string (current_status));
+
+    switch (current_status) {
+    case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
+        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                                         "SIM is not initialized, cannot check lock status");
+        break;
+
+    case QMI_DMS_UIM_PIN_STATUS_CHANGED:
+        /* This is a temporary state given after an ChangePin() operation has been performed. */
+    case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
+        /* This is a temporary state given after an Unblock() operation has been performed. */
+    case QMI_DMS_UIM_PIN_STATUS_DISABLED:
+    case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED:
+        /* PIN is now either unlocked or disabled, we can go on */
+        ctx->step++;
+        common_unlock_check_context_step (ctx);
+        qmi_message_dms_uim_get_pin_status_output_unref (output);
+        return;
+
+    case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
+        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                                         "SIM is blocked, needs PUK");
+        break;
+
+    case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
+        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                                         "SIM is permanently blocked");
+        break;
+
+    case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
+        /* PIN is enabled and locked */
+        ctx->unlocked = FALSE;
+        ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
+        common_unlock_check_context_step (ctx);
+        qmi_message_dms_uim_get_pin_status_output_unref (output);
+        return;
+
+    default:
+        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                         "Unknown lock status");
+        break;
+    }
+
+    qmi_message_dms_uim_get_pin_status_output_unref (output);
+    common_unlock_check_context_complete_and_free (ctx);
+}
+
+static void
+common_unlock_check_context_step (CommonUnlockCheckContext *ctx)
+{
+    switch (ctx->step) {
+    case COMMON_UNLOCK_CHECK_STEP_FIRST:
+        ctx->step++;
+        /* Fall down */
+
+    case COMMON_UNLOCK_CHECK_STEP_LOCK_STATUS:
+        g_debug ("Checking SIM lock status...");
+        qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                           NULL,
+                                           5,
+                                           NULL,
+                                           (GAsyncReadyCallback)get_pin_status_ready,
+                                           ctx);
+        return;
+
+    case COMMON_UNLOCK_CHECK_STEP_SIM_READY_STATUS:
+        g_debug ("Checking SIM readiness status...");
+        qmi_client_uim_get_card_status (QMI_CLIENT_UIM (ctx->self->priv->uim),
+                                        NULL,
+                                        5,
+                                        NULL,
+                                        (GAsyncReadyCallback)get_card_status_ready,
+                                        ctx);
+        return;
+
+    case COMMON_UNLOCK_CHECK_STEP_LAST:
+        g_simple_async_result_set_op_res_gboolean (ctx->simple, ctx->unlocked);
+        common_unlock_check_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+common_unlock_check (RmfdProcessor       *self,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
+{
+    CommonUnlockCheckContext *ctx;
+
+    ctx = g_slice_new0 (CommonUnlockCheckContext);
+    ctx->self = g_object_ref (self);
+    ctx->simple = g_simple_async_result_new (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             common_unlock_check);
+    ctx->step = COMMON_UNLOCK_CHECK_STEP_FIRST;
+    ctx->unlocked = FALSE;
+
+    common_unlock_check_context_step (ctx);
+}
+
+/**********************/
+/* Is Locked */
+
+static void
+is_sim_locked_unlock_check_ready (RmfdProcessor *self,
+                                  GAsyncResult  *res,
+                                  RunContext    *ctx)
+{
+    GError *error = NULL;
+    gboolean unlocked = FALSE;
+
+    if (!common_unlock_check_finish (self, res, &unlocked, &error))
+        g_simple_async_result_take_error (ctx->result, error);
+    else {
+        guint8 *response;
+
+        response = rmf_message_is_sim_locked_response_new (!unlocked);
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
 
     run_context_complete_and_free (ctx);
 }
@@ -1274,13 +1541,9 @@ dms_uim_get_locked_status_ready (QmiClientDms *client,
 static void
 is_sim_locked (RunContext *ctx)
 {
-    /* First, check current lock status */
-    qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
-                                       NULL,
-                                       5,
-                                       NULL,
-                                       (GAsyncReadyCallback)dms_uim_get_locked_status_ready,
-                                       ctx);
+    common_unlock_check (ctx->self,
+                         (GAsyncReadyCallback)is_sim_locked_unlock_check_ready,
+                         ctx);
 }
 
 /**********************/
@@ -1293,70 +1556,37 @@ typedef struct {
 static void run_after_unlock_checks (RunContext *ctx);
 
 static void
-dms_uim_get_pin_status_after_unlock_ready (QmiClientDms *client,
-                                           GAsyncResult *res,
-                                           RunContext   *ctx)
+after_unlock_check_ready (RmfdProcessor *self,
+                          GAsyncResult  *res,
+                          RunContext    *ctx)
 {
-    QmiMessageDmsUimGetPinStatusOutput *output = NULL;
-    GError *error = NULL;
-    QmiDmsUimPinStatus current_status;
+    gboolean unlocked = FALSE;
+    guint8 *response;
 
-    output = qmi_client_dms_uim_get_pin_status_finish (client, res, NULL);
-    if (output &&
-        qmi_message_dms_uim_get_pin_status_output_get_result (output, NULL) &&
-        qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
-            output,
-            &current_status,
-            NULL, /* verify_retries_left */
-            NULL, /* unblock_retries_left */
-            NULL)) {
-        switch (current_status) {
-        case QMI_DMS_UIM_PIN_STATUS_CHANGED:
-            /* This state is possibly given when after an ChangePin() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
-            /* This state is possibly given when after an Unblock() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_DISABLED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED: {
-            guint8 *response;
-
-            response = rmf_message_unlock_response_new ();
-            g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                       (GDestroyNotify)g_byte_array_unref);
-            qmi_message_dms_uim_get_pin_status_output_unref (output);
-
-            /* Launch automatic registration */
-            initiate_registration (ctx->self, TRUE);
-
-            run_context_complete_and_free (ctx);
-            return;
-        }
-
-        case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
-        case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
-        case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
-        default:
-            break;
-        }
+    if (!common_unlock_check_finish (self, res, &unlocked, NULL) || !unlocked) {
+        /* Sleep & retry */
+        run_after_unlock_checks (ctx);
+        return;
     }
 
-    if (output)
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
+    /* Unlocked! */
+    response = rmf_message_unlock_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
 
-    /* Sleep & retry */
-    run_after_unlock_checks (ctx);
+    /* Launch automatic registration */
+    initiate_registration (ctx->self, TRUE);
+
+    run_context_complete_and_free (ctx);
 }
 
 static gboolean
 after_unlock_check_cb (RunContext *ctx)
 {
-    qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
-                                       NULL,
-                                       5,
-                                       NULL,
-                                       (GAsyncReadyCallback)dms_uim_get_pin_status_after_unlock_ready,
-                                       ctx);
+    common_unlock_check (ctx->self,
+                         (GAsyncReadyCallback)after_unlock_check_ready,
+                         ctx);
     return FALSE;
 }
 
@@ -1365,7 +1595,7 @@ run_after_unlock_checks (RunContext *ctx)
 {
     UnlockPinContext *unlock_ctx = (UnlockPinContext *)ctx->additional_context;
 
-    if (unlock_ctx->after_unlock_checks == 10) {
+    if (unlock_ctx->after_unlock_checks == 20) {
         g_simple_async_result_set_error (ctx->result,
                                          RMFD_ERROR,
                                          RMFD_ERROR_UNKNOWN,
@@ -1376,7 +1606,7 @@ run_after_unlock_checks (RunContext *ctx)
 
     /* Recheck lock status. The change is not immediate */
     unlock_ctx->after_unlock_checks++;
-    g_timeout_add_seconds (1, (GSourceFunc)after_unlock_check_cb, ctx);
+    g_timeout_add (500, (GSourceFunc)after_unlock_check_cb, ctx);
 }
 
 static void
@@ -1411,120 +1641,59 @@ dms_uim_verify_pin_ready (QmiClientDms *client,
 }
 
 static void
-dms_uim_get_pin_status_ready (QmiClientDms *client,
-                              GAsyncResult *res,
-                              RunContext   *ctx)
+before_unlock_check_ready (RmfdProcessor *self,
+                          GAsyncResult  *res,
+                          RunContext    *ctx)
 {
-    QmiMessageDmsUimGetPinStatusOutput *output = NULL;
     GError *error = NULL;
-    QmiDmsUimPinStatus current_status;
+    gboolean unlocked = FALSE;
+    QmiMessageDmsUimVerifyPinInput *input;
+    const gchar *pin;
 
-    output = qmi_client_dms_uim_get_pin_status_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
+    if (!common_unlock_check_finish (self, res, &unlocked, &error)) {
         g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_pin_status_output_get_result (output, &error)) {
-        /* QMI error internal when checking PIN status likely means NO SIM */
-        if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INTERNAL)) {
-            g_error_free (error);
-            error = g_error_new (QMI_PROTOCOL_ERROR,
-                                 QMI_PROTOCOL_ERROR_NO_SIM,
-                                 "missing SIM");
-        }
-        g_prefix_error (&error, "couldn't get PIN status: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
-                   output,
-                   &current_status,
-                   NULL, /* verify_retries_left */
-                   NULL, /* unblock_retries_left */
-                   &error)) {
-        g_prefix_error (&error, "couldn't get PIN1 status: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        switch (current_status) {
-        case QMI_DMS_UIM_PIN_STATUS_CHANGED:
-            /* This state is possibly given when after an ChangePin() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
-            /* This state is possibly given when after an Unblock() operation has been performed. */
-        case QMI_DMS_UIM_PIN_STATUS_DISABLED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED: {
-            guint8 *response;
-
-            response = rmf_message_unlock_response_new ();
-            g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                       (GDestroyNotify)g_byte_array_unref);
-
-            /* Launch automatic registration */
-            initiate_registration (ctx->self, TRUE);
-
-            break;
-        }
-
-        case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
-            g_simple_async_result_set_error (ctx->result,
-                                             QMI_PROTOCOL_ERROR,
-                                             QMI_PROTOCOL_ERROR_PIN_BLOCKED,
-                                             "PIN blocked (PUK required)");
-            break;
-
-        case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
-            g_simple_async_result_set_error (ctx->result,
-                                             QMI_PROTOCOL_ERROR,
-                                             QMI_PROTOCOL_ERROR_PIN_ALWAYS_BLOCKED,
-                                             "PIN/PUK always blocked");
-            break;
-
-        case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
-        case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED: {
-            QmiMessageDmsUimVerifyPinInput *input;
-            const gchar *pin;
-
-            /* Send PIN */
-            rmf_message_unlock_request_parse (ctx->request->data, &pin);
-            input = qmi_message_dms_uim_verify_pin_input_new ();
-            qmi_message_dms_uim_verify_pin_input_set_info (
-                input,
-                QMI_DMS_UIM_PIN_ID_PIN,
-                pin,
-                NULL);
-            qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
-                                           input,
-                                           5,
-                                           NULL,
-                                           (GAsyncReadyCallback)dms_uim_verify_pin_ready,
-                                           ctx);
-            qmi_message_dms_uim_verify_pin_input_unref (input);
-            qmi_message_dms_uim_get_pin_status_output_unref (output);
-            return;
-        }
-
-        default:
-            g_simple_async_result_set_error (ctx->result,
-                                             RMFD_ERROR,
-                                             RMFD_ERROR_UNKNOWN,
-                                             "Unknown lock status");
-            break;
-        }
+        run_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
+    /* Unlocked already */
+    if (unlocked) {
+        guint8 *response;
 
-    run_context_complete_and_free (ctx);
+        response = rmf_message_unlock_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+        /* Launch automatic registration */
+        initiate_registration (ctx->self, TRUE);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Locked, send pin */
+    rmf_message_unlock_request_parse (ctx->request->data, &pin);
+    input = qmi_message_dms_uim_verify_pin_input_new ();
+    qmi_message_dms_uim_verify_pin_input_set_info (
+        input,
+        QMI_DMS_UIM_PIN_ID_PIN,
+        pin,
+        NULL);
+    qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                   input,
+                                   5,
+                                   NULL,
+                                   (GAsyncReadyCallback)dms_uim_verify_pin_ready,
+                                   ctx);
+    qmi_message_dms_uim_verify_pin_input_unref (input);
 }
 
 static void
 unlock (RunContext *ctx)
 {
     /* First, check current lock status */
-    qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
-                                       NULL,
-                                       5,
-                                       NULL,
-                                       (GAsyncReadyCallback)dms_uim_get_pin_status_ready,
-                                       ctx);
+    common_unlock_check (ctx->self,
+                         (GAsyncReadyCallback)before_unlock_check_ready,
+                         ctx);
 }
 
 /**********************/
