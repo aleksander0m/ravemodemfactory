@@ -1,3 +1,43 @@
+
+Overview of changes in RaveModemFactory 1.10
+---------------------------------------------
+
+Bugfix release, including:
+
+ * Fix socket closing operation in librmf.
+ * Fix resolv.conf management logic to restore only contents, not the full file.
+
+
+Overview of changes in RaveModemFactory 1.8
+---------------------------------------------
+
+New features:
+
+ * Setup new registration sequence, with explicit network scan if regular
+   registration times out.
+
+Bugfixes:
+
+ * Map MCC to number of MNC digits, to properly read MCCMNC from SIM.
+
+
+Overview of changes in RaveModemFactory 1.6
+---------------------------------------------
+
+New features:
+
+ * New API methods in librmf:
+   ** IsSimLocked()
+   ** IsModemAvailable()
+   ** GetSimInfo()
+ * Improve librmf to report error strings on exceptions.
+
+Bugfixes:
+
+ * Ensure rmfd-wwan-service is stopped on disconnect.
+ * Backup and restore resolv.conf during a connection setup.
+
+
 Overview of changes in RaveModemFactory 1.4
 ---------------------------------------------
 
@@ -7,6 +47,7 @@ Bugfix release, including:
  * Pass more meaningful errors to the client
  * Use the dhclient leases file under /var/run
 
+
 Overview of changes in RaveModemFactory 1.2
 ---------------------------------------------
 
@@ -14,6 +55,7 @@ Bugfix release, including:
 
  * Look for dhclient during configure
  * Minor fixes in the rmfcli outputs
+
 
 Overview of changes in RaveModemFactory 1.0
 ---------------------------------------------
