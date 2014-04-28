@@ -1,4 +1,13 @@
 
+Overview of changes in RaveModemFactory 1.12
+---------------------------------------------
+
+Bugfix release, including:
+
+ * Improved Unlock() and IsSimLocked() operations, checking not only the SIM PIN
+   lock status, but also the overall SIM readiness status.
+
+
 Overview of changes in RaveModemFactory 1.10
 ---------------------------------------------
 
