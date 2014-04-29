@@ -23,9 +23,17 @@ AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 
 dnl Require libqmi
-PKG_CHECK_MODULES(QMI, qmi-glib >= 1.9)
+PKG_CHECK_MODULES(QMI, qmi-glib >= 1.6.2)
 AC_SUBST(QMI_CFLAGS)
 AC_SUBST(QMI_LIBS)
+dnl UIM card status added in 1.6.2 and 1.9.x
+AC_CHECK_LIB([qmi-glib],
+             [qmi_client_uim_get_card_status],
+             [have_card_status=yes],
+             [have_card_status=no])
+if test "x$have_card_status" = "xno"; then
+   AC_MSG_ERROR([libqmi doesn't have "UIM Card Status" support])
+fi
 
 dnl Require gudev
 PKG_CHECK_MODULES(GUDEV, gudev-1.0 >= 147)
