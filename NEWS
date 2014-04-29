@@ -1,4 +1,14 @@
 
+Overview of changes in RaveModemFactory 1.12.2
+-----------------------------------------------
+
+Bugfix release, including:
+
+ * libqmi 1.6.2 also has "UIM Get Card Status" support, so use that version as
+   base but still explicitly look for the method in the library (e.g. so that
+   libqmi 1.8.0 gives an error).
+
+
 Overview of changes in RaveModemFactory 1.12
 ---------------------------------------------
 
