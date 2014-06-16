@@ -36,9 +36,9 @@ fi
 
 DEVICE=$1
 COMMAND=$2
-PID_FILE=/var/run/rmfd-wwan-service-$DEVICE.pid
-LEASES_FILE=/var/run/rmfd-wwan-service-$DEVICE.leases
-RESOLV_CONF_BACKUP=/var/run/rmfd-wwan-service-$DEVICE.resolv.conf.backup
+PID_FILE=/var/run/rmfd-port-data-wwan-service-$DEVICE.pid
+LEASES_FILE=/var/run/rmfd-port-data-wwan-service-$DEVICE.leases
+RESOLV_CONF_BACKUP=/var/run/rmfd-port-data-wwan-service-$DEVICE.resolv.conf.backup
 DHCLIENT_PATH=dhclient
 
 start_network ()
