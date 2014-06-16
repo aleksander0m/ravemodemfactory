@@ -26,8 +26,20 @@
 #ifndef RMFD_UTILS_H
 #define RMFD_UTILS_H
 
+#include <gudev/gudev.h>
 #include <glib.h>
 
 guint8 rmfd_utils_get_mnc_length_for_mcc (const gchar *mcc);
+
+typedef enum {
+    RMFD_MODEM_TYPE_UNKNOWN = 0,
+    RMFD_MODEM_TYPE_QMI     = 1,
+} RmfdModemType;
+
+RmfdModemType rmfd_utils_get_modem_type (GUdevDevice *device);
+
+gchar *rmfd_utils_build_interface_name (GUdevDevice *device);
+
+GUdevDevice *rmfd_utils_peek_physical_device (GUdevDevice *child);
 
 #endif /* RMFD_UTILS_H */

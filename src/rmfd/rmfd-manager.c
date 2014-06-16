@@ -36,6 +36,7 @@
 #include "rmfd-port-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
+#include "rmfd-utils.h"
 
 G_DEFINE_TYPE (RmfdManager, rmfd_manager, G_TYPE_OBJECT)
 
@@ -44,7 +45,9 @@ struct _RmfdManagerPrivate {
     GUdevClient *udev_client;
     guint initial_scan_id;
 
-    /* Processor and data controller */
+    /* Current modem */
+    RmfdModemType type;
+    GUdevDevice *parent;
     RmfdPortProcessor *processor;
     RmfdPortData *data;
 
@@ -58,62 +61,6 @@ struct _RmfdManagerPrivate {
 };
 
 /*****************************************************************************/
-
-static gchar *
-build_interface_name (GUdevDevice *device)
-{
-    const gchar *subsystem;
-    const gchar *name;
-
-    subsystem = g_udev_device_get_subsystem (device);
-    name = g_udev_device_get_name (device);
-
-    if (g_str_has_prefix (subsystem, "usb"))
-        return g_strdup_printf ("/dev/%s", name);
-
-    if (g_str_has_prefix (subsystem, "net"))
-        return g_strdup (name);
-
-    return NULL;
-}
-
-static gboolean
-filter_usb_device (GUdevDevice *device)
-{
-    const gchar *subsystem;
-    const gchar *name;
-    const gchar *driver;
-    GUdevDevice *parent = NULL;
-    gboolean filtered = TRUE;
-
-    /* Subsystems: 'usb', 'usbmisc' or 'net' */
-    subsystem = g_udev_device_get_subsystem (device);
-    if (!subsystem || (!g_str_has_prefix (subsystem, "usb") && !g_str_has_prefix (subsystem, "net")))
-        goto out;
-
-    /* Names: if 'usb' or 'usbmisc' only 'cdc-wdm' prefixed names allowed */
-    name = g_udev_device_get_name (device);
-    if (!name || (g_str_has_prefix (subsystem, "usb") && !g_str_has_prefix (name, "cdc-wdm")))
-        goto out;
-
-    /* Drivers: 'qmi_wwan' only */
-    driver = g_udev_device_get_driver (device);
-    if (!driver) {
-        parent = g_udev_device_get_parent (device);
-        if (parent)
-            driver = g_udev_device_get_driver (parent);
-    }
-    if (!driver || !g_str_equal (driver, "qmi_wwan"))
-        goto out;
-
-    /* Not filtered! */
-    filtered = FALSE;
-
- out:
-    if (parent)
-        g_object_unref (parent);
-    return filtered;
-}
 
 static void
 processor_qmi_new_ready (GObject      *source,
@@ -134,54 +81,86 @@ processor_qmi_new_ready (GObject      *source,
 }
 
 static void
+cleanup_current_device (RmfdManager *self)
+{
+    if (self->priv->processor) {
+        g_debug ("    removing processor port at '%s'",
+                 rmfd_port_get_interface (RMFD_PORT (self->priv->processor)));
+        g_clear_object (&self->priv->processor);
+    }
+
+    if (self->priv->data) {
+        g_debug ("    removing data port at '%s'",
+                 rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
+        rmfd_port_data_setup (self->priv->data, FALSE, NULL, NULL);
+        g_clear_object (&self->priv->data);
+    }
+
+    g_clear_object (&self->priv->parent);
+
+    self->priv->type = RMFD_MODEM_TYPE_UNKNOWN;
+}
+
+static void
 port_added (RmfdManager *self,
             GUdevDevice *device)
 {
-    const gchar *subsystem;
+    RmfdModemType type;
     gchar *interface = NULL;
+    GUdevDevice *parent;
 
-    /* Filter */
-    if (filter_usb_device (device))
+    /* Get modem type */
+    type = rmfd_utils_get_modem_type (device);
+    if (type == RMFD_MODEM_TYPE_UNKNOWN)
         goto out;
 
-    subsystem = g_udev_device_get_subsystem (device);
-    interface = build_interface_name (device);
+    /* Build interface name */
+    interface = rmfd_utils_build_interface_name (device);
 
-    /* Store the QMI port */
-    if (g_str_has_prefix (subsystem, "usb")) {
-        if (self->priv->processor) {
-            /* If it's an event in the same interface, ignore */
-            if (g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor))))
-                goto out;
+    /* Ignore event if port already added */
+    if ((self->priv->processor && g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor)))) ||
+        (self->priv->data && g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data)))))
+        goto out;
 
-            g_debug ("QMI port added '%s', replaced '%s'",
-                     interface,
-                     rmfd_port_get_interface (RMFD_PORT (self->priv->processor)));
-            g_clear_object (&self->priv->processor);
-        } else
-            g_debug ("QMI port added: '%s'", interface);
+    /* Find physical device in the incoming port */
+    parent = rmfd_utils_peek_physical_device (device);
+    if (!parent)
+        goto out;
 
-        /* Create QMI Processor */
-        rmfd_port_processor_qmi_new (interface,
-                                     (GAsyncReadyCallback) processor_qmi_new_ready,
-                                     g_object_ref (self));
+    /* If different device, clear ports */
+    if (self->priv->parent &&
+        !g_str_equal (g_udev_device_get_name (parent), g_udev_device_get_name (self->priv->parent))) {
+        g_debug ("Removing modem '%s'", g_udev_device_get_name (self->priv->parent));
+        cleanup_current_device (self);
     }
-    /* Store the net port */
-    else if (g_str_has_prefix (subsystem, "net")) {
-        if (self->priv->data) {
-            /* If it's an event in the same interface, ignore */
-            if (g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data))))
-                goto out;
 
-            g_debug ("NET port added '%s', replaced '%s'",
-                     interface,
-                     rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
-            g_clear_object (&self->priv->data);
-        } else
-            g_debug ("NET port added: '%s'", interface);
+    /* If first port, setup device */
+    if (!self->priv->parent) {
+        g_debug ("Adding modem '%s'", g_udev_device_get_name (parent));
+        self->priv->parent = g_object_ref (parent);
+        if (type == RMFD_MODEM_TYPE_QMI) {
+            g_debug ("    new modem is QMI capable");
+            self->priv->type = RMFD_MODEM_TYPE_QMI;
+        }
+    }
 
-        /* Create WWAN controller */
-        self->priv->data = rmfd_port_data_wwan_new (interface);
+    /* QMI modem? */
+    if (self->priv->type == RMFD_MODEM_TYPE_QMI) {
+        /* Add as processor? */
+        if (!self->priv->processor && g_str_has_prefix (g_udev_device_get_subsystem (device), "usb")) {
+            g_debug ("    added port '%s' as QMI processor port", interface);
+            rmfd_port_processor_qmi_new (interface,
+                                         (GAsyncReadyCallback) processor_qmi_new_ready,
+                                         g_object_ref (self));
+        }
+        /* Add as net port? */
+        else if (!self->priv->data && g_str_has_prefix (g_udev_device_get_subsystem (device), "net")) {
+            g_debug ("    added port '%s' as NET data port", interface);
+            self->priv->data = rmfd_port_data_wwan_new (interface);
+        }
+        /* Ignore */
+        else
+            g_debug ("    ignoring port '%s'", interface);
     }
 
 out:
@@ -192,25 +171,15 @@ static void
 port_removed (RmfdManager *self,
               GUdevDevice *device)
 {
-    const gchar *subsystem;
     gchar *interface = NULL;
 
-    subsystem = g_udev_device_get_subsystem (device);
-    interface = build_interface_name (device);
+    interface = rmfd_utils_build_interface_name (device);
 
-    /* Remove the processor port */
-    if (self->priv->processor &&
-        g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor)))) {
-        g_debug ("Processor port removed: '%s'", rmfd_port_get_interface (RMFD_PORT (self->priv->processor)));
-        g_clear_object (&self->priv->processor);
-    }
-
-    /* Remove the data port */
-    if (self->priv->data &&
-        g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data)))) {
-        g_debug ("Data port removed: '%s'", rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
-        rmfd_port_data_setup (self->priv->data, FALSE, NULL, NULL);
-        g_clear_object (&self->priv->data);
+    /* If we remove either of the ports we use for processor or data, cleanup device */
+    if ((self->priv->processor && g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor)))) ||
+        (self->priv->data && g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data))))) {
+        g_debug ("Removing modem '%s'", g_udev_device_get_name (self->priv->parent));
+        cleanup_current_device (self);
     }
 
     g_free (interface);
