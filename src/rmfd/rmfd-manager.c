@@ -218,7 +218,9 @@ processor_qmi_new_ready (GObject      *source,
                        rmfd_port_get_interface (RMFD_PORT (ctx->self->priv->data)));
 
             g_list_free_full (ctx->self->priv->processor_ports, g_object_unref);
+            ctx->self->priv->processor_ports = NULL;
             g_list_free_full (ctx->self->priv->data_ports, g_object_unref);
+            ctx->self->priv->data_ports = NULL;
             probing_port_context_free (ctx);
             return;
         }
@@ -253,6 +255,7 @@ processor_qmi_new_ready (GObject      *source,
 
     /* No more QMI ports to try! */
     g_list_free_full (ctx->self->priv->data_ports, g_object_unref);
+    ctx->self->priv->data_ports = NULL;
     cleanup_current_device (ctx->self);
     probing_port_context_free (ctx);
 }
