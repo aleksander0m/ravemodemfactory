@@ -32,7 +32,7 @@
 
 #include <rmf-messages.h>
 
-#include "rmfd-wwan.h"
+#include "rmfd-data.h"
 
 #define RMFD_TYPE_PROCESSOR            (rmfd_processor_get_type ())
 #define RMFD_PROCESSOR(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), RMFD_TYPE_PROCESSOR, RmfdProcessor))
@@ -69,7 +69,7 @@ RmfdProcessor *rmfd_processor_new_finish (GAsyncResult         *res,
 /* Processes the request and gets back a response */
 void        rmfd_processor_run        (RmfdProcessor        *processor,
                                        GByteArray           *request,
-                                       RmfdWwan             *wwan,
+                                       RmfdData             *data,
                                        GAsyncReadyCallback   callback,
                                        gpointer              user_data);
 GByteArray *rmfd_processor_run_finish (RmfdProcessor        *processor,

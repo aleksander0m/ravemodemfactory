@@ -425,7 +425,7 @@ typedef struct {
     RmfdProcessor *self;
     GSimpleAsyncResult *result;
     GByteArray *request;
-    RmfdWwan *wwan;
+    RmfdData *data;
     gpointer additional_context;
     GDestroyNotify additional_context_free;
 } RunContext;
@@ -438,7 +438,7 @@ run_context_complete_and_free (RunContext *ctx)
     if (ctx->additional_context && ctx->additional_context_free)
         ctx->additional_context_free (ctx->additional_context);
     g_byte_array_unref (ctx->request);
-    g_object_unref (ctx->wwan);
+    g_object_unref (ctx->data);
     g_object_unref (ctx->self);
     g_slice_free (RunContext, ctx);
 }
@@ -2476,14 +2476,14 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
 }
 
 static void
-wwan_setup_start_ready (RmfdWwan     *wwan,
+data_setup_start_ready (RmfdData     *data,
                         GAsyncResult *res,
                         RunContext   *ctx)
 {
     GError *error = NULL;
     guint8 *response;
 
-    if (!rmfd_wwan_setup_finish (wwan, res, &error)) {
+    if (!rmfd_data_setup_finish (data, res, &error)) {
         QmiMessageWdsStopNetworkInput *input;
 
         /* Abort */
@@ -2615,9 +2615,9 @@ wds_start_network_ready (QmiClientWds *client,
         return;
     }
 
-    rmfd_wwan_setup (ctx->wwan,
+    rmfd_data_setup (ctx->data,
                      TRUE,
-                     (GAsyncReadyCallback)wwan_setup_start_ready,
+                     (GAsyncReadyCallback)data_setup_start_ready,
                      ctx);
 }
 
@@ -2737,14 +2737,14 @@ connect (RunContext *ctx)
 /* Disconnect */
 
 static void
-wwan_setup_stop_ready (RmfdWwan     *wwan,
+data_setup_stop_ready (RmfdData     *data,
                        GAsyncResult *res,
                        RunContext   *ctx)
 {
     GError *error = NULL;
     guint8 *response;
 
-    if (!rmfd_wwan_setup_finish (wwan, res, &error)) {
+    if (!rmfd_data_setup_finish (data, res, &error)) {
         g_warning ("error: couldn't stop interface: %s", error->message);
         g_warning ("error: will assume disconnected");
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
@@ -2802,9 +2802,9 @@ wds_stop_network_ready (QmiClientWds *client,
     /* Clear packet data handle */
     ctx->self->priv->packet_data_handle = 0;
 
-    rmfd_wwan_setup (ctx->wwan,
+    rmfd_data_setup (ctx->data,
                      FALSE,
-                     (GAsyncReadyCallback)wwan_setup_stop_ready,
+                     (GAsyncReadyCallback)data_setup_stop_ready,
                      ctx);
 }
 
@@ -2869,7 +2869,7 @@ disconnect (RunContext *ctx)
 void
 rmfd_processor_run (RmfdProcessor       *self,
                     GByteArray          *request,
-                    RmfdWwan            *wwan,
+                    RmfdData            *data,
                     GAsyncReadyCallback  callback,
                     gpointer             user_data)
 {
@@ -2882,7 +2882,7 @@ rmfd_processor_run (RmfdProcessor       *self,
                                              user_data,
                                              rmfd_processor_run);
     ctx->request = g_byte_array_ref (request);
-    ctx->wwan = g_object_ref (wwan);
+    ctx->data = g_object_ref (data);
 
     if (rmf_message_get_type (request->data) != RMF_MESSAGE_TYPE_REQUEST) {
         g_simple_async_result_set_error (ctx->result,

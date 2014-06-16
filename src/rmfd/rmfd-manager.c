@@ -33,7 +33,7 @@
 
 #include "rmfd-manager.h"
 #include "rmfd-processor.h"
-#include "rmfd-wwan.h"
+#include "rmfd-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
@@ -48,9 +48,9 @@ struct _RmfdManagerPrivate {
     GUdevDevice *qmi_port;
     GUdevDevice *wwan_port;
 
-    /* Processor and WWAN controller*/
+    /* Processor and data controller*/
     RmfdProcessor *processor;
-    RmfdWwan *wwan;
+    RmfdData *data;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -168,7 +168,7 @@ port_added (RmfdManager *self,
                 g_debug ("replacing NET port '%s' with %s",
                          name,
                          g_udev_device_get_name (self->priv->wwan_port));
-            g_clear_object (&self->priv->wwan);
+            g_clear_object (&self->priv->data);
             g_clear_object (&self->priv->wwan_port);
         } else
             g_debug ("NET port added: %s", name);
@@ -176,7 +176,7 @@ port_added (RmfdManager *self,
         self->priv->wwan_port = g_object_ref (device);
 
         /* Create WWAN controller */
-        self->priv->wwan = rmfd_wwan_new (name);
+        self->priv->data = rmfd_data_wwan_new (name);
         return;
     }
 }
@@ -203,8 +203,8 @@ port_removed (RmfdManager *self,
         g_str_equal (g_udev_device_get_name (device),
                      g_udev_device_get_name (self->priv->wwan_port))) {
         g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan_port));
-        rmfd_wwan_setup (self->priv->wwan, FALSE, NULL, NULL);
-        g_clear_object (&self->priv->wwan);
+        rmfd_data_setup (self->priv->data, FALSE, NULL, NULL);
+        g_clear_object (&self->priv->data);
         g_clear_object (&self->priv->wwan_port);
     }
 }
@@ -296,7 +296,7 @@ request_process (RmfdManager *self,
         uint8_t modem_available;
         uint8_t *response_buffer;
 
-        modem_available = self->priv->processor && self->priv->wwan;
+        modem_available = self->priv->processor && self->priv->data;
         response_buffer = rmf_message_is_modem_available_response_new (modem_available);
         request->response = g_byte_array_new_take (response_buffer, rmf_message_get_length (response_buffer));
         request_complete (request);
@@ -304,7 +304,7 @@ request_process (RmfdManager *self,
         return;
     }
 
-    if (!self->priv->processor || !self->priv->wwan) {
+    if (!self->priv->processor || !self->priv->data) {
         request->response = rmfd_error_message_new_from_error (request->message, RMFD_ERROR, RMFD_ERROR_NO_MODEM, "No modem");
         request_complete (request);
         request_free (request);
@@ -313,7 +313,7 @@ request_process (RmfdManager *self,
 
     rmfd_processor_run (self->priv->processor,
                         request->message,
-                        self->priv->wwan,
+                        self->priv->data,
                         (GAsyncReadyCallback)processor_run_ready,
                         request);
 }
@@ -541,7 +541,7 @@ dispose (GObject *object)
 
     g_clear_object (&priv->socket_service);
     g_clear_object (&priv->processor);
-    g_clear_object (&priv->wwan);
+    g_clear_object (&priv->data);
     g_clear_object (&priv->qmi_port);
     g_clear_object (&priv->wwan_port);
     g_clear_object (&priv->udev_client);

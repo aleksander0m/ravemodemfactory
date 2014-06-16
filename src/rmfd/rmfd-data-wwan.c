@@ -18,35 +18,22 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013 Zodiac Inflight Innovations
+ * Copyright (C) 2013 - 2014 Zodiac Inflight Innovations
  *
- * Author: Aleksander Morgado <aleksander@lanedo.com>
+ * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
-#include <libqmi-glib.h>
-
-#include "rmfd-wwan.h"
+#include "rmfd-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
-G_DEFINE_TYPE (RmfdWwan, rmfd_wwan, G_TYPE_OBJECT)
-
-enum {
-    PROP_0,
-    PROP_NAME,
-    LAST_PROP
-};
-
-struct _RmfdWwanPrivate {
-    /* Interface name */
-    gchar *name;
-};
+G_DEFINE_TYPE (RmfdDataWwan, rmfd_data_wwan, RMFD_TYPE_DATA)
 
 /*****************************************************************************/
 /* Setup */
 
 typedef struct {
-    RmfdWwan *self;
+    RmfdDataWwan *self;
     GSimpleAsyncResult *result;
     gboolean start;
 } SetupContext;
@@ -60,10 +47,10 @@ setup_context_complete_and_free (SetupContext *ctx)
     g_slice_free (SetupContext, ctx);
 }
 
-gboolean
-rmfd_wwan_setup_finish (RmfdWwan      *self,
-                        GAsyncResult  *res,
-                        GError       **error)
+static gboolean
+setup_finish (RmfdData      *self,
+              GAsyncResult  *res,
+              GError       **error)
 {
     return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
 }
@@ -80,7 +67,7 @@ command_ready (GPid          pid,
             RMFD_ERROR_UNKNOWN,
             "couldn't %s WWAN interface '%s': failed with code %d",
             ctx->start ? "start" : "stop",
-            ctx->self->priv->name,
+            rmfd_data_get_name (RMFD_DATA (ctx->self)),
             status);
         setup_context_complete_and_free (ctx);
         return;
@@ -88,17 +75,17 @@ command_ready (GPid          pid,
 
     /* Done */
     g_debug ("WWAN interface '%s' is now %s",
-             ctx->self->priv->name,
+             rmfd_data_get_name (RMFD_DATA (ctx->self)),
              ctx->start ? "started" : "stopped");
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     setup_context_complete_and_free (ctx);
 }
 
-void
-rmfd_wwan_setup (RmfdWwan            *self,
-                 gboolean             start,
-                 GAsyncReadyCallback  callback,
-                 gpointer             user_data)
+static void
+setup (RmfdData            *self,
+       gboolean             start,
+       GAsyncReadyCallback  callback,
+       gpointer             user_data)
 {
     SetupContext *ctx;
     gchar *command;
@@ -108,20 +95,17 @@ rmfd_wwan_setup (RmfdWwan            *self,
 
     ctx = g_slice_new (SetupContext);
     ctx->self = g_object_ref (self);
-    ctx->result = g_simple_async_result_new (G_OBJECT (self),
-                                             callback,
-                                             user_data,
-                                             rmfd_wwan_setup);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, setup);
     ctx->start = start;
 
     /* Build command */
-    command = g_strdup_printf ("rmfd-wwan-service %s %s",
-                               ctx->self->priv->name,
+    command = g_strdup_printf ("rmfd-data-wwan-service %s %s",
+                               rmfd_data_get_name (RMFD_DATA (ctx->self)),
                                ctx->start ? "start" : "stop");
     command_split = g_strsplit (command, " ", -1);
     g_debug ("%s WWAN interface '%s': %s",
              ctx->start ? "starting" : "stopping",
-             ctx->self->priv->name,
+             rmfd_data_get_name (RMFD_DATA (ctx->self)),
              command);
     g_spawn_async (NULL, /* working directory */
                    command_split, /* argv */
@@ -138,7 +122,7 @@ rmfd_wwan_setup (RmfdWwan            *self,
         g_prefix_error (&error,
                         "couldn't %s WWAN interface '%s': ",
                         ctx->start ? "start" : "stop",
-                        ctx->self->priv->name);
+                        rmfd_data_get_name (RMFD_DATA (ctx->self)));
         g_simple_async_result_take_error (ctx->result, error);
         setup_context_complete_and_free (ctx);
         return;
@@ -150,90 +134,27 @@ rmfd_wwan_setup (RmfdWwan            *self,
 
 /*****************************************************************************/
 
-RmfdWwan *
-rmfd_wwan_new (const gchar *name)
+RmfdData *
+rmfd_data_wwan_new (const gchar *name)
 {
-    return RMFD_WWAN (g_object_new (RMFD_TYPE_WWAN,
-                                    RMFD_WWAN_NAME, name,
+    return RMFD_DATA (g_object_new (RMFD_TYPE_DATA_WWAN,
+                                    RMFD_DATA_NAME, name,
                                     NULL));
 }
 
 /*****************************************************************************/
 
 static void
-rmfd_wwan_init (RmfdWwan *self)
+rmfd_data_wwan_init (RmfdDataWwan *self)
 {
-    /* Setup private data */
-    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-                                              RMFD_TYPE_WWAN,
-                                              RmfdWwanPrivate);
 }
 
 static void
-set_property (GObject *object,
-              guint prop_id,
-              const GValue *value,
-              GParamSpec *pspec)
+rmfd_data_wwan_class_init (RmfdDataWwanClass *wwan_class)
 {
-    RmfdWwanPrivate *priv = RMFD_WWAN (object)->priv;
-
-    switch (prop_id) {
-    case PROP_NAME:
-        g_free (priv->name);
-        priv->name = g_value_dup_string (value);
-        break;
-    default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-        break;
-    }
-}
-
-static void
-get_property (GObject *object,
-              guint prop_id,
-              GValue *value,
-              GParamSpec *pspec)
-{
-    RmfdWwanPrivate *priv = RMFD_WWAN (object)->priv;
-
-    switch (prop_id) {
-    case PROP_NAME:
-        g_value_set_string (value, priv->name);
-        break;
-    default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-        break;
-    }
-}
-
-static void
-finalize (GObject *object)
-{
-    RmfdWwanPrivate *priv = RMFD_WWAN (object)->priv;
-
-    g_free (priv->name);
-
-    G_OBJECT_CLASS (rmfd_wwan_parent_class)->finalize (object);
-}
-
-static void
-rmfd_wwan_class_init (RmfdWwanClass *wwan_class)
-{
-    GObjectClass *object_class = G_OBJECT_CLASS (wwan_class);
-
-    g_type_class_add_private (object_class, sizeof (RmfdWwanPrivate));
+    RmfdDataClass *data_class = RMFD_DATA_CLASS (wwan_class);
 
     /* Virtual methods */
-    object_class->set_property = set_property;
-    object_class->get_property = get_property;
-    object_class->finalize = finalize;
-
-    /* Properties */
-    g_object_class_install_property
-        (object_class, PROP_NAME,
-         g_param_spec_string (RMFD_WWAN_NAME,
-                              "Name",
-                              "Name of the WWAN interface",
-                              NULL,
-                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+    data_class->setup = setup;
+    data_class->setup_finish = setup_finish;
 }

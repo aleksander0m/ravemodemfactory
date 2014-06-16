@@ -1,6 +1,6 @@
 
 sbin_PROGRAMS = rmfd
-dist_bin_SCRIPTS = rmfd-wwan-service
+dist_bin_SCRIPTS = rmfd-data-wwan-service
 
 BUILT_SOURCES = \
 	rmfd-error-types.h \
@@ -19,18 +19,14 @@ rmfd_CPPFLAGS = \
 
 rmfd_SOURCES = \
 	rmfd.c \
-	rmfd-manager.h \
-	rmfd-manager.c \
-	rmfd-processor.h \
-	rmfd-processor.c \
-	rmfd-wwan.h \
-	rmfd-wwan.c \
-	rmfd-utils.h \
-	rmfd-utils.c \
-	rmfd-error.h \
-	rmfd-error.c \
-	rmfd-error-types.h \
-	rmfd-error-types.c
+	rmfd-utils.h rmfd-utils.c \
+	rmfd-error.h rmfd-error.c \
+	rmfd-error-types.h rmfd-error-types.c \
+	rmfd-manager.h rmfd-manager.c \
+	rmfd-processor.h rmfd-processor.c \
+	rmfd-data.h rmfd-data.c \
+	rmfd-data-wwan.h rmfd-data-wwan.c
+
 
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
