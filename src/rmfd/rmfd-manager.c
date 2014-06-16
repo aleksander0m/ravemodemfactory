@@ -48,8 +48,11 @@ struct _RmfdManagerPrivate {
     /* Current modem */
     RmfdModemType type;
     GUdevDevice *parent;
+    gboolean processor_probing;
     RmfdPortProcessor *processor;
     RmfdPortData *data;
+    GList *processor_ports;
+    GList *data_ports;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -83,24 +86,175 @@ cleanup_current_device (RmfdManager *self)
     self->priv->type = RMFD_MODEM_TYPE_UNKNOWN;
 }
 
+static GList *
+find_port (GList **list,
+           GUdevDevice *device)
+{
+    GList *l;
+
+    g_assert (list != NULL);
+
+    for (l = *list; l; l = g_list_next (l)) {
+        GUdevDevice *aux;
+
+        aux = G_UDEV_DEVICE (l->data);
+        if (g_str_equal (g_udev_device_get_subsystem (device), g_udev_device_get_subsystem (aux)) &&
+            g_str_equal (g_udev_device_get_name (device), g_udev_device_get_name (aux))) {
+            return l;
+        }
+    }
+    return NULL;
+}
+
+static void
+track_port (GList **list,
+            GUdevDevice *device)
+{
+    g_assert (list != NULL);
+
+    if (find_port (list, device))
+        return;
+
+    *list = g_list_prepend (*list, g_object_ref (device));
+}
+
+static void
+untrack_port (GList **list,
+              GUdevDevice *device)
+{
+    GList *l;
+
+    g_assert (list != NULL);
+
+    if ((l = find_port (list, device)) == NULL)
+        return;
+
+    g_object_unref (l->data);
+    *list = g_list_delete_link (*list, l);
+}
+
+static GUdevDevice *
+peek_data_for_qmi (RmfdManager *self,
+                   GUdevDevice *device)
+{
+    GUdevDevice *qmi_device_parent;
+    GUdevDevice *found;
+    GList *l;
+
+    /* Get parent of the data device */
+    qmi_device_parent = g_udev_device_get_parent (device);
+    if (!qmi_device_parent) {
+        g_warning ("cannot get parent device for QMI port '%s'", g_udev_device_get_name (device));
+        return NULL;
+    }
+
+    /* Now walk the list of net ports looking for a match */
+    found = NULL;
+    for (l = self->priv->data_ports; l && !found; l = g_list_next (l)) {
+        GUdevDevice *data_device_parent;
+
+        /* Get parent of the data device */
+        data_device_parent = g_udev_device_get_parent (G_UDEV_DEVICE (l->data));
+        if (!data_device_parent) {
+            g_warning ("cannot get parent device for data port '%s'",
+                       g_udev_device_get_name (G_UDEV_DEVICE (l->data)));
+            continue;
+        }
+
+        if (g_str_equal (g_udev_device_get_sysfs_path (data_device_parent),
+                         g_udev_device_get_sysfs_path (qmi_device_parent)))
+            found = G_UDEV_DEVICE (l->data);
+
+        g_object_unref (data_device_parent);
+    }
+
+    if (!found)
+        g_warning ("cannot get associated data port for qmi port '%s'",
+                   g_udev_device_get_name (device));
+    g_object_unref (qmi_device_parent);
+
+    return found;
+}
+
+typedef struct {
+    RmfdManager *self;
+    GUdevDevice *device;
+} ProbingPortContext;
+
+static void
+probing_port_context_free (ProbingPortContext *ctx)
+{
+    g_object_unref (ctx->self);
+    g_object_unref (ctx->device);
+    g_slice_free (ProbingPortContext, ctx);
+}
+
 static void
 processor_qmi_new_ready (GObject      *source,
                          GAsyncResult *res,
-                         RmfdManager  *self)
+                         ProbingPortContext *ctx)
 {
     GError *error = NULL;
 
-    /* 'self' is a full reference */
+    ctx->self->priv->processor_probing = FALSE;
+    ctx->self->priv->processor = rmfd_port_processor_qmi_new_finish (res, &error);
 
-    self->priv->processor = rmfd_port_processor_qmi_new_finish (res, &error);
-    if (!self->priv->processor) {
-        g_warning ("couldn't create processor: %s", error->message);
+    if (ctx->self->priv->processor) {
+        GUdevDevice *data;
+
+        /* Processor correctly created for a QMI port, now look for corresponding WWAN */
+        data = peek_data_for_qmi (ctx->self, ctx->device);
+        if (data) {
+            gchar *interface;
+
+            interface = rmfd_utils_build_interface_name (data);
+            g_assert (ctx->self->priv->data == NULL);
+            ctx->self->priv->data = rmfd_port_data_wwan_new (interface);
+            g_free (interface);
+
+            /* All ready! */
+            g_message ("modem ready at QMI (%s) and WWAN (%s)",
+                       rmfd_port_get_interface (RMFD_PORT (ctx->self->priv->processor)),
+                       rmfd_port_get_interface (RMFD_PORT (ctx->self->priv->data)));
+
+            g_list_free_full (ctx->self->priv->processor_ports, g_object_unref);
+            g_list_free_full (ctx->self->priv->data_ports, g_object_unref);
+            probing_port_context_free (ctx);
+            return;
+        }
+
+        /* Couldn't get data port for QMI; so let's try with another QMI port */
+        g_clear_object (&ctx->self->priv->processor);
+    } else {
+        g_warning ("couldn't create processor for port '%s': %s",
+                   g_udev_device_get_name (ctx->device),
+                   error->message);
         g_error_free (error);
-        /* Cleanup device */
-        cleanup_current_device (self);
     }
 
-    g_object_unref (self);
+    /* Retry with another port in the same device */
+    if (ctx->self->priv->processor_ports) {
+        gchar *interface = NULL;
+
+        g_object_unref (ctx->device);
+        ctx->device = ctx->self->priv->processor_ports->data;
+        ctx->self->priv->processor_ports = g_list_delete_link (ctx->self->priv->processor_ports,
+                                                               ctx->self->priv->processor_ports);
+
+        /* Build interface name */
+        interface = rmfd_utils_build_interface_name (ctx->device);
+        ctx->self->priv->processor_probing = TRUE;
+        rmfd_port_processor_qmi_new (interface,
+                                     (GAsyncReadyCallback) processor_qmi_new_ready,
+                                     ctx);
+        g_free (interface);
+        return;
+    }
+
+    /* No more QMI ports to try! */
+    g_list_free_full (ctx->self->priv->data_ports, g_object_unref);
+    cleanup_current_device (ctx->self);
+    probing_port_context_free (ctx);
 }
 
 static void
@@ -149,16 +303,30 @@ port_added (RmfdManager *self,
     /* QMI modem? */
     if (self->priv->type == RMFD_MODEM_TYPE_QMI) {
         /* Add as processor? */
-        if (!self->priv->processor && g_str_has_prefix (g_udev_device_get_subsystem (device), "usb")) {
-            g_debug ("    added port '%s' as QMI processor port", interface);
-            rmfd_port_processor_qmi_new (interface,
-                                         (GAsyncReadyCallback) processor_qmi_new_ready,
-                                         g_object_ref (self));
+        if (g_str_has_prefix (g_udev_device_get_subsystem (device), "usb")) {
+            g_debug ("    added port '%s' as possible QMI processor port", interface);
+            /* If this is the first port being added, probe it. */
+            if (!self->priv->processor_probing) {
+                ProbingPortContext *ctx;
+
+                ctx = g_slice_new (ProbingPortContext);
+                ctx->self = g_object_ref (self);
+                ctx->device = g_object_ref (device);
+
+                self->priv->processor_probing = TRUE;
+                track_port (&self->priv->processor_ports, device);
+                rmfd_port_processor_qmi_new (interface,
+                                             (GAsyncReadyCallback) processor_qmi_new_ready,
+                                             ctx);
+            } else {
+                /* Probing of a port already ongoing, just add it to our tmp list */
+                track_port (&self->priv->processor_ports, device);
+            }
         }
         /* Add as net port? */
-        else if (!self->priv->data && g_str_has_prefix (g_udev_device_get_subsystem (device), "net")) {
-            g_debug ("    added port '%s' as NET data port", interface);
-            self->priv->data = rmfd_port_data_wwan_new (interface);
+        else if (g_str_has_prefix (g_udev_device_get_subsystem (device), "net")) {
+            g_debug ("    added port '%s' as possible NET data port", interface);
+            track_port (&self->priv->data_ports, device);
         }
         /* Ignore */
         else
@@ -174,8 +342,13 @@ port_removed (RmfdManager *self,
               GUdevDevice *device)
 {
     gchar *interface = NULL;
+    GList *l;
 
     interface = rmfd_utils_build_interface_name (device);
+
+    /* Check if we're removing pending net or QMI ports */
+    untrack_port (&self->priv->data_ports, device);
+    untrack_port (&self->priv->processor_ports, device);
 
     /* If we remove either of the ports we use for processor or data, cleanup device */
     if ((self->priv->processor && g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor)))) ||
