@@ -24,6 +24,7 @@ rmfd_SOURCES = \
 	rmfd-error-types.h rmfd-error-types.c \
 	rmfd-manager.h rmfd-manager.c \
 	rmfd-processor.h rmfd-processor.c \
+	rmfd-processor-qmi.h rmfd-processor-qmi.c \
 	rmfd-data.h rmfd-data.c \
 	rmfd-data-wwan.h rmfd-data-wwan.c
 

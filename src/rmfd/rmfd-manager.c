@@ -32,7 +32,7 @@
 #include <rmf-messages.h>
 
 #include "rmfd-manager.h"
-#include "rmfd-processor.h"
+#include "rmfd-processor-qmi.h"
 #include "rmfd-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
@@ -102,15 +102,15 @@ filter_usb_device (GUdevDevice *device)
 }
 
 static void
-processor_new_ready (GObject      *source,
-                     GAsyncResult *res,
-                     RmfdManager  *self)
+processor_qmi_new_ready (GObject      *source,
+                         GAsyncResult *res,
+                         RmfdManager  *self)
 {
     GError *error = NULL;
 
     /* 'self' is a full reference */
 
-    self->priv->processor = rmfd_processor_new_finish (res, &error);
+    self->priv->processor = rmfd_processor_qmi_new_finish (res, &error);
     if (!self->priv->processor) {
         g_warning ("couldn't create processor: %s", error->message);
         g_error_free (error);
@@ -153,9 +153,9 @@ port_added (RmfdManager *self,
         path = g_strdup_printf ("/dev/%s", name);
         file = g_file_new_for_path (path);
         /* Create Processor */
-        rmfd_processor_new (file,
-                            (GAsyncReadyCallback) processor_new_ready,
-                            g_object_ref (self));
+        rmfd_processor_qmi_new (file,
+                                (GAsyncReadyCallback) processor_qmi_new_ready,
+                                g_object_ref (self));
         g_object_unref (file);
         g_free (path);
         return;

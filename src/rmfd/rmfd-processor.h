@@ -18,9 +18,9 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013 Zodiac Inflight Innovations
+ * Copyright (C) 2013 - 2014 Zodiac Inflight Innovations
  *
- * Author: Aleksander Morgado <aleksander@lanedo.com>
+ * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef RMFD_PROCESSOR_H
@@ -28,9 +28,6 @@
 
 #include <glib-object.h>
 #include <gio/gio.h>
-#include <libqmi-glib.h>
-
-#include <rmf-messages.h>
 
 #include "rmfd-data.h"
 
@@ -54,25 +51,26 @@ struct _RmfdProcessor {
 
 struct _RmfdProcessorClass {
     GObjectClass parent;
+
+    void         (* run)        (RmfdProcessor        *self,
+                                 GByteArray           *request,
+                                 RmfdData             *data,
+                                 GAsyncReadyCallback   callback,
+                                 gpointer              user_data);
+    GByteArray * (* run_finish) (RmfdProcessor        *self,
+                                 GAsyncResult         *res,
+                                 GError              **error);
 };
 
 GType rmfd_processor_get_type (void);
 
-/* Create a processor */
-void           rmfd_processor_new        (GFile                *file,
-                                          GAsyncReadyCallback   callback,
-                                          gpointer              user_data);
-RmfdProcessor *rmfd_processor_new_finish (GAsyncResult         *res,
-                                          GError              **error);
-
-
-/* Processes the request and gets back a response */
-void        rmfd_processor_run        (RmfdProcessor        *processor,
+GFile      *rmfd_processor_peek_file  (RmfdProcessor        *self);
+void        rmfd_processor_run        (RmfdProcessor        *self,
                                        GByteArray           *request,
                                        RmfdData             *data,
                                        GAsyncReadyCallback   callback,
                                        gpointer              user_data);
-GByteArray *rmfd_processor_run_finish (RmfdProcessor        *processor,
+GByteArray *rmfd_processor_run_finish (RmfdProcessor        *self,
                                        GAsyncResult         *res,
                                        GError              **error);
 
