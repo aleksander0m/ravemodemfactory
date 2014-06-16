@@ -1,4 +1,11 @@
 
+Overview of changes in RaveModemFactory 1.14
+---------------------------------------------
+
+ * Added support for modems with multiple WWAN+QMI pairs, like the new Sierra
+   Wireless MC7304/MC7354.
+
+
 Overview of changes in RaveModemFactory 1.12.2
 -----------------------------------------------
 
