@@ -41,14 +41,31 @@ LEASES_FILE=/var/run/rmfd-port-data-wwan-service-$DEVICE.leases
 RESOLV_CONF_BACKUP=/var/run/rmfd-port-data-wwan-service-$DEVICE.resolv.conf.backup
 DHCLIENT_PATH=dhclient
 
+# Check if ifconfig or iproute2 is available...
+IFUP_CMD=""
+IFDOWN_CMD=""
+which ifconfig >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    IFUP_CMD="ifconfig $DEVICE up"
+    IFDOWN_CMD="ifconfig $DEVICE down"
+else
+    which ip >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        IFUP_CMD="ip link set $DEVICE up"
+        IFDOWN_CMD="ip link set $DEVICE down"
+    fi
+fi
+if test "x$IFUP_CMD" = "x" -a "x$IFDOWN_CMD" = "x"; then
+    echoerr "error: neither ifconfig nor iproute2 tools are available"
+fi
+
 start_network ()
 {
-    IFUP_CMD="ifconfig $DEVICE up"
     echodbg "bringing up WWAN interface '$DEVICE': $IFUP_CMD"
     `$IFUP_CMD` >/dev/null 2>&1
     IFUP_STATUS=$?
     if [ $IFUP_STATUS -ne 0 ]; then
-       echoerr "error: couldn't bring up WWAN interface $DEVICE: ifconfig returned $IFUP_STATUS"
+       echoerr "error: couldn't bring up WWAN interface $DEVICE: UP command returned $IFUP_STATUS"
        exit -1
     fi
 
@@ -65,7 +82,7 @@ start_network ()
     DHCLIENT_STATUS=$?
     if [ $DHCLIENT_STATUS -ne 0 ]; then
        echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
-       ifconfig $DEVICE down
+       `$IFDOWN_CMD` >/dev/null 2>&1
        exit -2
     fi
 
@@ -86,12 +103,11 @@ stop_network ()
        ERR=-1
     fi
 
-    IFDOWN_CMD="ifconfig $DEVICE down"
     echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
     `$IFDOWN_CMD` >/dev/null 2>&1
     IFDOWN_STATUS=$?
     if [ $IFDOWN_STATUS -ne 0 ]; then
-       echoerr "error: couldn't bring down WWAN interface $DEVICE: ifconfig returned $IFDOWN_STATUS"
+       echoerr "error: couldn't bring down WWAN interface $DEVICE: DOWN command returned $IFDOWN_STATUS"
        ERR=-2
     fi
 
