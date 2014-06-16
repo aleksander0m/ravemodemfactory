@@ -23,59 +23,37 @@
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
-#include "rmfd-data.h"
+#include "rmfd-port.h"
 
-G_DEFINE_TYPE (RmfdData, rmfd_data, G_TYPE_OBJECT)
+G_DEFINE_TYPE (RmfdPort, rmfd_port, G_TYPE_OBJECT)
 
 enum {
     PROP_0,
-    PROP_NAME,
+    PROP_INTERFACE,
     LAST_PROP
 };
 
-struct _RmfdDataPrivate {
+struct _RmfdPortPrivate {
     /* Interface name */
-    gchar *name;
+    gchar *interface;
 };
 
 /*****************************************************************************/
 
 const gchar *
-rmfd_data_get_name (RmfdData *self)
+rmfd_port_get_interface (RmfdPort *self)
 {
-    g_return_val_if_fail (RMFD_IS_DATA (self), NULL);
-    return self->priv->name;
-}
-
-/*****************************************************************************/
-/* Setup */
-
-gboolean
-rmfd_data_setup_finish (RmfdData      *self,
-                        GAsyncResult  *res,
-                        GError       **error)
-{
-    g_assert (RMFD_DATA_GET_CLASS (self)->setup_finish != NULL);
-    return RMFD_DATA_GET_CLASS (self)->setup_finish (self, res, error);
-}
-
-void
-rmfd_data_setup (RmfdData            *self,
-                 gboolean             start,
-                 GAsyncReadyCallback  callback,
-                 gpointer             user_data)
-{
-    g_assert (RMFD_DATA_GET_CLASS (self)->setup != NULL);
-    RMFD_DATA_GET_CLASS (self)->setup (self, start, callback, user_data);
+    g_return_val_if_fail (RMFD_IS_PORT (self), NULL);
+    return self->priv->interface;
 }
 
 /*****************************************************************************/
 
 static void
-rmfd_data_init (RmfdData *self)
+rmfd_port_init (RmfdPort *self)
 {
-    /* Setup private data */
-    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, RMFD_TYPE_DATA, RmfdDataPrivate);
+    /* Setup private port */
+    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, RMFD_TYPE_PORT, RmfdPortPrivate);
 }
 
 static void
@@ -84,12 +62,12 @@ set_property (GObject *object,
               const GValue *value,
               GParamSpec *pspec)
 {
-    RmfdDataPrivate *priv = RMFD_DATA (object)->priv;
+    RmfdPortPrivate *priv = RMFD_PORT (object)->priv;
 
     switch (prop_id) {
-    case PROP_NAME:
-        g_free (priv->name);
-        priv->name = g_value_dup_string (value);
+    case PROP_INTERFACE:
+        g_free (priv->interface);
+        priv->interface = g_value_dup_string (value);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -103,11 +81,11 @@ get_property (GObject *object,
               GValue *value,
               GParamSpec *pspec)
 {
-    RmfdDataPrivate *priv = RMFD_DATA (object)->priv;
+    RmfdPortPrivate *priv = RMFD_PORT (object)->priv;
 
     switch (prop_id) {
-    case PROP_NAME:
-        g_value_set_string (value, priv->name);
+    case PROP_INTERFACE:
+        g_value_set_string (value, priv->interface);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -118,19 +96,19 @@ get_property (GObject *object,
 static void
 finalize (GObject *object)
 {
-    RmfdDataPrivate *priv = RMFD_DATA (object)->priv;
+    RmfdPortPrivate *priv = RMFD_PORT (object)->priv;
 
-    g_free (priv->name);
+    g_free (priv->interface);
 
-    G_OBJECT_CLASS (rmfd_data_parent_class)->finalize (object);
+    G_OBJECT_CLASS (rmfd_port_parent_class)->finalize (object);
 }
 
 static void
-rmfd_data_class_init (RmfdDataClass *data_class)
+rmfd_port_class_init (RmfdPortClass *port_class)
 {
-    GObjectClass *object_class = G_OBJECT_CLASS (data_class);
+    GObjectClass *object_class = G_OBJECT_CLASS (port_class);
 
-    g_type_class_add_private (object_class, sizeof (RmfdDataPrivate));
+    g_type_class_add_private (object_class, sizeof (RmfdPortPrivate));
 
     /* Virtual methods */
     object_class->set_property = set_property;
@@ -139,10 +117,10 @@ rmfd_data_class_init (RmfdDataClass *data_class)
 
     /* Properties */
     g_object_class_install_property
-        (object_class, PROP_NAME,
-         g_param_spec_string (RMFD_DATA_NAME,
-                              "Name",
-                              "Name of the data interface",
+        (object_class, PROP_INTERFACE,
+         g_param_spec_string (RMFD_PORT_INTERFACE,
+                              "Interface",
+                              "Name of the port interface",
                               NULL,
                               G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 }

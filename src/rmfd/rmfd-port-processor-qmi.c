@@ -28,13 +28,13 @@
 
 #include <rmf-messages.h>
 
-#include "rmfd-processor-qmi.h"
+#include "rmfd-port-processor-qmi.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
 static void async_initable_iface_init (GAsyncInitableIface *iface);
 
-G_DEFINE_TYPE_EXTENDED (RmfdProcessorQmi, rmfd_processor_qmi, RMFD_TYPE_PROCESSOR, 0,
+G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE_PORT_PROCESSOR, 0,
                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE,
                                                async_initable_iface_init))
 
@@ -43,7 +43,7 @@ G_DEFINE_TYPE_EXTENDED (RmfdProcessorQmi, rmfd_processor_qmi, RMFD_TYPE_PROCESSO
 #define DEFAULT_REGISTRATION_TIMEOUT_SECS 60
 #define DEFAULT_REGISTRATION_TIMEOUT_LOGGING_SECS 10
 
-struct _RmfdProcessorQmiPrivate {
+struct _RmfdPortProcessorQmiPrivate {
     /* QMI device */
     QmiDevice *qmi_device;
 
@@ -69,7 +69,7 @@ struct _RmfdProcessorQmiPrivate {
     guint32 cid;
 };
 
-static void initiate_registration (RmfdProcessorQmi *self, gboolean with_timeout);
+static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
 
 /*****************************************************************************/
 /* Registration timeout handling */
@@ -81,10 +81,10 @@ typedef struct {
     GCancellable *scanning;
 } RegistrationContext;
 
-static void registration_context_step (RmfdProcessorQmi *self);
+static void registration_context_step (RmfdPortProcessorQmi *self);
 
 static void
-registration_context_cleanup (RmfdProcessorQmi *self)
+registration_context_cleanup (RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
@@ -105,7 +105,7 @@ registration_context_cleanup (RmfdProcessorQmi *self)
 }
 
 static void
-registration_context_cancel (RmfdProcessorQmi *self)
+registration_context_cancel (RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
@@ -121,7 +121,7 @@ registration_context_cancel (RmfdProcessorQmi *self)
 static void
 nas_network_scan_ready (QmiClientNas *client,
                         GAsyncResult *res,
-                        RmfdProcessorQmi *self)
+                        RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
     QmiMessageNasNetworkScanOutput *output;
@@ -145,7 +145,7 @@ nas_network_scan_ready (QmiClientNas *client,
 }
 
 static gboolean
-registration_context_timeout_cb (RmfdProcessorQmi *self)
+registration_context_timeout_cb (RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
@@ -157,7 +157,7 @@ registration_context_timeout_cb (RmfdProcessorQmi *self)
 }
 
 static void
-registration_context_step (RmfdProcessorQmi *self)
+registration_context_step (RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx = (RegistrationContext *)self->priv->registration_ctx;
 
@@ -195,7 +195,7 @@ registration_context_step (RmfdProcessorQmi *self)
 }
 
 static void
-registration_context_start (RmfdProcessorQmi *self)
+registration_context_start (RmfdPortProcessorQmi *self)
 {
     RegistrationContext *ctx;
 
@@ -213,7 +213,7 @@ registration_context_start (RmfdProcessorQmi *self)
 /* Explicit registration request */
 
 static gboolean
-initiate_registration_idle_cb (RmfdProcessorQmi *self)
+initiate_registration_idle_cb (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasInitiateNetworkRegisterInput *input;
 
@@ -236,7 +236,7 @@ initiate_registration_idle_cb (RmfdProcessorQmi *self)
 }
 
 static void
-initiate_registration (RmfdProcessorQmi *self,
+initiate_registration (RmfdPortProcessorQmi *self,
                        gboolean with_timeout)
 {
     /* Don't relaunch if already registered */
@@ -261,7 +261,7 @@ initiate_registration (RmfdProcessorQmi *self,
 /* Registration info gathering via indications */
 
 static void
-process_serving_system_info (RmfdProcessorQmi *self,
+process_serving_system_info (RmfdPortProcessorQmi *self,
                              QmiMessageNasGetServingSystemOutput *response,
                              QmiIndicationNasServingSystemOutput *indication)
 {
@@ -344,7 +344,7 @@ process_serving_system_info (RmfdProcessorQmi *self,
 static void
 serving_system_indication_cb (QmiClientNas *client,
                               QmiIndicationNasServingSystemOutput *output,
-                              RmfdProcessorQmi *self)
+                              RmfdPortProcessorQmi *self)
 {
     process_serving_system_info (self, NULL, output);
 }
@@ -352,7 +352,7 @@ serving_system_indication_cb (QmiClientNas *client,
 static void
 serving_system_response_cb (QmiClientNas *client,
                             GAsyncResult *res,
-                            RmfdProcessorQmi *self)
+                            RmfdPortProcessorQmi *self)
 {
     QmiMessageNasGetServingSystemOutput *output;
 
@@ -366,7 +366,7 @@ serving_system_response_cb (QmiClientNas *client,
 }
 
 static void
-unregister_indications (RmfdProcessorQmi *self)
+unregister_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
 
@@ -383,7 +383,7 @@ unregister_indications (RmfdProcessorQmi *self)
 }
 
 static void
-register_indications (RmfdProcessorQmi *self)
+register_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
 
@@ -413,10 +413,10 @@ register_indications (RmfdProcessorQmi *self)
 /* Process an action */
 
 typedef struct {
-    RmfdProcessorQmi *self;
+    RmfdPortProcessorQmi *self;
     GSimpleAsyncResult *result;
     GByteArray *request;
-    RmfdData *data;
+    RmfdPortData *data;
     gpointer additional_context;
     GDestroyNotify additional_context_free;
 } RunContext;
@@ -445,7 +445,7 @@ run_context_set_additional_context (RunContext     *ctx,
 }
 
 static GByteArray *
-run_finish (RmfdProcessor *self,
+run_finish (RmfdPortProcessor *self,
             GAsyncResult  *res,
             GError       **error)
 {
@@ -1201,7 +1201,7 @@ typedef enum {
 } CommonUnlockCheckStep;
 
 typedef struct {
-    RmfdProcessorQmi *self;
+    RmfdPortProcessorQmi *self;
     GSimpleAsyncResult *simple;
     CommonUnlockCheckStep step;
     gboolean unlocked;
@@ -1217,10 +1217,10 @@ common_unlock_check_context_complete_and_free (CommonUnlockCheckContext *ctx)
 }
 
 static gboolean
-common_unlock_check_finish (RmfdProcessorQmi  *self,
-                            GAsyncResult      *res,
-                            gboolean          *unlocked,
-                            GError           **error)
+common_unlock_check_finish (RmfdPortProcessorQmi  *self,
+                            GAsyncResult          *res,
+                            gboolean              *unlocked,
+                            GError               **error)
 {
     g_assert (unlocked != NULL);
 
@@ -1486,9 +1486,9 @@ common_unlock_check_context_step (CommonUnlockCheckContext *ctx)
 }
 
 static void
-common_unlock_check (RmfdProcessorQmi    *self,
-                     GAsyncReadyCallback  callback,
-                     gpointer             user_data)
+common_unlock_check (RmfdPortProcessorQmi *self,
+                     GAsyncReadyCallback   callback,
+                     gpointer              user_data)
 {
     CommonUnlockCheckContext *ctx;
 
@@ -1508,9 +1508,9 @@ common_unlock_check (RmfdProcessorQmi    *self,
 /* Is Locked */
 
 static void
-is_sim_locked_unlock_check_ready (RmfdProcessorQmi *self,
-                                  GAsyncResult     *res,
-                                  RunContext       *ctx)
+is_sim_locked_unlock_check_ready (RmfdPortProcessorQmi *self,
+                                  GAsyncResult         *res,
+                                  RunContext           *ctx)
 {
     GError *error = NULL;
     gboolean unlocked = FALSE;
@@ -1547,9 +1547,9 @@ typedef struct {
 static void run_after_unlock_checks (RunContext *ctx);
 
 static void
-after_unlock_check_ready (RmfdProcessorQmi *self,
-                          GAsyncResult     *res,
-                          RunContext       *ctx)
+after_unlock_check_ready (RmfdPortProcessorQmi *self,
+                          GAsyncResult         *res,
+                          RunContext           *ctx)
 {
     gboolean unlocked = FALSE;
     guint8 *response;
@@ -1632,9 +1632,9 @@ dms_uim_verify_pin_ready (QmiClientDms *client,
 }
 
 static void
-before_unlock_check_ready (RmfdProcessorQmi *self,
-                           GAsyncResult     *res,
-                           RunContext       *ctx)
+before_unlock_check_ready (RmfdPortProcessorQmi *self,
+                           GAsyncResult         *res,
+                           RunContext           *ctx)
 {
     GError *error = NULL;
     gboolean unlocked = FALSE;
@@ -2467,14 +2467,14 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
 }
 
 static void
-data_setup_start_ready (RmfdData     *data,
+data_setup_start_ready (RmfdPortData *data,
                         GAsyncResult *res,
                         RunContext   *ctx)
 {
     GError *error = NULL;
     guint8 *response;
 
-    if (!rmfd_data_setup_finish (data, res, &error)) {
+    if (!rmfd_port_data_setup_finish (data, res, &error)) {
         QmiMessageWdsStopNetworkInput *input;
 
         /* Abort */
@@ -2606,10 +2606,10 @@ wds_start_network_ready (QmiClientWds *client,
         return;
     }
 
-    rmfd_data_setup (ctx->data,
-                     TRUE,
-                     (GAsyncReadyCallback)data_setup_start_ready,
-                     ctx);
+    rmfd_port_data_setup (ctx->data,
+                          TRUE,
+                          (GAsyncReadyCallback)data_setup_start_ready,
+                          ctx);
 }
 
 static void
@@ -2728,14 +2728,14 @@ connect (RunContext *ctx)
 /* Disconnect */
 
 static void
-data_setup_stop_ready (RmfdData     *data,
+data_setup_stop_ready (RmfdPortData *data,
                        GAsyncResult *res,
                        RunContext   *ctx)
 {
     GError *error = NULL;
     guint8 *response;
 
-    if (!rmfd_data_setup_finish (data, res, &error)) {
+    if (!rmfd_port_data_setup_finish (data, res, &error)) {
         g_warning ("error: couldn't stop interface: %s", error->message);
         g_warning ("error: will assume disconnected");
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
@@ -2793,10 +2793,10 @@ wds_stop_network_ready (QmiClientWds *client,
     /* Clear packet data handle */
     ctx->self->priv->packet_data_handle = 0;
 
-    rmfd_data_setup (ctx->data,
-                     FALSE,
-                     (GAsyncReadyCallback)data_setup_stop_ready,
-                     ctx);
+    rmfd_port_data_setup (ctx->data,
+                          FALSE,
+                          (GAsyncReadyCallback)data_setup_stop_ready,
+                          ctx);
 }
 
 static void
@@ -2858,9 +2858,9 @@ disconnect (RunContext *ctx)
 /**********************/
 
 static void
-run (RmfdProcessor       *self,
+run (RmfdPortProcessor   *self,
      GByteArray          *request,
-     RmfdData            *data,
+     RmfdPortData        *data,
      GAsyncReadyCallback  callback,
      gpointer             user_data)
 {
@@ -2871,7 +2871,7 @@ run (RmfdProcessor       *self,
     ctx->result = g_simple_async_result_new (G_OBJECT (self),
                                              callback,
                                              user_data,
-                                             rmfd_processor_run);
+                                             rmfd_port_processor_run);
     ctx->request = g_byte_array_ref (request);
     ctx->data = g_object_ref (data);
 
@@ -2970,7 +2970,7 @@ run (RmfdProcessor       *self,
 /* Processor init */
 
 typedef struct {
-    RmfdProcessorQmi *self;
+    RmfdPortProcessorQmi *self;
     GSimpleAsyncResult *result;
 } InitContext;
 
@@ -3150,6 +3150,7 @@ initable_init_async (GAsyncInitable *initable,
                      gpointer user_data)
 {
     InitContext *ctx;
+    GFile *file;
 
     ctx = g_slice_new (InitContext);
     ctx->self = g_object_ref (initable);
@@ -3158,16 +3159,18 @@ initable_init_async (GAsyncInitable *initable,
                                              user_data,
                                              initable_init_async);
     /* Launch device creation */
-    qmi_device_new (rmfd_processor_peek_file (RMFD_PROCESSOR (ctx->self)),
+    file = g_file_new_for_path (rmfd_port_get_interface (RMFD_PORT (ctx->self)));
+    qmi_device_new (file,
                     NULL, /* cancellable */
                     (GAsyncReadyCallback) device_new_ready,
                     ctx);
+    g_object_unref (file);
 }
 
 /*****************************************************************************/
 
-RmfdProcessor *
-rmfd_processor_qmi_new_finish (GAsyncResult  *res,
+RmfdPortProcessor *
+rmfd_port_processor_qmi_new_finish (GAsyncResult  *res,
                                GError       **error)
 {
     GObject *source;
@@ -3180,30 +3183,30 @@ rmfd_processor_qmi_new_finish (GAsyncResult  *res,
     if (!self)
         return NULL;
 
-    return RMFD_PROCESSOR (self);
+    return RMFD_PORT_PROCESSOR (self);
 }
 
 void
-rmfd_processor_qmi_new (GFile               *file,
-                        GAsyncReadyCallback  callback,
-                        gpointer             user_data)
+rmfd_port_processor_qmi_new (const gchar         *interface,
+                             GAsyncReadyCallback  callback,
+                             gpointer             user_data)
 {
-    g_async_initable_new_async (RMFD_TYPE_PROCESSOR_QMI,
+    g_async_initable_new_async (RMFD_TYPE_PORT_PROCESSOR_QMI,
                                 G_PRIORITY_DEFAULT,
                                 NULL,
                                 callback,
                                 user_data,
-                                RMFD_PROCESSOR_FILE, file,
+                                RMFD_PORT_INTERFACE, interface,
                                 NULL);
 }
 
 /*****************************************************************************/
 
 static void
-rmfd_processor_qmi_init (RmfdProcessorQmi *self)
+rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
 {
     /* Setup private data */
-    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, RMFD_TYPE_PROCESSOR_QMI, RmfdProcessorQmiPrivate);
+    self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, RMFD_TYPE_PORT_PROCESSOR_QMI, RmfdPortProcessorQmiPrivate);
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
     self->priv->registration_timeout = DEFAULT_REGISTRATION_TIMEOUT_SECS;
     self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
@@ -3212,7 +3215,7 @@ rmfd_processor_qmi_init (RmfdProcessorQmi *self)
 static void
 dispose (GObject *object)
 {
-    RmfdProcessorQmi *self = RMFD_PROCESSOR_QMI (object);
+    RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
 
     registration_context_cancel (self);
     unregister_indications (self);
@@ -3254,7 +3257,7 @@ dispose (GObject *object)
     g_clear_object (&self->priv->uim);
     g_clear_object (&self->priv->qmi_device);
 
-    G_OBJECT_CLASS (rmfd_processor_qmi_parent_class)->dispose (object);
+    G_OBJECT_CLASS (rmfd_port_processor_qmi_parent_class)->dispose (object);
 }
 
 static void
@@ -3265,12 +3268,12 @@ async_initable_iface_init (GAsyncInitableIface *iface)
 }
 
 static void
-rmfd_processor_qmi_class_init (RmfdProcessorQmiClass *processor_qmi_class)
+rmfd_port_processor_qmi_class_init (RmfdPortProcessorQmiClass *processor_qmi_class)
 {
     GObjectClass *object_class = G_OBJECT_CLASS (processor_qmi_class);
-    RmfdProcessorClass *processor_class = RMFD_PROCESSOR_CLASS (processor_qmi_class);
+    RmfdPortProcessorClass *processor_class = RMFD_PORT_PROCESSOR_CLASS (processor_qmi_class);
 
-    g_type_class_add_private (object_class, sizeof (RmfdProcessorQmiPrivate));
+    g_type_class_add_private (object_class, sizeof (RmfdPortProcessorQmiPrivate));
 
     /* Virtual methods */
     object_class->dispose = dispose;

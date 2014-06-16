@@ -1,6 +1,6 @@
 
 sbin_PROGRAMS = rmfd
-dist_bin_SCRIPTS = rmfd-data-wwan-service
+dist_bin_SCRIPTS = rmfd-port-data-wwan-service
 
 BUILT_SOURCES = \
 	rmfd-error-types.h \
@@ -23,10 +23,11 @@ rmfd_SOURCES = \
 	rmfd-error.h rmfd-error.c \
 	rmfd-error-types.h rmfd-error-types.c \
 	rmfd-manager.h rmfd-manager.c \
-	rmfd-processor.h rmfd-processor.c \
-	rmfd-processor-qmi.h rmfd-processor-qmi.c \
-	rmfd-data.h rmfd-data.c \
-	rmfd-data-wwan.h rmfd-data-wwan.c
+	rmfd-port.h rmfd-port.c \
+	rmfd-port-processor.h rmfd-port-processor.c \
+	rmfd-port-processor-qmi.h rmfd-port-processor-qmi.c \
+	rmfd-port-data.h rmfd-port-data.c \
+	rmfd-port-data-wwan.h rmfd-port-data-wwan.c
 
 
 rmfd_LDADD = \

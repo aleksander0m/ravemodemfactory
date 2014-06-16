@@ -23,17 +23,17 @@
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
-#include "rmfd-data-wwan.h"
+#include "rmfd-port-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
-G_DEFINE_TYPE (RmfdDataWwan, rmfd_data_wwan, RMFD_TYPE_DATA)
+G_DEFINE_TYPE (RmfdPortDataWwan, rmfd_port_data_wwan, RMFD_TYPE_PORT_DATA)
 
 /*****************************************************************************/
 /* Setup */
 
 typedef struct {
-    RmfdDataWwan *self;
+    RmfdPortDataWwan *self;
     GSimpleAsyncResult *result;
     gboolean start;
 } SetupContext;
@@ -48,7 +48,7 @@ setup_context_complete_and_free (SetupContext *ctx)
 }
 
 static gboolean
-setup_finish (RmfdData      *self,
+setup_finish (RmfdPortData  *self,
               GAsyncResult  *res,
               GError       **error)
 {
@@ -67,7 +67,7 @@ command_ready (GPid          pid,
             RMFD_ERROR_UNKNOWN,
             "couldn't %s WWAN interface '%s': failed with code %d",
             ctx->start ? "start" : "stop",
-            rmfd_data_get_name (RMFD_DATA (ctx->self)),
+            rmfd_port_get_interface (RMFD_PORT (ctx->self)),
             status);
         setup_context_complete_and_free (ctx);
         return;
@@ -75,17 +75,17 @@ command_ready (GPid          pid,
 
     /* Done */
     g_debug ("WWAN interface '%s' is now %s",
-             rmfd_data_get_name (RMFD_DATA (ctx->self)),
+             rmfd_port_get_interface (RMFD_PORT (ctx->self)),
              ctx->start ? "started" : "stopped");
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     setup_context_complete_and_free (ctx);
 }
 
 static void
-setup (RmfdData            *self,
+setup (RmfdPortData        *self,
        gboolean             start,
        GAsyncReadyCallback  callback,
-       gpointer             user_data)
+       gpointer             user_port_data)
 {
     SetupContext *ctx;
     gchar *command;
@@ -95,24 +95,24 @@ setup (RmfdData            *self,
 
     ctx = g_slice_new (SetupContext);
     ctx->self = g_object_ref (self);
-    ctx->result = g_simple_async_result_new (G_OBJECT (self), callback, user_data, setup);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self), callback, user_port_data, setup);
     ctx->start = start;
 
     /* Build command */
-    command = g_strdup_printf ("rmfd-data-wwan-service %s %s",
-                               rmfd_data_get_name (RMFD_DATA (ctx->self)),
+    command = g_strdup_printf ("rmfd-port-data-wwan-service %s %s",
+                               rmfd_port_get_interface (RMFD_PORT (ctx->self)),
                                ctx->start ? "start" : "stop");
     command_split = g_strsplit (command, " ", -1);
     g_debug ("%s WWAN interface '%s': %s",
              ctx->start ? "starting" : "stopping",
-             rmfd_data_get_name (RMFD_DATA (ctx->self)),
+             rmfd_port_get_interface (RMFD_PORT (ctx->self)),
              command);
     g_spawn_async (NULL, /* working directory */
                    command_split, /* argv */
                    NULL, /* envp */
                    (G_SPAWN_DO_NOT_REAP_CHILD | G_SPAWN_SEARCH_PATH),
                    NULL, /* child_setup */
-                   NULL, /* user_data */
+                   NULL, /* user_port_data */
                    &pid,
                    &error);
     g_strfreev (command_split);
@@ -122,7 +122,7 @@ setup (RmfdData            *self,
         g_prefix_error (&error,
                         "couldn't %s WWAN interface '%s': ",
                         ctx->start ? "start" : "stop",
-                        rmfd_data_get_name (RMFD_DATA (ctx->self)));
+                        rmfd_port_get_interface (RMFD_PORT (ctx->self)));
         g_simple_async_result_take_error (ctx->result, error);
         setup_context_complete_and_free (ctx);
         return;
@@ -134,25 +134,25 @@ setup (RmfdData            *self,
 
 /*****************************************************************************/
 
-RmfdData *
-rmfd_data_wwan_new (const gchar *name)
+RmfdPortData *
+rmfd_port_data_wwan_new (const gchar *interface)
 {
-    return RMFD_DATA (g_object_new (RMFD_TYPE_DATA_WWAN,
-                                    RMFD_DATA_NAME, name,
-                                    NULL));
+    return RMFD_PORT_DATA (g_object_new (RMFD_TYPE_PORT_DATA_WWAN,
+                                         RMFD_PORT_INTERFACE, interface,
+                                         NULL));
 }
 
 /*****************************************************************************/
 
 static void
-rmfd_data_wwan_init (RmfdDataWwan *self)
+rmfd_port_data_wwan_init (RmfdPortDataWwan *self)
 {
 }
 
 static void
-rmfd_data_wwan_class_init (RmfdDataWwanClass *wwan_class)
+rmfd_port_data_wwan_class_init (RmfdPortDataWwanClass *wwan_class)
 {
-    RmfdDataClass *data_class = RMFD_DATA_CLASS (wwan_class);
+    RmfdPortDataClass *data_class = RMFD_PORT_DATA_CLASS (wwan_class);
 
     /* Virtual methods */
     data_class->setup = setup;

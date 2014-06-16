@@ -32,8 +32,8 @@
 #include <rmf-messages.h>
 
 #include "rmfd-manager.h"
-#include "rmfd-processor-qmi.h"
-#include "rmfd-data-wwan.h"
+#include "rmfd-port-processor-qmi.h"
+#include "rmfd-port-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
 
@@ -44,13 +44,9 @@ struct _RmfdManagerPrivate {
     GUdevClient *udev_client;
     guint initial_scan_id;
 
-    /* QMI and net ports */
-    GUdevDevice *qmi_port;
-    GUdevDevice *wwan_port;
-
-    /* Processor and data controller*/
-    RmfdProcessor *processor;
-    RmfdData *data;
+    /* Processor and data controller */
+    RmfdPortProcessor *processor;
+    RmfdPortData *data;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -62,6 +58,24 @@ struct _RmfdManagerPrivate {
 };
 
 /*****************************************************************************/
+
+static gchar *
+build_interface_name (GUdevDevice *device)
+{
+    const gchar *subsystem;
+    const gchar *name;
+
+    subsystem = g_udev_device_get_subsystem (device);
+    name = g_udev_device_get_name (device);
+
+    if (g_str_has_prefix (subsystem, "usb"))
+        return g_strdup_printf ("/dev/%s", name);
+
+    if (g_str_has_prefix (subsystem, "net"))
+        return g_strdup (name);
+
+    return NULL;
+}
 
 static gboolean
 filter_usb_device (GUdevDevice *device)
@@ -110,7 +124,7 @@ processor_qmi_new_ready (GObject      *source,
 
     /* 'self' is a full reference */
 
-    self->priv->processor = rmfd_processor_qmi_new_finish (res, &error);
+    self->priv->processor = rmfd_port_processor_qmi_new_finish (res, &error);
     if (!self->priv->processor) {
         g_warning ("couldn't create processor: %s", error->message);
         g_error_free (error);
@@ -124,89 +138,82 @@ port_added (RmfdManager *self,
             GUdevDevice *device)
 {
     const gchar *subsystem;
-    const gchar *name;
+    gchar *interface = NULL;
 
     /* Filter */
     if (filter_usb_device (device))
-        return;
+        goto out;
 
     subsystem = g_udev_device_get_subsystem (device);
-    name = g_udev_device_get_name (device);
+    interface = build_interface_name (device);
 
     /* Store the QMI port */
     if (g_str_has_prefix (subsystem, "usb")) {
-        GFile *file;
-        gchar *path;
+        if (self->priv->processor) {
+            /* If it's an event in the same interface, ignore */
+            if (g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor))))
+                goto out;
 
-        if (self->priv->qmi_port) {
-            if (!g_str_equal (name, g_udev_device_get_name (self->priv->qmi_port)))
-                g_debug ("replacing QMI port '%s' with %s",
-                         g_udev_device_get_name (self->priv->qmi_port),
-                         name);
+            g_debug ("QMI port added '%s', replaced '%s'",
+                     interface,
+                     rmfd_port_get_interface (RMFD_PORT (self->priv->processor)));
             g_clear_object (&self->priv->processor);
-            g_clear_object (&self->priv->qmi_port);
         } else
-            g_debug ("QMI port added: /dev/%s", name);
+            g_debug ("QMI port added: '%s'", interface);
 
-        self->priv->qmi_port = g_object_ref (device);
-
-        path = g_strdup_printf ("/dev/%s", name);
-        file = g_file_new_for_path (path);
-        /* Create Processor */
-        rmfd_processor_qmi_new (file,
-                                (GAsyncReadyCallback) processor_qmi_new_ready,
-                                g_object_ref (self));
-        g_object_unref (file);
-        g_free (path);
-        return;
+        /* Create QMI Processor */
+        rmfd_port_processor_qmi_new (interface,
+                                     (GAsyncReadyCallback) processor_qmi_new_ready,
+                                     g_object_ref (self));
     }
-
     /* Store the net port */
-    if (g_str_has_prefix (subsystem, "net")) {
-        if (self->priv->wwan_port) {
-            if (!g_str_equal (name, g_udev_device_get_name (self->priv->wwan_port)))
-                g_debug ("replacing NET port '%s' with %s",
-                         name,
-                         g_udev_device_get_name (self->priv->wwan_port));
-            g_clear_object (&self->priv->data);
-            g_clear_object (&self->priv->wwan_port);
-        } else
-            g_debug ("NET port added: %s", name);
+    else if (g_str_has_prefix (subsystem, "net")) {
+        if (self->priv->data) {
+            /* If it's an event in the same interface, ignore */
+            if (g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data))))
+                goto out;
 
-        self->priv->wwan_port = g_object_ref (device);
+            g_debug ("NET port added '%s', replaced '%s'",
+                     interface,
+                     rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
+            g_clear_object (&self->priv->data);
+        } else
+            g_debug ("NET port added: '%s'", interface);
 
         /* Create WWAN controller */
-        self->priv->data = rmfd_data_wwan_new (name);
-        return;
+        self->priv->data = rmfd_port_data_wwan_new (interface);
     }
+
+out:
+    g_free (interface);
 }
 
 static void
 port_removed (RmfdManager *self,
               GUdevDevice *device)
 {
-    /* Remove the QMI port */
-    if (self->priv->qmi_port &&
-        g_str_equal (g_udev_device_get_subsystem (device),
-                     g_udev_device_get_subsystem (self->priv->qmi_port)) &&
-        g_str_equal (g_udev_device_get_name (device),
-                     g_udev_device_get_name (self->priv->qmi_port))) {
-        g_debug ("QMI port removed: /dev/%s", g_udev_device_get_name (self->priv->qmi_port));
+    const gchar *subsystem;
+    gchar *interface = NULL;
+
+    subsystem = g_udev_device_get_subsystem (device);
+    interface = build_interface_name (device);
+
+    /* Remove the processor port */
+    if (self->priv->processor &&
+        g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->processor)))) {
+        g_debug ("Processor port removed: '%s'", rmfd_port_get_interface (RMFD_PORT (self->priv->processor)));
         g_clear_object (&self->priv->processor);
-        g_clear_object (&self->priv->qmi_port);
     }
 
-    /* Remove the net port */
-    if (self->priv->wwan_port &&
-        g_str_equal (g_udev_device_get_subsystem (device),
-                     g_udev_device_get_subsystem (self->priv->wwan_port)) &&
-        g_str_equal (g_udev_device_get_name (device),
-                     g_udev_device_get_name (self->priv->wwan_port))) {
-        g_debug ("NET port removed: %s", g_udev_device_get_name (self->priv->wwan_port));
-        rmfd_data_setup (self->priv->data, FALSE, NULL, NULL);
+    /* Remove the data port */
+    if (self->priv->data &&
+        g_str_equal (interface, rmfd_port_get_interface (RMFD_PORT (self->priv->data)))) {
+        g_debug ("Data port removed: '%s'", rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
+        rmfd_port_data_setup (self->priv->data, FALSE, NULL, NULL);
         g_clear_object (&self->priv->data);
-        g_clear_object (&self->priv->wwan_port);
     }
+
+    g_free (interface);
 }
 
 static void
@@ -270,14 +277,14 @@ request_complete (const Request *request)
 }
 
 static void
-processor_run_ready (RmfdProcessor *processor,
-                     GAsyncResult  *result,
-                     Request       *request)
+processor_run_ready (RmfdPortProcessor *processor,
+                     GAsyncResult      *result,
+                     Request           *request)
 {
     GByteArray *response;
     GError *error = NULL;
 
-    request->response = rmfd_processor_run_finish (processor, result, &error);
+    request->response = rmfd_port_processor_run_finish (processor, result, &error);
     if (!request->response) {
         g_warning ("error processing the request: %s", error->message);
         request->response = rmfd_error_message_new_from_gerror (request->message, error);
@@ -311,11 +318,11 @@ request_process (RmfdManager *self,
         return;
     }
 
-    rmfd_processor_run (self->priv->processor,
-                        request->message,
-                        self->priv->data,
-                        (GAsyncReadyCallback)processor_run_ready,
-                        request);
+    rmfd_port_processor_run (self->priv->processor,
+                             request->message,
+                             self->priv->data,
+                             (GAsyncReadyCallback)processor_run_ready,
+                             request);
 }
 
 static void requests_schedule (RmfdManager *self);
@@ -542,8 +549,6 @@ dispose (GObject *object)
     g_clear_object (&priv->socket_service);
     g_clear_object (&priv->processor);
     g_clear_object (&priv->data);
-    g_clear_object (&priv->qmi_port);
-    g_clear_object (&priv->wwan_port);
     g_clear_object (&priv->udev_client);
 
     G_OBJECT_CLASS (rmfd_manager_parent_class)->dispose (object);
