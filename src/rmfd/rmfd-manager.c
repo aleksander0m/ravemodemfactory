@@ -63,24 +63,6 @@ struct _RmfdManagerPrivate {
 /*****************************************************************************/
 
 static void
-processor_qmi_new_ready (GObject      *source,
-                         GAsyncResult *res,
-                         RmfdManager  *self)
-{
-    GError *error = NULL;
-
-    /* 'self' is a full reference */
-
-    self->priv->processor = rmfd_port_processor_qmi_new_finish (res, &error);
-    if (!self->priv->processor) {
-        g_warning ("couldn't create processor: %s", error->message);
-        g_error_free (error);
-    }
-
-    g_object_unref (self);
-}
-
-static void
 cleanup_current_device (RmfdManager *self)
 {
     if (self->priv->processor) {
@@ -99,6 +81,26 @@ cleanup_current_device (RmfdManager *self)
     g_clear_object (&self->priv->parent);
 
     self->priv->type = RMFD_MODEM_TYPE_UNKNOWN;
+}
+
+static void
+processor_qmi_new_ready (GObject      *source,
+                         GAsyncResult *res,
+                         RmfdManager  *self)
+{
+    GError *error = NULL;
+
+    /* 'self' is a full reference */
+
+    self->priv->processor = rmfd_port_processor_qmi_new_finish (res, &error);
+    if (!self->priv->processor) {
+        g_warning ("couldn't create processor: %s", error->message);
+        g_error_free (error);
+        /* Cleanup device */
+        cleanup_current_device (self);
+    }
+
+    g_object_unref (self);
 }
 
 static void
