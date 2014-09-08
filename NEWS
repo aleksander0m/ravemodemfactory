@@ -1,4 +1,13 @@
 
+Overview of changes in RaveModemFactory 1.16
+---------------------------------------------
+
+ * Update the logic to consider SIM cards being unlocked, to better handle the
+   ones which expose more than one application in the same card. SIM card will
+   be considered unlocked and ready only when one of either the USIM or the SIM
+   applications is in Ready state.
+
+
 Overview of changes in RaveModemFactory 1.14
 ---------------------------------------------
 
