@@ -1291,6 +1291,7 @@ get_card_status_ready (QmiClientUim *client,
         switch (card->card_state) {
         case QMI_UIM_CARD_STATE_PRESENT: {
             guint j;
+            guint sim_or_usim_ready = 0;
 
             if (card->applications->len == 0) {
                 g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
@@ -1314,19 +1315,23 @@ get_card_status_ready (QmiClientUim *client,
                     continue;
                 }
 
-                if (app->state != QMI_UIM_CARD_APPLICATION_STATE_READY) {
-                    g_debug ("Application [%u] in card [%u] not ready: %s",
-                             j, i, qmi_uim_card_application_state_get_string (app->state));
-                    ctx->unlocked = FALSE;
-                    ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
-                    qmi_message_uim_get_card_status_output_unref (output);
-                    common_unlock_check_context_step (ctx);
-                    return;
-                }
+                g_debug ("Application '%s' [%u] in card [%u]: %s",
+                         qmi_uim_card_application_type_get_string (app->type), j, i, qmi_uim_card_application_state_get_string (app->state));
 
-                /* go on to next application */
-                g_debug ("Application [%u] in card [%u] is ready", j, i);
+                if ((app->type == QMI_UIM_CARD_APPLICATION_TYPE_SIM || app->type == QMI_UIM_CARD_APPLICATION_TYPE_USIM) &&
+                    (app->state == QMI_UIM_CARD_APPLICATION_STATE_READY))
+                    sim_or_usim_ready++;
             }
+
+            if (!sim_or_usim_ready) {
+                g_debug ("Neither SIM nor USIM are ready");
+                ctx->unlocked = FALSE;
+                ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
+                qmi_message_uim_get_card_status_output_unref (output);
+                common_unlock_check_context_step (ctx);
+                return;
+            }
+
             break;
         }
 
