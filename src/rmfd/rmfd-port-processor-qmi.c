@@ -1279,10 +1279,10 @@ get_card_status_ready (QmiClientUim *client,
     }
 
     if (cards->len > 1)
-        g_warning ("Too many cards reported: %u", cards->len);
+        g_debug ("Multiple cards reported: %u", cards->len);
 
-    /* All applications in all cards will need to be in READY state for us to
-     * consider UNLOCKED */
+    /* All KNOWN applications in all cards will need to be in READY state for us
+     * to consider UNLOCKED */
     for (i = 0; i < cards->len; i++) {
         QmiMessageUimGetCardStatusOutputCardStatusCardsElement *card;
 
@@ -1301,12 +1301,18 @@ get_card_status_ready (QmiClientUim *client,
             }
 
             if (card->applications->len > 1)
-                g_warning ("Too many applications reported in card [%u]: %u", i, card->applications->len);
+                g_debug ("Multiple applications reported in card [%u]: %u", i, card->applications->len);
 
             for (j = 0; j < card->applications->len; j++) {
                 QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement *app;
 
                 app = &g_array_index (card->applications, QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement, j);
+
+                if (app->type == QMI_UIM_CARD_APPLICATION_TYPE_UNKNOWN) {
+                    g_debug ("Unknown application [%u] found in card [%u]: %s. Ignored.",
+                             j, i, qmi_uim_card_application_state_get_string (app->state));
+                    continue;
+                }
 
                 if (app->state != QMI_UIM_CARD_APPLICATION_STATE_READY) {
                     g_debug ("Application [%u] in card [%u] not ready: %s",
