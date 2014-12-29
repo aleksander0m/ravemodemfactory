@@ -52,6 +52,7 @@ struct _RmfdPortProcessorQmiPrivate {
     QmiClient *nas;
     QmiClient *wds;
     QmiClient *uim;
+    QmiClient *wms;
 
     /* Connection related info */
     RmfConnectionStatus connection_status;
@@ -3003,6 +3004,29 @@ initable_init_finish (GAsyncInitable  *initable,
 }
 
 static void
+allocate_wms_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    GError *error = NULL;
+
+    ctx->self->priv->wms = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->wms) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("QMI WMS client created");
+
+    /* Last step, launch automatic network registration explicitly */
+    initiate_registration (ctx->self, TRUE);
+
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    init_context_complete_and_free (ctx);
+}
+
+static void
 allocate_uim_client_ready (QmiDevice    *qmi_device,
                            GAsyncResult *res,
                            InitContext  *ctx)
@@ -3017,12 +3041,13 @@ allocate_uim_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI UIM client created");
-
-    /* Last step, launch automatic network registration explicitly */
-    initiate_registration (ctx->self, TRUE);
-
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_WMS,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_wms_client_ready,
+                                ctx);
 }
 
 static void
@@ -3254,6 +3279,11 @@ dispose (GObject *object)
                                        self->priv->uim,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
+        if (self->priv->wms)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->wms,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
 
         if (!qmi_device_close (self->priv->qmi_device, &error)) {
             g_warning ("error closing QMI device: %s", error->message);
@@ -3266,6 +3296,7 @@ dispose (GObject *object)
     g_clear_object (&self->priv->nas);
     g_clear_object (&self->priv->wds);
     g_clear_object (&self->priv->uim);
+    g_clear_object (&self->priv->wms);
     g_clear_object (&self->priv->qmi_device);
 
     G_OBJECT_CLASS (rmfd_port_processor_qmi_parent_class)->dispose (object);
