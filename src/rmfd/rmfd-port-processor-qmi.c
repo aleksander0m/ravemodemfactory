@@ -367,7 +367,7 @@ serving_system_response_cb (QmiClientNas *client,
 }
 
 static void
-unregister_indications (RmfdPortProcessorQmi *self)
+unregister_nas_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
 
@@ -384,7 +384,7 @@ unregister_indications (RmfdPortProcessorQmi *self)
 }
 
 static void
-register_indications (RmfdPortProcessorQmi *self)
+register_nas_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
 
@@ -3233,7 +3233,7 @@ allocate_nas_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI NAS client created");
-    register_indications (ctx->self);
+    register_nas_indications (ctx->self);
 
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
                                 QMI_SERVICE_WDS,
@@ -3398,7 +3398,7 @@ dispose (GObject *object)
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
 
     registration_context_cancel (self);
-    unregister_indications (self);
+    unregister_nas_indications (self);
 
     if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device)) {
         GError *error = NULL;
