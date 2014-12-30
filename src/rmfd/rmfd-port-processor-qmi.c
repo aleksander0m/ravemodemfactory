@@ -2979,6 +2979,130 @@ run (RmfdPortProcessor   *self,
 }
 
 /*****************************************************************************/
+/* Messaging setup and init */
+
+typedef enum {
+    MESSAGING_INIT_CONTEXT_STEP_FIRST,
+    MESSAGING_INIT_CONTEXT_STEP_ROUTES,
+    MESSAGING_INIT_CONTEXT_STEP_LAST
+} MessagingInitContextStep;
+
+typedef struct {
+    RmfdPortProcessorQmi *self;
+    GSimpleAsyncResult *result;
+    MessagingInitContextStep step;
+} MessagingInitContext;
+
+static void
+messaging_init_context_complete_and_free (MessagingInitContext *ctx)
+{
+    g_simple_async_result_complete (ctx->result);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->self);
+    g_slice_free (MessagingInitContext, ctx);
+}
+
+static gboolean
+messaging_init_finish (RmfdPortProcessorQmi  *self,
+                       GAsyncResult          *res,
+                       GError               **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void messaging_init_context_step (MessagingInitContext *ctx);
+
+static void
+wms_set_routes_ready (QmiClientWms         *client,
+                      GAsyncResult         *res,
+                      MessagingInitContext *ctx)
+{
+    QmiMessageWmsSetRoutesOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_wms_set_routes_finish (client, res, &error);
+    if (!output || !qmi_message_wms_set_routes_output_get_result (output, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        messaging_init_context_complete_and_free (ctx);
+    } else {
+        /* Go on */
+        ctx->step++;
+        messaging_init_context_step (ctx);
+    }
+
+    if (output)
+        qmi_message_wms_set_routes_output_unref (output);
+}
+
+static void
+messaging_init_context_step (MessagingInitContext *ctx)
+{
+    switch (ctx->step) {
+    case MESSAGING_INIT_CONTEXT_STEP_FIRST:
+        /* Fall down to next step */
+        g_debug ("[messaging] initializing...");
+        ctx->step++;
+
+    case MESSAGING_INIT_CONTEXT_STEP_ROUTES: {
+        QmiMessageWmsSetRoutesInputRouteListElement route;
+        QmiMessageWmsSetRoutesInput *input;
+        GArray *routes_array;
+
+        /* Build routes array and add it as input
+         * Just worry about Class 0 and Class 1 messages for now */
+        input = qmi_message_wms_set_routes_input_new ();
+        routes_array = g_array_sized_new (FALSE, FALSE, sizeof (route), 2);
+        route.message_type = QMI_WMS_MESSAGE_TYPE_POINT_TO_POINT;
+        route.message_class = QMI_WMS_MESSAGE_CLASS_0;
+        route.storage = QMI_WMS_STORAGE_TYPE_NV; /* Store in modem, not UIM */
+        route.receipt_action = QMI_WMS_RECEIPT_ACTION_STORE_AND_NOTIFY;
+        g_array_append_val (routes_array, route);
+        route.message_class = QMI_WMS_MESSAGE_CLASS_1;
+        g_array_append_val (routes_array, route);
+        qmi_message_wms_set_routes_input_set_route_list (input, routes_array, NULL);
+
+        g_debug ("[messaging] setting default routes...");
+        qmi_client_wms_set_routes (QMI_CLIENT_WMS (ctx->self->priv->wms),
+                                   input,
+                                   5,
+                                   NULL,
+                                   (GAsyncReadyCallback)wms_set_routes_ready,
+                                   ctx);
+        qmi_message_wms_set_routes_input_unref (input);
+        g_array_unref (routes_array);
+        return;
+    }
+
+    case MESSAGING_INIT_CONTEXT_STEP_LAST:
+        /* Done! */
+        g_debug ("[messaging] setup finished...");
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        messaging_init_context_complete_and_free (ctx);
+        return;
+    }
+}
+
+static void
+messaging_init (RmfdPortProcessorQmi *self,
+                GAsyncReadyCallback   callback,
+                gpointer              user_data)
+{
+    MessagingInitContext *ctx;
+
+    g_assert (self->priv->wms != NULL);
+
+    ctx = g_slice_new (MessagingInitContext);
+    ctx->self = g_object_ref (self);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             messaging_init);
+    ctx->step = MESSAGING_INIT_CONTEXT_STEP_FIRST;
+
+    messaging_init_context_step (ctx);
+}
+
+/*****************************************************************************/
 /* Processor init */
 
 typedef struct {
@@ -3004,11 +3128,34 @@ initable_init_finish (GAsyncInitable  *initable,
 }
 
 static void
+messaging_init_ready (RmfdPortProcessorQmi *self,
+                      GAsyncResult         *res,
+                      InitContext          *ctx)
+{
+    GError *error = NULL;
+
+    if (!messaging_init_finish (self, res, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("SMS messaging support initialized");
+
+    /* Last step, launch automatic network registration explicitly */
+    initiate_registration (ctx->self, TRUE);
+
+    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+    init_context_complete_and_free (ctx);
+}
+
+static void
 allocate_wms_client_ready (QmiDevice    *qmi_device,
                            GAsyncResult *res,
                            InitContext  *ctx)
 {
     GError *error = NULL;
+
 
     ctx->self->priv->wms = qmi_device_allocate_client_finish (qmi_device, res, &error);
     if (!ctx->self->priv->wms) {
@@ -3018,12 +3165,9 @@ allocate_wms_client_ready (QmiDevice    *qmi_device,
     }
 
     g_debug ("QMI WMS client created");
-
-    /* Last step, launch automatic network registration explicitly */
-    initiate_registration (ctx->self, TRUE);
-
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    messaging_init (ctx->self,
+                    (GAsyncReadyCallback) messaging_init_ready,
+                    ctx);
 }
 
 static void
