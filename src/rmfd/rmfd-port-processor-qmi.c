@@ -2979,11 +2979,25 @@ run (RmfdPortProcessor   *self,
 }
 
 /*****************************************************************************/
+/* Messaging shutdown */
+
+static void
+unregister_wms_indications (RmfdPortProcessorQmi *self)
+{
+    QmiMessageWmsSetEventReportInput *input;
+    input = qmi_message_wms_set_event_report_input_new ();
+    qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, FALSE, NULL);
+    qmi_client_wms_set_event_report (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
+    qmi_message_wms_set_event_report_input_unref (input);
+}
+
+/*****************************************************************************/
 /* Messaging setup and init */
 
 typedef enum {
     MESSAGING_INIT_CONTEXT_STEP_FIRST,
     MESSAGING_INIT_CONTEXT_STEP_ROUTES,
+    MESSAGING_INIT_CONTEXT_STEP_EVENT_REPORT,
     MESSAGING_INIT_CONTEXT_STEP_LAST
 } MessagingInitContextStep;
 
@@ -3011,6 +3025,28 @@ messaging_init_finish (RmfdPortProcessorQmi  *self,
 }
 
 static void messaging_init_context_step (MessagingInitContext *ctx);
+
+static void
+ser_messaging_indicator_ready (QmiClientWms         *client,
+                               GAsyncResult         *res,
+                               MessagingInitContext *ctx)
+{
+    QmiMessageWmsSetEventReportOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_wms_set_event_report_finish (client, res, &error);
+    if (!output || !qmi_message_wms_set_event_report_output_get_result (output, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        messaging_init_context_complete_and_free (ctx);
+    } else {
+        /* Go on */
+        ctx->step++;
+        messaging_init_context_step (ctx);
+    }
+
+    if (output)
+        qmi_message_wms_set_event_report_output_unref (output);
+}
 
 static void
 wms_set_routes_ready (QmiClientWms         *client,
@@ -3070,6 +3106,21 @@ messaging_init_context_step (MessagingInitContext *ctx)
                                    ctx);
         qmi_message_wms_set_routes_input_unref (input);
         g_array_unref (routes_array);
+        return;
+    }
+
+    case MESSAGING_INIT_CONTEXT_STEP_EVENT_REPORT: {
+        QmiMessageWmsSetEventReportInput *input;
+
+        input = qmi_message_wms_set_event_report_input_new ();
+        qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, TRUE, NULL);
+        qmi_client_wms_set_event_report (QMI_CLIENT_WMS (ctx->self->priv->wms),
+                                         input,
+                                         5,
+                                         NULL,
+                                         (GAsyncReadyCallback)ser_messaging_indicator_ready,
+                                         ctx);
+        qmi_message_wms_set_event_report_input_unref (input);
         return;
     }
 
@@ -3321,7 +3372,6 @@ device_new_ready (GObject      *source,
                      ctx);
 }
 
-
 static void
 initable_init_async (GAsyncInitable *initable,
                      int io_priority,
@@ -3399,6 +3449,7 @@ dispose (GObject *object)
 
     registration_context_cancel (self);
     unregister_nas_indications (self);
+    unregister_wms_indications (self);
 
     if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device)) {
         GError *error = NULL;
