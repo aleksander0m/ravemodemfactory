@@ -68,6 +68,9 @@ struct _RmfdPortProcessorQmiPrivate {
     gchar *operator_description;
     guint16 lac;
     guint32 cid;
+
+    /* Messaging related info */
+    guint messaging_event_report_indication_id;
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
@@ -2979,12 +2982,128 @@ run (RmfdPortProcessor   *self,
 }
 
 /*****************************************************************************/
+/* Messaging event report */
+
+typedef struct {
+    RmfdPortProcessorQmi *self;
+    QmiClientWms         *client;
+    QmiWmsStorageType     storage;
+    guint32               memory_index;
+    QmiWmsMessageMode     message_mode;
+} IndicationRawReadContext;
+
+static void
+indication_raw_read_context_free (IndicationRawReadContext *ctx)
+{
+    g_object_unref (ctx->client);
+    g_object_unref (ctx->self);
+    g_slice_free (IndicationRawReadContext, ctx);
+}
+
+static void
+process_read_sms_part (RmfdPortProcessorQmi *self,
+                       QmiWmsStorageType     storage,
+                       guint32               index,
+                       QmiWmsMessageTagType  tag,
+                       QmiWmsMessageFormat   format,
+                       GArray               *data)
+{
+    switch (format) {
+    case QMI_WMS_MESSAGE_FORMAT_CDMA:
+        g_debug ("[messaging] ignoring 3GPP2 SMS message");
+        break;
+    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_POINT_TO_POINT:
+    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_BROADCAST:
+        g_debug ("[messaging] received 3GPP SMS message");
+        /* TODO */
+        break;
+    case QMI_WMS_MESSAGE_FORMAT_MWI:
+        g_debug ("[messaging] ignoring 'message waiting indicator' message");
+        break;
+    default:
+        g_debug ("Unhandled message format '%u'", format);
+        break;
+    }
+}
+
+static void
+wms_indication_raw_read_ready (QmiClientWms             *client,
+                               GAsyncResult             *res,
+                               IndicationRawReadContext *ctx)
+{
+    QmiMessageWmsRawReadOutput *output = NULL;
+    GError *error = NULL;
+
+    /* Ignore errors */
+
+    output = qmi_client_wms_raw_read_finish (client, res, &error);
+    if (!output || !qmi_message_wms_raw_read_output_get_result (output, &error)) {
+        g_warning ("[messaging] error reading raw message: %s", error->message);
+        g_error_free (error);
+    } else {
+        QmiWmsMessageTagType  tag;
+        QmiWmsMessageFormat   format;
+        GArray               *data;
+
+        qmi_message_wms_raw_read_output_get_raw_message_data (output, &tag, &format, &data, NULL);
+        process_read_sms_part (ctx->self, ctx->storage, ctx->memory_index, tag, format, data);
+    }
+
+    if (output)
+        qmi_message_wms_raw_read_output_unref (output);
+
+    indication_raw_read_context_free (ctx);
+}
+
+static void
+messaging_event_report_indication_cb (QmiClientNas                      *client,
+                                      QmiIndicationWmsEventReportOutput *output,
+                                      RmfdPortProcessorQmi              *self)
+{
+    QmiWmsStorageType storage;
+    guint32            memory_index;
+
+    /* Currently ignoring transfer-route MT messages */
+
+    if (qmi_indication_wms_event_report_output_get_mt_message (output, &storage, &memory_index, NULL)) {
+        IndicationRawReadContext  *ctx;
+        QmiMessageWmsRawReadInput *input;
+
+        ctx = g_slice_new (IndicationRawReadContext);
+        ctx->self = g_object_ref (self);
+        ctx->client = g_object_ref (client);
+        ctx->storage = storage;
+        ctx->memory_index = memory_index;
+
+        input = qmi_message_wms_raw_read_input_new ();
+        qmi_message_wms_raw_read_input_set_message_memory_storage_id (input, storage, memory_index, NULL);
+        if (!qmi_indication_wms_event_report_output_get_message_mode (output, &ctx->message_mode, NULL))
+            ctx->message_mode = QMI_WMS_MESSAGE_MODE_GSM_WCDMA;
+        qmi_message_wms_raw_read_input_set_message_mode (input, ctx->message_mode, NULL);
+        qmi_client_wms_raw_read (QMI_CLIENT_WMS (client),
+                                 input,
+                                 3,
+                                 NULL,
+                                 (GAsyncReadyCallback)wms_indication_raw_read_ready,
+                                 ctx);
+        qmi_message_wms_raw_read_input_unref (input);
+    }
+}
+
+/*****************************************************************************/
 /* Messaging shutdown */
 
 static void
 unregister_wms_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageWmsSetEventReportInput *input;
+
+    if (self->priv->messaging_event_report_indication_id == 0)
+        return;
+
+    g_signal_handler_disconnect (self->priv->wms, self->priv->messaging_event_report_indication_id);
+    self->priv->messaging_event_report_indication_id = 0;
+
     input = qmi_message_wms_set_event_report_input_new ();
     qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, FALSE, NULL);
     qmi_client_wms_set_event_report (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
@@ -3111,6 +3230,14 @@ messaging_init_context_step (MessagingInitContext *ctx)
 
     case MESSAGING_INIT_CONTEXT_STEP_EVENT_REPORT: {
         QmiMessageWmsSetEventReportInput *input;
+
+        g_assert (ctx->self->priv->messaging_event_report_indication_id == 0);
+
+        ctx->self->priv->messaging_event_report_indication_id =
+            g_signal_connect (ctx->self->priv->wms,
+                              "event-report",
+                              G_CALLBACK (messaging_event_report_indication_cb),
+                              ctx->self);
 
         input = qmi_message_wms_set_event_report_input_new ();
         qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, TRUE, NULL);
