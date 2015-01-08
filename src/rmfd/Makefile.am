@@ -22,6 +22,7 @@ rmfd_SOURCES = \
 	rmfd-utils.h rmfd-utils.c \
 	rmfd-error.h rmfd-error.c \
 	rmfd-error-types.h rmfd-error-types.c \
+	rmfd-sms-part.h rmfd-sms-part.c \
 	rmfd-manager.h rmfd-manager.c \
 	rmfd-port.h rmfd-port.c \
 	rmfd-port-processor.h rmfd-port-processor.c \
