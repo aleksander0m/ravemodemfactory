@@ -59,5 +59,6 @@ const gchar       *rmfd_sms_get_number              (RmfdSms            *self);
 const gchar       *rmfd_sms_get_timestamp           (RmfdSms            *self);
 gboolean           rmfd_sms_has_part_index          (RmfdSms            *self,
                                                      guint               part_index);
+GList             *rmfd_sms_peek_parts              (RmfdSms            *self);
 
 #endif /* RMFD_SMS_H */

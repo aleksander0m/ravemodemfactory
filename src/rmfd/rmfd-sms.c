@@ -103,6 +103,12 @@ rmfd_sms_get_timestamp (RmfdSms *self)
     return self->timestamp;
 }
 
+GList *
+rmfd_sms_peek_parts (RmfdSms *self)
+{
+    return self->parts;
+}
+
 /*****************************************************************************/
 
 static guint

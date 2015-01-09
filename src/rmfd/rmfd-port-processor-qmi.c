@@ -3006,6 +3006,7 @@ sms_added_cb (RmfdSmsList          *sms_list,
     const gchar *number_str;
     const gchar *timestamp_str;
     GString *text;
+    GList *l;
 
     text = rmfd_sms_get_text (sms);
     if (text)
@@ -3017,6 +3018,18 @@ sms_added_cb (RmfdSmsList          *sms_list,
                  timestamp_str ? timestamp_str : "",
                  number_str    ? number_str    : "",
                  text_str      ? text_str      : "");
+
+    /* Now, remove all parts */
+    for (l = rmfd_sms_peek_parts (sms); l; l = g_list_next (l)) {
+        QmiMessageWmsDeleteInput *input;
+
+        input = qmi_message_wms_delete_input_new ();
+        qmi_message_wms_delete_input_set_memory_storage (input, rmfd_sms_get_storage (sms), NULL);
+        qmi_message_wms_delete_input_set_memory_index   (input, (guint32) rmfd_sms_part_get_index ((RmfdSmsPart *)l->data), NULL);
+        qmi_message_wms_delete_input_set_message_mode   (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
+        qmi_client_wms_delete (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
+        qmi_message_wms_delete_input_unref (input);
+    }
 }
 
 /*****************************************************************************/
