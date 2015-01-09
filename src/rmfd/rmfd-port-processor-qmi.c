@@ -76,6 +76,7 @@ struct _RmfdPortProcessorQmiPrivate {
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
+static void messaging_list        (RmfdPortProcessorQmi *self);
 
 /*****************************************************************************/
 /* Registration timeout handling */
@@ -1586,6 +1587,9 @@ after_unlock_check_ready (RmfdPortProcessorQmi *self,
     /* Launch automatic registration */
     initiate_registration (ctx->self, TRUE);
 
+    /* Launch SMS listing */
+    messaging_list (ctx->self);
+
     run_context_complete_and_free (ctx);
 }
 
@@ -1674,6 +1678,10 @@ before_unlock_check_ready (RmfdPortProcessorQmi *self,
                                                    (GDestroyNotify)g_byte_array_unref);
         /* Launch automatic registration */
         initiate_registration (ctx->self, TRUE);
+
+        /* Launch SMS listing */
+        messaging_list (ctx->self);
+
         run_context_complete_and_free (ctx);
         return;
     }
@@ -3129,6 +3137,215 @@ unregister_wms_indications (RmfdPortProcessorQmi *self)
 }
 
 /*****************************************************************************/
+/* Messaging list parts */
+
+typedef enum {
+    MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST,
+    MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_READ,
+    MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_NOT_READ,
+    MESSAGING_LIST_PARTS_CONTEXT_STEP_LAST
+} MessagingListPartsContextStep;
+
+typedef struct {
+    RmfdPortProcessorQmi *self;
+    MessagingListPartsContextStep step;
+    QmiWmsStorageType storage;
+    QmiWmsMessageTagType tag;
+    GArray *message_array;
+    guint i;
+} MessagingListPartsContext;
+
+static void
+messaging_list_parts_context_free (MessagingListPartsContext *ctx)
+{
+    if (ctx->message_array)
+        g_array_unref (ctx->message_array);
+    g_object_unref (ctx->self);
+    g_slice_free (MessagingListPartsContext, ctx);
+}
+
+static void messaging_list_parts_context_step (MessagingListPartsContext *ctx);
+static void read_next_sms_part                (MessagingListPartsContext *ctx);
+
+static void
+wms_raw_read_ready (QmiClientWms              *client,
+                    GAsyncResult              *res,
+                    MessagingListPartsContext *ctx)
+{
+    QmiMessageWmsRawReadOutput *output = NULL;
+    GError *error = NULL;
+
+    /* Ignore errors */
+
+    output = qmi_client_wms_raw_read_finish (client, res, &error);
+    if (!output || !qmi_message_wms_raw_read_output_get_result (output, &error)) {
+        g_warning ("[messaging] error reading raw message: %s", error->message);
+        g_error_free (error);
+    } else {
+        QmiWmsMessageTagType  tag;
+        QmiWmsMessageFormat   format;
+        GArray               *data;
+        QmiMessageWmsListMessagesOutputMessageListElement *message;
+
+        message = &g_array_index (ctx->message_array,
+                                  QmiMessageWmsListMessagesOutputMessageListElement,
+                                  ctx->i);
+
+        qmi_message_wms_raw_read_output_get_raw_message_data (output, &tag, &format, &data, NULL);
+        process_read_sms_part (ctx->self, ctx->storage, message->memory_index, tag, format, data);
+    }
+
+    if (output)
+        qmi_message_wms_raw_read_output_unref (output);
+
+    /* Keep on reading parts */
+    ctx->i++;
+    read_next_sms_part (ctx);
+}
+
+static void
+read_next_sms_part (MessagingListPartsContext *ctx)
+{
+    QmiMessageWmsListMessagesOutputMessageListElement *message;
+    QmiMessageWmsRawReadInput *input;
+
+    if (ctx->i >= ctx->message_array->len || !ctx->message_array) {
+        ctx->step++;
+        messaging_list_parts_context_step (ctx);
+        return;
+    }
+
+    message = &g_array_index (ctx->message_array,
+                              QmiMessageWmsListMessagesOutputMessageListElement,
+                              ctx->i);
+
+    input = qmi_message_wms_raw_read_input_new ();
+    qmi_message_wms_raw_read_input_set_message_memory_storage_id (
+        input,
+        ctx->storage,
+        message->memory_index,
+        NULL);
+
+    /* set message mode */
+    qmi_message_wms_raw_read_input_set_message_mode (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
+
+    qmi_client_wms_raw_read (QMI_CLIENT_WMS (ctx->self->priv->wms),
+                             input,
+                             3,
+                             NULL,
+                             (GAsyncReadyCallback)wms_raw_read_ready,
+                             ctx);
+    qmi_message_wms_raw_read_input_unref (input);
+}
+
+static void
+wms_list_messages_ready (QmiClientWms              *client,
+                         GAsyncResult              *res,
+                         MessagingListPartsContext *ctx)
+{
+    QmiMessageWmsListMessagesOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_wms_list_messages_finish (client, res, &error);
+    if (!output || !qmi_message_wms_list_messages_output_get_result (output, &error)) {
+        g_debug ("[messaging] couldn't list messages in storage '%s' (%s): %s",
+                 qmi_wms_storage_type_get_string (ctx->storage),
+                 qmi_wms_message_tag_type_get_string (ctx->tag),
+                 error->message);
+        g_error_free (error);
+
+        /* Go on to next step */
+        ctx->step++;
+        messaging_list_parts_context_step (ctx);
+    } else {
+        GArray *message_array;
+
+        qmi_message_wms_list_messages_output_get_message_list (output, &message_array, NULL);
+
+        /* Keep a reference to the array ourselves */
+        if (ctx->message_array)
+            g_array_unref (ctx->message_array);
+        ctx->message_array = g_array_ref (message_array);
+
+        /* Start reading parts */
+        ctx->i = 0;
+        read_next_sms_part (ctx);
+    }
+
+    if (output)
+        qmi_message_wms_list_messages_output_unref (output);
+}
+
+static void
+messaging_list_parts_context_list (MessagingListPartsContext *ctx)
+{
+    QmiMessageWmsListMessagesInput *input;
+
+    input = qmi_message_wms_list_messages_input_new ();
+    qmi_message_wms_list_messages_input_set_storage_type (input, ctx->storage, NULL);
+    qmi_message_wms_list_messages_input_set_message_mode (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
+    qmi_message_wms_list_messages_input_set_message_tag (input, ctx->tag, NULL);
+
+    qmi_client_wms_list_messages (QMI_CLIENT_WMS (ctx->self->priv->wms),
+                                  input,
+                                  5,
+                                  NULL,
+                                  (GAsyncReadyCallback) wms_list_messages_ready,
+                                  ctx);
+    qmi_message_wms_list_messages_input_unref (input);
+}
+
+static void
+messaging_list_parts_context_step (MessagingListPartsContext *ctx)
+{
+    switch (ctx->step) {
+    case MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST:
+        /* Fall down to next step */
+        g_debug ("[messaging] listing parts in storage '%s'...",
+                 qmi_wms_storage_type_get_string (ctx->storage));
+        ctx->step++;
+
+    case MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_READ:
+        ctx->tag = QMI_WMS_MESSAGE_TAG_TYPE_MT_READ;
+        messaging_list_parts_context_list (ctx);
+        return;
+
+    case MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_NOT_READ:
+        ctx->tag = QMI_WMS_MESSAGE_TAG_TYPE_MT_NOT_READ;
+        messaging_list_parts_context_list (ctx);
+        return;
+
+    case MESSAGING_LIST_PARTS_CONTEXT_STEP_LAST:
+        /* Done! */
+        g_debug ("[messaging] listing parts in storage '%s' finished...",
+                 qmi_wms_storage_type_get_string (ctx->storage));
+        messaging_list_parts_context_free (ctx);
+        return;
+    }
+}
+
+static void
+messaging_list_parts (RmfdPortProcessorQmi *self,
+                      QmiWmsStorageType     storage)
+{
+    MessagingListPartsContext *ctx;
+
+    ctx = g_slice_new0 (MessagingListPartsContext);
+    ctx->self = g_object_ref (self);
+    ctx->storage = storage;
+    ctx->step = MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST;
+
+    messaging_list_parts_context_step (ctx);
+}
+
+static void
+messaging_list (RmfdPortProcessorQmi *self)
+{
+    messaging_list_parts (self, QMI_WMS_STORAGE_TYPE_UIM);
+    messaging_list_parts (self, QMI_WMS_STORAGE_TYPE_NV);
+}
+
+/*****************************************************************************/
 /* Messaging setup and init */
 
 typedef enum {
@@ -3340,6 +3557,9 @@ messaging_init_ready (RmfdPortProcessorQmi *self,
 
     /* Last step, launch automatic network registration explicitly */
     initiate_registration (ctx->self, TRUE);
+
+    /* And launch SMS listing, which will succeed here only if PIN unlocked or disabled */
+    messaging_list (ctx->self);
 
     g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
     init_context_complete_and_free (ctx);
