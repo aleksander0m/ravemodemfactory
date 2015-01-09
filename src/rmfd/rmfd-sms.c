@@ -49,6 +49,80 @@ struct _RmfdSms {
 
 /*****************************************************************************/
 
+QmiWmsStorageType
+rmfd_sms_get_storage (RmfdSms *self)
+{
+    return self->storage;
+}
+
+gboolean
+rmfd_sms_is_multipart (RmfdSms *self)
+{
+    return self->is_multipart;
+}
+
+guint
+rmfd_sms_get_multipart_reference (RmfdSms *self)
+{
+    return self->multipart_reference;
+}
+
+RmfdSmsPduType
+rmfd_sms_get_pdu_type (RmfdSms *self)
+{
+    return self->pdu_type;
+}
+
+GString *
+rmfd_sms_get_text (RmfdSms *self)
+{
+    return self->fulltext;
+}
+
+GByteArray *
+rmfd_sms_get_data (RmfdSms *self)
+{
+    return self->fulldata;
+}
+
+const gchar *
+rmfd_sms_get_smsc (RmfdSms *self)
+{
+    return self->smsc;
+}
+
+const gchar *
+rmfd_sms_get_number (RmfdSms *self)
+{
+    return self->number;
+}
+
+const gchar *
+rmfd_sms_get_timestamp (RmfdSms *self)
+{
+    return self->timestamp;
+}
+
+/*****************************************************************************/
+
+static guint
+cmp_sms_part_index (RmfdSmsPart *part,
+                    gpointer     user_data)
+{
+    return (GPOINTER_TO_UINT (user_data) - rmfd_sms_part_get_index (part));
+}
+
+gboolean
+rmfd_sms_has_part_index (RmfdSms *self,
+                         guint    part_index)
+{
+    return !!g_list_find_custom (self->parts,
+                                 GUINT_TO_POINTER (part_index),
+                                 (GCompareFunc) cmp_sms_part_index);
+}
+
+/*****************************************************************************/
+
 RmfdSms *
 rmfd_sms_ref (RmfdSms *self)
 {

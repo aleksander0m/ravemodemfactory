@@ -31,20 +31,33 @@ typedef struct _RmfdSms RmfdSms;
 #define RMFD_TYPE_SMS     (rmfd_sms_get_type ())
 GType   rmfd_sms_get_type (void);
 
-RmfdSms  *rmfd_sms_singlepart_new         (QmiWmsStorageType   storage,
-                                           RmfdSmsPart        *part,
-                                           GError            **error);
-RmfdSms  *rmfd_sms_multipart_new          (QmiWmsStorageType   storage,
-                                           guint               reference,
-                                           guint               max_parts,
-                                           RmfdSmsPart        *first_part,
-                                           GError            **error);
-gboolean  rmfd_sms_multipart_take_part    (RmfdSms            *self,
-                                           RmfdSmsPart        *part,
-                                           GError            **error);
-gboolean  rmfd_sms_multipart_is_complete  (RmfdSms            *self);
-gboolean  rmfd_sms_multipart_is_assembled (RmfdSms            *self);
-RmfdSms  *rmfd_sms_ref                    (RmfdSms            *self);
-void      rmfd_sms_unref                  (RmfdSms            *self);
+RmfdSms           *rmfd_sms_ref                     (RmfdSms            *self);
+void               rmfd_sms_unref                   (RmfdSms            *self);
+RmfdSms           *rmfd_sms_singlepart_new          (QmiWmsStorageType   storage,
+                                                     RmfdSmsPart        *part,
+                                                     GError            **error);
+RmfdSms           *rmfd_sms_multipart_new           (QmiWmsStorageType   storage,
+                                                     guint               reference,
+                                                     guint               max_parts,
+                                                     RmfdSmsPart        *first_part,
+                                                     GError            **error);
+gboolean           rmfd_sms_multipart_take_part     (RmfdSms            *self,
+                                                     RmfdSmsPart        *part,
+                                                     GError            **error);
+gboolean           rmfd_sms_multipart_is_complete   (RmfdSms            *self);
+gboolean           rmfd_sms_multipart_is_assembled  (RmfdSms            *self);
+
+
+QmiWmsStorageType  rmfd_sms_get_storage             (RmfdSms            *self);
+gboolean           rmfd_sms_is_multipart            (RmfdSms            *self);
+guint              rmfd_sms_get_multipart_reference (RmfdSms            *self);
+RmfdSmsPduType     rmfd_sms_get_pdu_type            (RmfdSms            *self);
+GString           *rmfd_sms_get_text                (RmfdSms            *self);
+GByteArray        *rmfd_sms_get_data                (RmfdSms            *self);
+const gchar       *rmfd_sms_get_smsc                (RmfdSms            *self);
+const gchar       *rmfd_sms_get_number              (RmfdSms            *self);
+const gchar       *rmfd_sms_get_timestamp           (RmfdSms            *self);
+gboolean           rmfd_sms_has_part_index          (RmfdSms            *self,
+                                                     guint               part_index);
 
 #endif /* RMFD_SMS_H */
