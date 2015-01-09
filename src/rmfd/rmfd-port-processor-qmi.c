@@ -2994,6 +2994,19 @@ run (RmfdPortProcessor   *self,
 }
 
 /*****************************************************************************/
+/* Built SMS */
+
+static void
+sms_added_cb (RmfdSmsList          *sms_list,
+              RmfdSms              *sms,
+              RmfdPortProcessorQmi *self)
+{
+    g_message ("---------------> SMS [%s] %s",
+               rmfd_sms_get_number (sms),
+               rmfd_sms_get_text (sms));
+}
+
+/*****************************************************************************/
 /* Messaging SMS part processing */
 
 static void
@@ -3766,7 +3779,7 @@ initable_init_async (GAsyncInitable *initable,
 
 RmfdPortProcessor *
 rmfd_port_processor_qmi_new_finish (GAsyncResult  *res,
-                               GError       **error)
+                                    GError       **error)
 {
     GObject *source;
     GObject *self;
@@ -3805,7 +3818,10 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
     self->priv->registration_timeout = DEFAULT_REGISTRATION_TIMEOUT_SECS;
     self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+
+    /* Setup SMS list handler */
     self->priv->messaging_sms_list = rmfd_sms_list_new ();
+    g_signal_connect (self->priv->messaging_sms_list, "sms-add", G_CALLBACK (sms_added_cb), self);
 }
 
 static void
