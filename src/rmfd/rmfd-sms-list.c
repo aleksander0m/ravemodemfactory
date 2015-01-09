@@ -106,9 +106,19 @@ take_multipart (RmfdSmsList           *self,
     l = g_list_find_custom (self->priv->list,
                             GUINT_TO_POINTER (concat_reference),
                             (GCompareFunc)cmp_sms_by_concat_reference);
-    if (l)
+    if (l) {
+        gboolean st;
+
+        sms = (RmfdSms *)(l->data);
+
         /* Try to take the part */
-        return rmfd_sms_multipart_take_part ((RmfdSms *) (l->data), part, error);
+        st = rmfd_sms_multipart_take_part (sms, part, error);
+        if (rmfd_sms_multipart_is_complete (sms) && rmfd_sms_multipart_is_assembled (sms)) {
+            g_debug  ("[messaging] multipart SMS now complete and assembled");
+            g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
+        }
+        return st;
+    }
 
     /* Create new Multipart */
     sms = rmfd_sms_multipart_new (storage,
@@ -120,7 +130,10 @@ take_multipart (RmfdSmsList           *self,
         return FALSE;
 
     self->priv->list = g_list_prepend (self->priv->list, sms);
-    g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
+    if (rmfd_sms_multipart_is_complete (sms) && rmfd_sms_multipart_is_assembled (sms)) {
+        g_debug  ("[messaging] multipart SMS now complete and assembled");
+        g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
+    }
     return TRUE;
 }
 
