@@ -3001,9 +3001,13 @@ sms_added_cb (RmfdSmsList          *sms_list,
               RmfdSms              *sms,
               RmfdPortProcessorQmi *self)
 {
-    g_message ("---------------> SMS [%s] %s",
-               rmfd_sms_get_number (sms),
-               rmfd_sms_get_text (sms));
+    GString *text;
+
+    text = rmfd_sms_get_text (sms);
+
+    if (text)
+        g_warning ("---------------> SMS [%s] %s",
+                   rmfd_sms_get_number (sms), text);
 }
 
 /*****************************************************************************/
@@ -3821,7 +3825,7 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
 
     /* Setup SMS list handler */
     self->priv->messaging_sms_list = rmfd_sms_list_new ();
-    g_signal_connect (self->priv->messaging_sms_list, "sms-add", G_CALLBACK (sms_added_cb), self);
+    g_signal_connect (self->priv->messaging_sms_list, "sms-added", G_CALLBACK (sms_added_cb), self);
 }
 
 static void
@@ -3869,6 +3873,8 @@ dispose (GObject *object)
             g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
     }
 
+    if (self->priv->messaging_sms_list)
+        g_signal_handlers_disconnect_by_func (self->priv->messaging_sms_list, sms_added_cb, self);
     g_clear_object (&self->priv->messaging_sms_list);
 
     g_clear_object (&self->priv->dms);
