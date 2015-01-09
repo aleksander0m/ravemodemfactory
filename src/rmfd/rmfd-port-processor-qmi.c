@@ -33,6 +33,7 @@
 #include "rmfd-error-types.h"
 #include "rmfd-sms-part.h"
 #include "rmfd-sms-part-3gpp.h"
+#include "rmfd-sms-list.h"
 
 static void async_initable_iface_init (GAsyncInitableIface *iface);
 
@@ -73,6 +74,7 @@ struct _RmfdPortProcessorQmiPrivate {
 
     /* Messaging related info */
     guint messaging_event_report_indication_id;
+    RmfdSmsList *messaging_sms_list;
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
@@ -2992,6 +2994,46 @@ run (RmfdPortProcessor   *self,
 }
 
 /*****************************************************************************/
+/* Messaging SMS part processing */
+
+static void
+process_read_sms_part (RmfdPortProcessorQmi *self,
+                       QmiWmsStorageType     storage,
+                       guint32               index,
+                       QmiWmsMessageTagType  tag,
+                       QmiWmsMessageFormat   format,
+                       GArray               *data)
+{
+    RmfdSmsPart *part;
+    GError      *error = NULL;
+
+    if (format != QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_POINT_TO_POINT &&
+        format != QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_BROADCAST) {
+        g_debug ("[messaging] ignoring SMS part (%s)", qmi_wms_message_format_get_string (format));
+        return;
+    }
+
+    g_debug ("[messaging] received 3GPP SMS part (%s,%u)", qmi_wms_storage_type_get_string (storage), index);
+    part = rmfd_sms_part_3gpp_new_from_binary_pdu (index, (guint8 *)data->data, data->len, &error);
+    if (!part) {
+        g_warning ("[messaging] error creating SMS part from PDU: %s", error->message);
+        g_error_free (error);
+        return;
+    }
+
+    if (!rmfd_sms_list_take_part (self->priv->messaging_sms_list,
+                                  part,
+                                  storage,
+                                  tag,
+                                  &error)) {
+        g_warning ("[messaging] error processing PDU: %s", error->message);
+        g_error_free (error);
+    }
+
+    rmfd_sms_part_unref (part);
+}
+
+/*****************************************************************************/
 /* Messaging event report */
 
 typedef struct {
@@ -3008,48 +3050,6 @@ indication_raw_read_context_free (IndicationRawReadContext *ctx)
     g_object_unref (ctx->client);
     g_object_unref (ctx->self);
     g_slice_free (IndicationRawReadContext, ctx);
-}
-
-static void
-process_read_sms_part (RmfdPortProcessorQmi *self,
-                       QmiWmsStorageType     storage,
-                       guint32               index,
-                       QmiWmsMessageTagType  tag,
-                       QmiWmsMessageFormat   format,
-                       GArray               *data)
-{
-    switch (format) {
-    case QMI_WMS_MESSAGE_FORMAT_CDMA:
-        g_debug ("[messaging] ignoring 3GPP2 SMS message");
-        break;
-    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_POINT_TO_POINT:
-    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_BROADCAST: {
-        RmfdSmsPart *part;
-        GError     *error = NULL;
-
-        g_debug ("[messaging] received 3GPP SMS message (%u)", index);
-        part = rmfd_sms_part_3gpp_new_from_binary_pdu (index,
-                                                       (guint8 *)data->data,
-                                                       data->len,
-                                                       &error);
-        if (!part) {
-            g_warning ("[messaging] error creating SMS part from PDU: %s", error->message);
-            g_error_free (error);
-            return;
-        }
-
-        /* TODO: process part */
-
-        rmfd_sms_part_free (part);
-        break;
-    }
-    case QMI_WMS_MESSAGE_FORMAT_MWI:
-        g_debug ("[messaging] ignoring 'message waiting indicator' message");
-        break;
-    default:
-        g_debug ("Unhandled message format '%u'", format);
-        break;
-    }
 }
 
 static void
@@ -3805,6 +3805,7 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
     self->priv->registration_timeout = DEFAULT_REGISTRATION_TIMEOUT_SECS;
     self->priv->registration_status = RMF_REGISTRATION_STATUS_IDLE;
+    self->priv->messaging_sms_list = rmfd_sms_list_new ();
 }
 
 static void
@@ -3851,6 +3852,8 @@ dispose (GObject *object)
         } else
             g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
     }
+
+    g_clear_object (&self->priv->messaging_sms_list);
 
     g_clear_object (&self->priv->dms);
     g_clear_object (&self->priv->nas);
