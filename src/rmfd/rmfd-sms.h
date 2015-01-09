@@ -28,6 +28,9 @@
 
 typedef struct _RmfdSms RmfdSms;
 
+#define RMFD_TYPE_SMS     (rmfd_sms_get_type ())
+GType   rmfd_sms_get_type (void);
+
 RmfdSms  *rmfd_sms_singlepart_new         (QmiWmsStorageType   storage,
                                            RmfdSmsPart        *part,
                                            GError            **error);
@@ -41,5 +44,7 @@ gboolean  rmfd_sms_multipart_take_part    (RmfdSms            *self,
                                            GError            **error);
 gboolean  rmfd_sms_multipart_is_complete  (RmfdSms            *self);
 gboolean  rmfd_sms_multipart_is_assembled (RmfdSms            *self);
+RmfdSms  *rmfd_sms_ref                    (RmfdSms            *self);
+void      rmfd_sms_unref                  (RmfdSms            *self);
 
 #endif /* RMFD_SMS_H */

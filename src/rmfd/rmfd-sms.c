@@ -23,6 +23,9 @@
 #include "rmfd-error-types.h"
 
 struct _RmfdSms {
+    /* Reference counting */
+    volatile gint ref_count;
+
     QmiWmsStorageType    storage;
     gboolean             is_multipart;
     guint                multipart_reference;
@@ -43,6 +46,31 @@ struct _RmfdSms {
     gchar          *number;
     gchar          *timestamp;
 };
+
+/*****************************************************************************/
+
+RmfdSms *
+rmfd_sms_ref (RmfdSms *self)
+{
+    g_atomic_int_inc (&self->ref_count);
+    return self;
+}
+
+void
+rmfd_sms_unref (RmfdSms *self)
+{
+    if (g_atomic_int_dec_and_test (&self->ref_count)) {
+        g_free (self->smsc);
+        g_free (self->number);
+        g_free (self->timestamp);
+        if (self->fulltext)
+            g_string_free (self->fulltext, TRUE);
+        if (self->fulldata)
+            g_byte_array_free (self->fulldata, TRUE);
+        g_list_free_full (self->parts, (GDestroyNotify) rmfd_sms_part_unref);
+        g_slice_free (RmfdSms, self);
+    }
+}
 
 /*****************************************************************************/
 
@@ -151,22 +179,6 @@ assemble_sms (RmfdSms  *self,
 
 /*****************************************************************************/
 
-void
-rmfd_sms_free (RmfdSms *self)
-{
-    g_free (self->smsc);
-    g_free (self->number);
-    g_free (self->timestamp);
-    if (self->fulltext)
-        g_string_free (self->fulltext, TRUE);
-    if (self->fulldata)
-        g_byte_array_free (self->fulldata, TRUE);
-    g_list_free_full (self->parts, (GDestroyNotify) rmfd_sms_part_unref);
-    g_slice_free (RmfdSms, self);
-}
-
-/*****************************************************************************/
-
 RmfdSms *
 rmfd_sms_singlepart_new (QmiWmsStorageType      storage,
                          RmfdSmsPart           *part,
@@ -175,6 +187,7 @@ rmfd_sms_singlepart_new (QmiWmsStorageType      storage,
     RmfdSms *self;
 
     self = g_slice_new0 (RmfdSms);
+    self->ref_count = 1;
     self->storage   = storage;
     self->max_parts = 1;
 
@@ -182,7 +195,7 @@ rmfd_sms_singlepart_new (QmiWmsStorageType      storage,
     self->parts = g_list_prepend (self->parts, rmfd_sms_part_ref (part));
 
     if (!assemble_sms (self, error)) {
-        rmfd_sms_free (self);
+        rmfd_sms_unref (self);
         return NULL;
     }
 
@@ -279,6 +292,7 @@ rmfd_sms_multipart_new (QmiWmsStorageType      storage,
     RmfdSms *self;
 
     self = g_slice_new0 (RmfdSms);
+    self->ref_count = 1;
     self->storage             = storage;
     self->is_multipart        = TRUE;
     self->multipart_reference = reference;
@@ -286,9 +300,28 @@ rmfd_sms_multipart_new (QmiWmsStorageType      storage,
 
     /* Take part */
     if (!rmfd_sms_multipart_take_part (self, first_part, error)) {
-        rmfd_sms_free (self);
+        rmfd_sms_unref (self);
         return NULL;
     }
 
     return self;
+}
+
+/*****************************************************************************/
+
+GType
+rmfd_sms_get_type (void)
+{
+    static volatile gsize g_define_type_id__volatile = 0;
+
+    if (g_once_init_enter (&g_define_type_id__volatile)) {
+        GType g_define_type_id =
+            g_boxed_type_register_static (g_intern_static_string ("RmfdSms"),
+                                          (GBoxedCopyFunc) rmfd_sms_ref,
+                                          (GBoxedFreeFunc) rmfd_sms_unref);
+
+        g_once_init_leave (&g_define_type_id__volatile, g_define_type_id);
+    }
+
+    return g_define_type_id__volatile;
 }
