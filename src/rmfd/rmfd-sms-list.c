@@ -85,9 +85,9 @@ take_singlepart (RmfdSmsList           *self,
     sms = rmfd_sms_singlepart_new (storage, part, error);
     if (!sms)
         return FALSE;
-
-    self->priv->list = g_list_prepend (self->priv->list, sms);
+    /* SMS is finished, don't store it, just signal it */
     g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
+    rmfd_sms_unref (sms);
     return TRUE;
 }
 
@@ -114,8 +114,12 @@ take_multipart (RmfdSmsList           *self,
         /* Try to take the part */
         st = rmfd_sms_multipart_take_part (sms, part, error);
         if (rmfd_sms_multipart_is_complete (sms) && rmfd_sms_multipart_is_assembled (sms)) {
+            /* SMS is finished */
             g_debug  ("[messaging] multipart SMS now complete and assembled");
             g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
+            /* Remove from list */
+            rmfd_sms_unref (sms);
+            self->priv->list = g_list_remove (self->priv->list, sms);
         }
         return st;
     }
@@ -129,11 +133,12 @@ take_multipart (RmfdSmsList           *self,
     if (!sms)
         return FALSE;
 
-    self->priv->list = g_list_prepend (self->priv->list, sms);
     if (rmfd_sms_multipart_is_complete (sms) && rmfd_sms_multipart_is_assembled (sms)) {
         g_debug  ("[messaging] multipart SMS now complete and assembled");
         g_signal_emit (self, signals[SIGNAL_ADDED], 0, sms);
-    }
+        rmfd_sms_unref (sms);
+    } else
+        self->priv->list = g_list_prepend (self->priv->list, sms);
     return TRUE;
 }
 
