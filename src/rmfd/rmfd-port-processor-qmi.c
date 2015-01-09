@@ -31,6 +31,8 @@
 #include "rmfd-port-processor-qmi.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
+#include "rmfd-sms-part.h"
+#include "rmfd-sms-part-3gpp.h"
 
 static void async_initable_iface_init (GAsyncInitableIface *iface);
 
@@ -3013,10 +3015,26 @@ process_read_sms_part (RmfdPortProcessorQmi *self,
         g_debug ("[messaging] ignoring 3GPP2 SMS message");
         break;
     case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_POINT_TO_POINT:
-    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_BROADCAST:
-        g_debug ("[messaging] received 3GPP SMS message");
-        /* TODO */
+    case QMI_WMS_MESSAGE_FORMAT_GSM_WCDMA_BROADCAST: {
+        RmfdSmsPart *part;
+        GError     *error = NULL;
+
+        g_debug ("[messaging] received 3GPP SMS message (%u)", index);
+        part = rmfd_sms_part_3gpp_new_from_binary_pdu (index,
+                                                       (guint8 *)data->data,
+                                                       data->len,
+                                                       &error);
+        if (!part) {
+            g_warning ("[messaging] error creating SMS part from PDU: %s", error->message);
+            g_error_free (error);
+            return;
+        }
+
+        /* TODO: process part */
+
+        rmfd_sms_part_free (part);
         break;
+    }
     case QMI_WMS_MESSAGE_FORMAT_MWI:
         g_debug ("[messaging] ignoring 'message waiting indicator' message");
         break;
