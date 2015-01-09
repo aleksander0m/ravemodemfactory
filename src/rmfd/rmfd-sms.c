@@ -339,7 +339,7 @@ rmfd_sms_multipart_take_part (RmfdSms      *self,
     }
 
     /* Insert sorted by concat sequence */
-    self->parts = g_list_insert_sorted (self->parts, part, (GCompareFunc) cmp_sms_part_sequence);
+    self->parts = g_list_insert_sorted (self->parts, rmfd_sms_part_ref (part), (GCompareFunc) cmp_sms_part_sequence);
 
     /* We only populate contents when the multipart SMS is complete */
     if (rmfd_sms_multipart_is_complete (self)) {
