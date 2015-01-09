@@ -161,7 +161,7 @@ rmfd_sms_free (RmfdSms *self)
         g_string_free (self->fulltext, TRUE);
     if (self->fulldata)
         g_byte_array_free (self->fulldata, TRUE);
-    g_list_free_full (self->parts, (GDestroyNotify) rmfd_sms_part_free);
+    g_list_free_full (self->parts, (GDestroyNotify) rmfd_sms_part_unref);
     g_slice_free (RmfdSms, self);
 }
 
@@ -169,7 +169,7 @@ rmfd_sms_free (RmfdSms *self)
 
 RmfdSms *
 rmfd_sms_singlepart_new (QmiWmsStorageType      storage,
-                         RmfdSmsPart             *part,
+                         RmfdSmsPart           *part,
                          GError               **error)
 {
     RmfdSms *self;
@@ -179,13 +179,9 @@ rmfd_sms_singlepart_new (QmiWmsStorageType      storage,
     self->max_parts = 1;
 
     /* Keep the single part in the list */
-    self->parts = g_list_prepend (self->parts, part);
+    self->parts = g_list_prepend (self->parts, rmfd_sms_part_ref (part));
 
     if (!assemble_sms (self, error)) {
-        /* Note: we need to remove the part from the list without freeing it, as
-         * we really didn't take it, and therefore the caller is responsible for
-         * freeing it. */
-        self->parts = g_list_remove (self->parts, part);
         rmfd_sms_free (self);
         return NULL;
     }

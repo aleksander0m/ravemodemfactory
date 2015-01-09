@@ -27,6 +27,9 @@
 #include "rmfd-sms-part.h"
 
 struct _RmfdSmsPart {
+    /* Reference counting */
+    volatile gint ref_count;
+
     guint index;
     RmfdSmsPduType pdu_type;
     gchar *smsc;
@@ -49,49 +52,58 @@ struct _RmfdSmsPart {
     guint concat_sequence;
 };
 
-void
-rmfd_sms_part_free (RmfdSmsPart *self)
+RmfdSmsPart *
+rmfd_sms_part_ref (RmfdSmsPart *self)
 {
-    g_free (self->discharge_timestamp);
-    g_free (self->timestamp);
-    g_free (self->smsc);
-    g_free (self->number);
-    g_free (self->text);
-    if (self->data)
-        g_byte_array_unref (self->data);
-    g_slice_free (RmfdSmsPart, self);
+    g_atomic_int_inc (&self->ref_count);
+    return self;
 }
 
-#define PART_GET_FUNC(type, name)             \
-    type                                      \
+void
+rmfd_sms_part_unref (RmfdSmsPart *self)
+{
+    if (g_atomic_int_dec_and_test (&self->ref_count)) {
+        g_free (self->discharge_timestamp);
+        g_free (self->timestamp);
+        g_free (self->smsc);
+        g_free (self->number);
+        g_free (self->text);
+        if (self->data)
+            g_byte_array_unref (self->data);
+        g_slice_free (RmfdSmsPart, self);
+    }
+}
+
+#define PART_GET_FUNC(type, name)                 \
+    type                                          \
     rmfd_sms_part_get_##name (RmfdSmsPart *self)  \
-    {                                         \
-        return self->name;                    \
+    {                                             \
+        return self->name;                        \
     }
 
-#define PART_SET_FUNC(type, name)             \
-    void                                      \
+#define PART_SET_FUNC(type, name)                 \
+    void                                          \
     rmfd_sms_part_set_##name (RmfdSmsPart *self,  \
-                            type value)       \
-    {                                         \
-        self->name = value;                   \
+                              type value)         \
+    {                                             \
+        self->name = value;                       \
     }
 
-#define PART_SET_TAKE_STR_FUNC(name)             \
-    void                                         \
-    rmfd_sms_part_set_##name (RmfdSmsPart *self,     \
-                            const gchar *value)  \
-    {                                            \
-        g_free (self->name);                     \
-        self->name = g_strdup (value);           \
-    }                                            \
-                                                 \
-    void                                         \
-    rmfd_sms_part_take_##name (RmfdSmsPart *self,    \
-                             gchar *value)       \
-    {                                            \
-        g_free (self->name);                     \
-        self->name = value;                      \
+#define PART_SET_TAKE_STR_FUNC(name)                \
+    void                                            \
+    rmfd_sms_part_set_##name (RmfdSmsPart *self,    \
+                              const gchar *value)   \
+    {                                               \
+        g_free (self->name);                        \
+        self->name = g_strdup (value);              \
+    }                                               \
+                                                    \
+    void                                            \
+    rmfd_sms_part_take_##name (RmfdSmsPart *self,   \
+                               gchar *value)        \
+    {                                               \
+        g_free (self->name);                        \
+        self->name = value;                         \
     }
 
 PART_GET_FUNC (guint, index)
@@ -129,7 +141,7 @@ PART_GET_FUNC (guint, concat_reference)
 
 void
 rmfd_sms_part_set_concat_reference (RmfdSmsPart *self,
-                                  guint value)
+                                    guint value)
 {
     self->should_concat = TRUE;
     self->concat_reference = value;
@@ -139,7 +151,7 @@ PART_GET_FUNC (const GByteArray *, data)
 
 void
 rmfd_sms_part_set_data (RmfdSmsPart *self,
-                      GByteArray *value)
+                        GByteArray *value)
 {
     if (self->data)
         g_byte_array_unref (self->data);
@@ -148,7 +160,7 @@ rmfd_sms_part_set_data (RmfdSmsPart *self,
 
 void
 rmfd_sms_part_take_data (RmfdSmsPart *self,
-                       GByteArray *value)
+                         GByteArray *value)
 {
     if (self->data)
         g_byte_array_unref (self->data);
@@ -163,11 +175,12 @@ rmfd_sms_part_should_concat (RmfdSmsPart *self)
 
 RmfdSmsPart *
 rmfd_sms_part_new (guint index,
-                 RmfdSmsPduType pdu_type)
+                   RmfdSmsPduType pdu_type)
 {
     RmfdSmsPart *sms_part;
 
     sms_part = g_slice_new0 (RmfdSmsPart);
+    sms_part->ref_count = 1;
     sms_part->index = index;
     sms_part->pdu_type = pdu_type;
     sms_part->encoding = RMFD_SMS_ENCODING_UNKNOWN;
@@ -175,4 +188,21 @@ rmfd_sms_part_new (guint index,
     sms_part->class = -1;
 
     return sms_part;
+}
+
+GType
+rmfd_sms_part_get_type (void)
+{
+    static volatile gsize g_define_type_id__volatile = 0;
+
+    if (g_once_init_enter (&g_define_type_id__volatile)) {
+        GType g_define_type_id =
+            g_boxed_type_register_static (g_intern_static_string ("RmfdSmsPart"),
+                                          (GBoxedCopyFunc) rmfd_sms_part_ref,
+                                          (GBoxedFreeFunc) rmfd_sms_part_unref);
+
+        g_once_init_leave (&g_define_type_id__volatile, g_define_type_id);
+    }
+
+    return g_define_type_id__volatile;
 }

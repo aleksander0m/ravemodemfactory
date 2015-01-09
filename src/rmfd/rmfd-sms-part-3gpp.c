@@ -379,7 +379,7 @@ rmfd_sms_part_3gpp_new_from_binary_pdu (guint index,
                      check_descr_str,                               \
                      pdu_len,                                       \
                      required_size);                                \
-        rmfd_sms_part_free (sms_part);                              \
+        rmfd_sms_part_unref (sms_part);                             \
         return NULL;                                                \
     }
 
@@ -419,7 +419,7 @@ rmfd_sms_part_3gpp_new_from_binary_pdu (guint index,
         rmfd_sms_part_set_pdu_type (sms_part, RMFD_SMS_PDU_TYPE_STATUS_REPORT);
         break;
     default:
-        rmfd_sms_part_free (sms_part);
+        rmfd_sms_part_unref (sms_part);
         g_set_error (error,
                      RMFD_ERROR,
                      RMFD_ERROR_UNKNOWN,

@@ -22,6 +22,7 @@
 #define RMFD_SMS_PART_H
 
 #include <glib.h>
+#include <glib-object.h>
 
 typedef enum {
     RMFD_SMS_PDU_TYPE_UNKNOWN,
@@ -76,9 +77,13 @@ typedef struct _RmfdSmsPart RmfdSmsPart;
 
 #define SMS_PART_INVALID_INDEX G_MAXUINT
 
-RmfdSmsPart *rmfd_sms_part_new  (guint index,
-                                 RmfdSmsPduType type);
-void         rmfd_sms_part_free (RmfdSmsPart *part);
+#define      RMFD_TYPE_SMS_PART     (rmfd_sms_part_get_type ())
+GType        rmfd_sms_part_get_type (void);
+
+RmfdSmsPart *rmfd_sms_part_new   (guint index,
+                                  RmfdSmsPduType type);
+RmfdSmsPart *rmfd_sms_part_ref   (RmfdSmsPart *part);
+void         rmfd_sms_part_unref (RmfdSmsPart *part);
 
 guint             rmfd_sms_part_get_index              (RmfdSmsPart *part);
 void              rmfd_sms_part_set_index              (RmfdSmsPart *part,
