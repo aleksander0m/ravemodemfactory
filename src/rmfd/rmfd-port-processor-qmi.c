@@ -3007,6 +3007,7 @@ sms_added_cb (RmfdSmsList          *sms_list,
     const gchar *timestamp_str;
     GString *text;
     GList *l;
+    gboolean no_delete = FALSE;
 
     text = rmfd_sms_get_text (sms);
     if (text)
@@ -3019,16 +3020,26 @@ sms_added_cb (RmfdSmsList          *sms_list,
                  number_str    ? number_str    : "",
                  text_str      ? text_str      : "");
 
+    /* For testing, allow to run without actually removing the already read parts */
+    if (getenv ("RMFD_NO_DELETE_SMS"))
+        no_delete = TRUE;
+
     /* Now, remove all parts */
     for (l = rmfd_sms_peek_parts (sms); l; l = g_list_next (l)) {
-        QmiMessageWmsDeleteInput *input;
+        g_debug ("[messaging] %sremoving SMS part (%s/%u)",
+                 no_delete ? "(fake) " : "",
+                 qmi_wms_storage_type_get_string (rmfd_sms_get_storage (sms)),
+                 (guint32) rmfd_sms_part_get_index ((RmfdSmsPart *)l->data));
+        if (!no_delete) {
+            QmiMessageWmsDeleteInput *input;
 
-        input = qmi_message_wms_delete_input_new ();
-        qmi_message_wms_delete_input_set_memory_storage (input, rmfd_sms_get_storage (sms), NULL);
-        qmi_message_wms_delete_input_set_memory_index   (input, (guint32) rmfd_sms_part_get_index ((RmfdSmsPart *)l->data), NULL);
-        qmi_message_wms_delete_input_set_message_mode   (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
-        qmi_client_wms_delete (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
-        qmi_message_wms_delete_input_unref (input);
+            input = qmi_message_wms_delete_input_new ();
+            qmi_message_wms_delete_input_set_memory_storage (input, rmfd_sms_get_storage (sms), NULL);
+            qmi_message_wms_delete_input_set_memory_index   (input, (guint32) rmfd_sms_part_get_index ((RmfdSmsPart *)l->data), NULL);
+            qmi_message_wms_delete_input_set_message_mode   (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
+            qmi_client_wms_delete (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
+            qmi_message_wms_delete_input_unref (input);
+        }
     }
 }
 
