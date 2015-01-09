@@ -26,6 +26,7 @@ rmfd_SOURCES = \
 	rmfd-sms-part.h rmfd-sms-part.c \
 	rmfd-sms-part-3gpp.h rmfd-sms-part-3gpp.c \
 	rmfd-sms.h rmfd-sms.c \
+	rmfd-sms-list.h rmfd-sms-list.c \
 	rmfd-manager.h rmfd-manager.c \
 	rmfd-port.h rmfd-port.c \
 	rmfd-port-processor.h rmfd-port-processor.c \
