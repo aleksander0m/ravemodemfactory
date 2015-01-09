@@ -215,5 +215,5 @@ rmfd_sms_list_class_init (RmfdSmsListClass *klass)
                       G_STRUCT_OFFSET (RmfdSmsListClass, sms_added),
                       NULL, NULL,
                       g_cclosure_marshal_generic,
-                      G_TYPE_NONE, 1, G_TYPE_BOXED);
+                      G_TYPE_NONE, 1, RMFD_TYPE_SMS);
 }
