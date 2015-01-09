@@ -37,6 +37,7 @@
 #include <libqmi-glib.h>
 
 #include "rmfd-manager.h"
+#include "rmfd-syslog.h"
 
 #define PROGRAM_NAME    "rmfd"
 #define PROGRAM_VERSION PACKAGE_VERSION
@@ -146,6 +147,9 @@ main (int argc, char *argv[])
         g_log_set_handler ("Qmi", G_LOG_LEVEL_MASK, log_handler, NULL);
     }
 
+    /* Initialize syslog if needed */
+    rmfd_syslog_setup ();
+
     g_debug (PROGRAM_NAME " starting...");
 
     /* Setup signals */
@@ -163,6 +167,8 @@ main (int argc, char *argv[])
 
     g_main_loop_unref (loop);
     g_object_unref (manager);
+
+    rmfd_syslog_teardown ();
 
     return 0;
 }

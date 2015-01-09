@@ -20,6 +20,7 @@ rmfd_CPPFLAGS = \
 rmfd_SOURCES = \
 	rmfd.c \
 	rmfd-utils.h rmfd-utils.c \
+	rmfd-syslog.h rmfd-syslog.c \
 	rmfd-error.h rmfd-error.c \
 	rmfd-error-types.h rmfd-error-types.c \
 	rmfd-charsets.h rmfd-charsets.c \

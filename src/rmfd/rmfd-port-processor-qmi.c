@@ -28,6 +28,7 @@
 
 #include <rmf-messages.h>
 
+#include "rmfd-syslog.h"
 #include "rmfd-port-processor-qmi.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
@@ -3001,13 +3002,21 @@ sms_added_cb (RmfdSmsList          *sms_list,
               RmfdSms              *sms,
               RmfdPortProcessorQmi *self)
 {
+    const gchar *text_str = NULL;
+    const gchar *number_str;
+    const gchar *timestamp_str;
     GString *text;
 
     text = rmfd_sms_get_text (sms);
-
     if (text)
-        g_warning ("---------------> SMS [%s] %s",
-                   rmfd_sms_get_number (sms), text);
+        text_str = text->str;
+    number_str = rmfd_sms_get_number (sms);
+    timestamp_str = rmfd_sms_get_timestamp (sms);
+
+    rmfd_syslog (LOG_INFO, "[%s] [%s] %s",
+                 timestamp_str ? timestamp_str : "",
+                 number_str    ? number_str    : "",
+                 text_str      ? text_str      : "");
 }
 
 /*****************************************************************************/
