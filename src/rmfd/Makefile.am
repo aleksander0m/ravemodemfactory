@@ -25,6 +25,7 @@ rmfd_SOURCES = \
 	rmfd-charsets.h rmfd-charsets.c \
 	rmfd-sms-part.h rmfd-sms-part.c \
 	rmfd-sms-part-3gpp.h rmfd-sms-part-3gpp.c \
+	rmfd-sms.h rmfd-sms.c \
 	rmfd-manager.h rmfd-manager.c \
 	rmfd-port.h rmfd-port.c \
 	rmfd-port-processor.h rmfd-port-processor.c \
