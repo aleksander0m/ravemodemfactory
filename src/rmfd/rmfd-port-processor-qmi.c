@@ -3034,7 +3034,7 @@ sms_added_cb (RmfdSmsList          *sms_list,
     number_str = rmfd_sms_get_number (sms);
     timestamp_str = rmfd_sms_get_timestamp (sms);
 
-    rmfd_syslog (LOG_INFO, "[%s] [%s] %s",
+    rmfd_syslog (LOG_INFO, "SMS [Timestamp: %s] [From: %s] %s",
                  timestamp_str ? timestamp_str : "",
                  number_str    ? number_str    : "",
                  text_str      ? text_str      : "");
