@@ -3222,7 +3222,8 @@ typedef struct {
     QmiWmsMessageTagType tag;
     GArray *message_array;
     guint i;
-    gboolean need_retry;
+    gboolean need_retry_read;
+    gboolean need_retry_not_read;
 } MessagingListPartsContext;
 
 static void
@@ -3325,7 +3326,10 @@ wms_list_messages_ready (QmiClientWms              *client,
         g_error_free (error);
 
         /* Flag as needing retry */
-        ctx->need_retry = TRUE;
+        if (ctx->step == MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_READ)
+            ctx->need_retry_read = TRUE;
+        else if (ctx->step == MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_NOT_READ)
+            ctx->need_retry_not_read = TRUE;
 
         /* Go on to next step */
         ctx->step++;
@@ -3392,7 +3396,11 @@ messaging_list_parts_context_step (MessagingListPartsContext *ctx)
         return;
 
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_LAST:
-        if (ctx->need_retry)
+        /* Only re-schedule when both couldn't be read. Some modems may return a
+         * DeviceNotReady error when listing read messages, but succeed with an empty
+         * list when listing not-read messages. We'll just assume that the list
+         * operation can be finished as soon as either one or the other works. */
+        if (ctx->need_retry_read && ctx->need_retry_not_read)
             messaging_list_context_reschedule (ctx->self, ctx->storage);
         else
             messaging_list_context_done (ctx->self, ctx->storage);
