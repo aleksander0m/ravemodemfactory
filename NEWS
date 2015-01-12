@@ -1,4 +1,10 @@
 
+Overview of changes in RaveModemFactory 1.18
+---------------------------------------------
+
+ * Implement support for receiving SMS messages and logging them to syslog.
+
+
 Overview of changes in RaveModemFactory 1.16
 ---------------------------------------------
 
