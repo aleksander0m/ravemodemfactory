@@ -47,6 +47,24 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 #define DEFAULT_REGISTRATION_TIMEOUT_SECS 60
 #define DEFAULT_REGISTRATION_TIMEOUT_LOGGING_SECS 10
 
+#define MESSAGING_LIST_MAX_RETRIES        3
+#define MESSAGING_LIST_RETRY_TIMEOUT_SECS 5
+
+typedef enum {
+    MESSAGING_LIST_STATUS_NONE,
+    MESSAGING_LIST_STATUS_ONGOING,
+    MESSAGING_LIST_STATUS_DONE,
+    MESSAGING_LIST_STATUS_ABORTED,
+} MessagingListStatus;
+
+typedef struct {
+    RmfdPortProcessorQmi *self; /* not full ref */
+    QmiWmsStorageType     storage;
+    MessagingListStatus   status;
+    guint                 id;
+    guint                 retries;
+} MessagingListContext;
+
 struct _RmfdPortProcessorQmiPrivate {
     /* QMI device */
     QmiDevice *qmi_device;
@@ -76,6 +94,7 @@ struct _RmfdPortProcessorQmiPrivate {
     /* Messaging related info */
     guint messaging_event_report_indication_id;
     RmfdSmsList *messaging_sms_list;
+    GArray *messaging_sms_contexts;
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
@@ -3203,6 +3222,7 @@ typedef struct {
     QmiWmsMessageTagType tag;
     GArray *message_array;
     guint i;
+    gboolean need_retry;
 } MessagingListPartsContext;
 
 static void
@@ -3304,6 +3324,9 @@ wms_list_messages_ready (QmiClientWms              *client,
                  error->message);
         g_error_free (error);
 
+        /* Flag as needing retry */
+        ctx->need_retry = TRUE;
+
         /* Go on to next step */
         ctx->step++;
         messaging_list_parts_context_step (ctx);
@@ -3345,14 +3368,17 @@ messaging_list_parts_context_list (MessagingListPartsContext *ctx)
     qmi_message_wms_list_messages_input_unref (input);
 }
 
+static void messaging_list_context_done       (RmfdPortProcessorQmi *self,
+                                               QmiWmsStorageType     storage);
+static void messaging_list_context_reschedule (RmfdPortProcessorQmi *self,
+                                               QmiWmsStorageType     storage);
+
 static void
 messaging_list_parts_context_step (MessagingListPartsContext *ctx)
 {
     switch (ctx->step) {
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST:
         /* Fall down to next step */
-        g_debug ("[messaging] listing parts in storage '%s'...",
-                 qmi_wms_storage_type_get_string (ctx->storage));
         ctx->step++;
 
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_READ:
@@ -3366,9 +3392,10 @@ messaging_list_parts_context_step (MessagingListPartsContext *ctx)
         return;
 
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_LAST:
-        /* Done! */
-        g_debug ("[messaging] listing parts in storage '%s' finished...",
-                 qmi_wms_storage_type_get_string (ctx->storage));
+        if (ctx->need_retry)
+            messaging_list_context_reschedule (ctx->self, ctx->storage);
+        else
+            messaging_list_context_done (ctx->self, ctx->storage);
         messaging_list_parts_context_free (ctx);
         return;
     }
@@ -3385,14 +3412,139 @@ messaging_list_parts (RmfdPortProcessorQmi *self,
     ctx->storage = storage;
     ctx->step = MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST;
 
+    g_debug ("[messaging] listing parts in storage '%s'...",
+             qmi_wms_storage_type_get_string (ctx->storage));
+
     messaging_list_parts_context_step (ctx);
+}
+
+/*****************************************************************************/
+
+static void
+messaging_list_context_clear (MessagingListContext *ctx)
+{
+    if (ctx->id)
+        g_source_remove (ctx->id);
+}
+
+static void
+messaging_list_contexts_cancel (RmfdPortProcessorQmi *self)
+{
+    g_array_unref (self->priv->messaging_sms_contexts);
+    self->priv->messaging_sms_contexts = NULL;
+}
+
+static MessagingListContext *
+messaging_list_context_find (RmfdPortProcessorQmi *self,
+                             QmiWmsStorageType     storage)
+{
+    guint i;
+
+    for (i = 0; i < self->priv->messaging_sms_contexts->len; i++) {
+        MessagingListContext *ctx;
+
+        ctx = &g_array_index (self->priv->messaging_sms_contexts, MessagingListContext, i);
+        if (ctx->storage == storage)
+            return ctx;
+    }
+
+    g_assert_not_reached ();
+    return NULL;
+}
+
+static gboolean
+messaging_list_context_reschedule_cb (MessagingListContext *ctx)
+{
+    ctx->id = 0;
+    messaging_list_parts (ctx->self, ctx->storage);
+    return FALSE;
+}
+
+static void
+messaging_list_context_reschedule (RmfdPortProcessorQmi *self,
+                                   QmiWmsStorageType     storage)
+{
+    MessagingListContext *ctx;
+
+    ctx = messaging_list_context_find (self, storage);
+    if (++ctx->retries == MESSAGING_LIST_MAX_RETRIES) {
+        g_debug ("[messaging] listing parts in storage '%s' aborted (too many retries)...",
+                 qmi_wms_storage_type_get_string (storage));
+        ctx->status = MESSAGING_LIST_STATUS_ABORTED;
+        return;
+    }
+
+    g_assert (ctx->id == 0);
+
+    g_debug ("[messaging] re-scheduling listing parts in storage '%s'...",
+             qmi_wms_storage_type_get_string (storage));
+    ctx->id = g_timeout_add_seconds (MESSAGING_LIST_RETRY_TIMEOUT_SECS,
+                                     (GSourceFunc) messaging_list_context_reschedule_cb,
+                                     ctx);
+}
+
+static void
+messaging_list_context_done (RmfdPortProcessorQmi *self,
+                             QmiWmsStorageType     storage)
+{
+    MessagingListContext *ctx;
+
+    g_debug ("[messaging] listing parts in storage '%s' finished",
+             qmi_wms_storage_type_get_string (storage));
+
+    ctx = messaging_list_context_find (self, storage);
+    ctx->status = MESSAGING_LIST_STATUS_DONE;
+}
+
+static void
+messaging_list_context_init (RmfdPortProcessorQmi *self,
+                             QmiWmsStorageType     storage)
+{
+    MessagingListContext *ctx;
+
+    g_debug ("[messaging] request to list parts in storage '%s'",
+             qmi_wms_storage_type_get_string (storage));
+
+    ctx = messaging_list_context_find (self, storage);
+    switch (ctx->status) {
+    case MESSAGING_LIST_STATUS_NONE:
+        messaging_list_context_reschedule_cb (ctx);
+        return;
+    case MESSAGING_LIST_STATUS_ONGOING:
+        ctx->retries = 0;
+        return;
+    case MESSAGING_LIST_STATUS_DONE:
+        return;
+    case MESSAGING_LIST_STATUS_ABORTED:
+        ctx->retries = 0;
+        messaging_list_context_reschedule_cb (ctx);
+        return;
+    }
 }
 
 static void
 messaging_list (RmfdPortProcessorQmi *self)
 {
-    messaging_list_parts (self, QMI_WMS_STORAGE_TYPE_UIM);
-    messaging_list_parts (self, QMI_WMS_STORAGE_TYPE_NV);
+    if (!G_LIKELY (self->priv->messaging_sms_contexts)) {
+        MessagingListContext ctx;
+
+        self->priv->messaging_sms_contexts = g_array_sized_new (FALSE, FALSE, sizeof (MessagingListContext), 2);
+        g_array_set_clear_func (self->priv->messaging_sms_contexts, (GDestroyNotify) messaging_list_context_clear);
+
+        ctx.self    = self;
+        ctx.status  = MESSAGING_LIST_STATUS_NONE;
+        ctx.id      = 0;
+        ctx.retries = 0;
+
+        ctx.storage = QMI_WMS_STORAGE_TYPE_UIM;
+        g_array_append_val (self->priv->messaging_sms_contexts, ctx);
+
+        ctx.storage = QMI_WMS_STORAGE_TYPE_NV;
+        g_array_append_val (self->priv->messaging_sms_contexts, ctx);
+    }
+
+    messaging_list_context_init (self, QMI_WMS_STORAGE_TYPE_UIM);
+    messaging_list_context_init (self, QMI_WMS_STORAGE_TYPE_NV);
 }
 
 /*****************************************************************************/
@@ -3866,6 +4018,7 @@ dispose (GObject *object)
 {
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
 
+    messaging_list_contexts_cancel (self);
     registration_context_cancel (self);
     unregister_nas_indications (self);
     unregister_wms_indications (self);
