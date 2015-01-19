@@ -26,6 +26,8 @@
 #include <string.h>
 #include <ctype.h>
 
+#include <glib.h>
+#include <glib/gstdio.h>
 #include <gudev/gudev.h>
 #include <gio/gunixsocketaddress.h>
 
