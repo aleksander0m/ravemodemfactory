@@ -19,10 +19,11 @@
  */
 
 #include <config.h>
+#define _GNU_SOURCE
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
 #include <ctype.h>
 
 #include "rmfd-charsets.h"
