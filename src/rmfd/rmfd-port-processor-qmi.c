@@ -1406,7 +1406,6 @@ get_pin_status_ready (QmiClientDms             *client,
     QmiMessageDmsUimGetPinStatusOutput *output = NULL;
     GError *error = NULL;
     QmiDmsUimPinStatus current_status;
-    guint8 *response;
 
     output = qmi_client_dms_uim_get_pin_status_finish (client, res, &error);
     if (!output) {
@@ -2264,7 +2263,6 @@ nas_get_signal_info_ready (QmiClientNas *client,
 {
     QmiMessageNasGetSignalInfoOutput *output;
     GError *error = NULL;
-    guint quality = 0;
 
     output = qmi_client_nas_get_signal_info_finish (client, res, &error);
     if (!output) {
