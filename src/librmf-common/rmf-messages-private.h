@@ -61,6 +61,7 @@ void rmf_message_builder_add_uint64 (RmfMessageBuilder *builder,
 void rmf_message_builder_add_string (RmfMessageBuilder *builder,
                                      const char        *value);
 uint8_t *rmf_message_builder_serialize (RmfMessageBuilder *builder);
+void rmf_message_builder_free (RmfMessageBuilder *builder);
 
 /******************************************************************************/
 /* Message reader */
