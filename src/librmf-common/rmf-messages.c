@@ -513,7 +513,6 @@ rmf_message_get_sim_info_response_parse (const uint8_t  *message,
 {
     uint32_t offset = 0;
     uint32_t value;
-    const char *str;
     uint32_t count;
 
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
@@ -644,8 +643,6 @@ void
 rmf_message_unlock_response_parse (const uint8_t *message,
                                    uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_UNLOCK);
 
@@ -706,8 +703,6 @@ void
 rmf_message_enable_pin_response_parse (const uint8_t *message,
                                        uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_ENABLE_PIN);
 
@@ -768,8 +763,6 @@ void
 rmf_message_change_pin_response_parse (const uint8_t *message,
                                        uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_CHANGE_PIN);
 
@@ -873,8 +866,6 @@ void
 rmf_message_set_power_status_response_parse (const uint8_t *message,
                                              uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_POWER_STATUS);
 
@@ -1431,8 +1422,6 @@ void
 rmf_message_connect_response_parse (const uint8_t *message,
                                     uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_CONNECT);
 
@@ -1473,8 +1462,6 @@ void
 rmf_message_disconnect_response_parse (const uint8_t *message,
                                        uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_DISCONNECT);
 
@@ -1623,8 +1610,6 @@ void
 rmf_message_set_registration_timeout_response_parse (const uint8_t *message,
                                                      uint32_t      *status)
 {
-    uint32_t offset = 0;
-
     assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
     assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT);
 
