@@ -23,12 +23,14 @@
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
-#include <libqmi-glib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <libqmi-glib.h>
 
 #include <rmf-messages.h>
 
 #include "rmfd-syslog.h"
+#include "rmfd-utils.h"
 #include "rmfd-port-processor-qmi.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
