@@ -1,4 +1,13 @@
 
+Overview of changes in RaveModemFactory 1.18.2
+---------------------------------------------
+
+Bugfix release, including:
+
+ * Fix missing return value of the processor object.
+ * Multiple compilation warnings.
+
+
 Overview of changes in RaveModemFactory 1.18
 ---------------------------------------------
 
