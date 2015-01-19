@@ -23,6 +23,8 @@
  * Author: Aleksander Morgado <aleksander@lanedo.com>
  */
 
+#include <stdlib.h>
+#include <string.h>
 #include "rmfd-utils.h"
 
 guint8
