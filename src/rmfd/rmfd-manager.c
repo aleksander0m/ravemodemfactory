@@ -345,7 +345,6 @@ port_removed (RmfdManager *self,
               GUdevDevice *device)
 {
     gchar *interface = NULL;
-    GList *l;
 
     interface = rmfd_utils_build_interface_name (device);
 
@@ -428,7 +427,6 @@ processor_run_ready (RmfdPortProcessor *processor,
                      GAsyncResult      *result,
                      Request           *request)
 {
-    GByteArray *response;
     GError *error = NULL;
 
     request->response = rmfd_port_processor_run_finish (processor, result, &error);
@@ -517,7 +515,6 @@ incoming_cb (GSocketService    *service,
 {
     guint32 message_size;
     GError *error = NULL;
-    gsize bytes_read = 0;
     Request *request;
     guint8 *buffer;
 
