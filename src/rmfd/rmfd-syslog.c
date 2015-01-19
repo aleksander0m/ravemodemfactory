@@ -23,6 +23,7 @@
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <syslog.h>
 #include <malloc.h>
