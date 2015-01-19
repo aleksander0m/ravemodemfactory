@@ -23,8 +23,11 @@
  * Author: Aleksander Morgado <aleksander@lanedo.com>
  */
 
+#include <stdio.h>
+#include <string.h>
 #include <glib.h>
 
+#include <rmf-messages.h>
 #include <rmf-messages-private.h>
 
 #if defined ENABLE_TEST_MESSAGE_TRACES
