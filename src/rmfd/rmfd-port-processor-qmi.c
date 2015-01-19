@@ -964,7 +964,7 @@ sim_info_efoplmnwact_uim_read_transparent_ready (QmiClientUim *client,
                        output,
                        &read_result,
                        NULL)) {
-            parse_plmns (get_sim_info_ctx, read_result->data, read_result->len);
+            parse_plmns (get_sim_info_ctx, (const guint8 *) read_result->data, read_result->len);
         }
     }
 #endif
