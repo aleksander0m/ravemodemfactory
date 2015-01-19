@@ -35,7 +35,7 @@ rmfd_port_processor_run_finish (RmfdPortProcessor  *self,
                                 GError            **error)
 {
     g_assert (RMFD_PORT_PROCESSOR_GET_CLASS (self)->run_finish != NULL);
-    RMFD_PORT_PROCESSOR_GET_CLASS (self)->run_finish (self, res, error);
+    return RMFD_PORT_PROCESSOR_GET_CLASS (self)->run_finish (self, res, error);
 }
 
 void
