@@ -205,7 +205,6 @@ send_and_receive (const uint8_t  *request,
 {
     int ret = ERROR_NONE;
     uint8_t *buffer = NULL;
-    uint8_t *ptr;
     ssize_t current;
     size_t left;
     size_t total;
@@ -246,7 +245,7 @@ send_and_receive (const uint8_t  *request,
             current = 0;
         }
 
-        assert (left >= current);
+        assert (((ssize_t) left) >= current);
         left -= current;
         total += current;
     } while (left > 0);
@@ -287,7 +286,7 @@ send_and_receive (const uint8_t  *request,
                 goto failed;
             }
 
-            assert (left >= current);
+            assert (((ssize_t) left) >= current);
             left -= current;
             total += current;
         } while (total < 4 || total < rmf_message_get_length (buffer));
