@@ -3438,8 +3438,10 @@ messaging_list_context_clear (MessagingListContext *ctx)
 static void
 messaging_list_contexts_cancel (RmfdPortProcessorQmi *self)
 {
-    g_array_unref (self->priv->messaging_sms_contexts);
-    self->priv->messaging_sms_contexts = NULL;
+    if (self->priv->messaging_sms_contexts) {
+        g_array_unref (self->priv->messaging_sms_contexts);
+        self->priv->messaging_sms_contexts = NULL;
+    }
 }
 
 static MessagingListContext *
