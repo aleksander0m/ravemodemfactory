@@ -131,9 +131,3 @@ rmfd_stats_teardown (void)
 
     start_time = 0;
 }
-
-gboolean
-rmfd_stats_enabled (void)
-{
-    return !!stats_file;
-}

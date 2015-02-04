@@ -37,6 +37,5 @@ void     rmfd_stats_stop     (GDateTime   *stop_system_time,
                               guint64      rx_bytes,
                               guint64      tx_bytes);
 void     rmfd_stats_teardown (void);
-gboolean rmfd_stats_enabled  (void);
 
 #endif /* RMFD_STATS_H */
