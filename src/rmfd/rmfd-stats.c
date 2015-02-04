@@ -87,7 +87,7 @@ rmfd_stats_tmp (GDateTime *tmp_system_time,
                 guint64    rx_bytes,
                 guint64    tx_bytes)
 {
-    write_record ('T', start_system_time, start_time, tmp_system_time, time (NULL), rx_bytes, tx_bytes);
+    write_record ('P', start_system_time, start_time, tmp_system_time, time (NULL), rx_bytes, tx_bytes);
 }
 
 void
