@@ -2858,7 +2858,6 @@ dms_get_time_connect_ready (QmiClientDms *client,
         /* Store start timestamp in the additional context; we only want to actually report stats start
          * when the connection is successfully started. */
         run_context_set_additional_context (ctx, computed_epoch, (GDestroyNotify) g_date_time_unref);
-        g_date_time_unref (computed_epoch);
         g_date_time_unref (gpstime_epoch);
         g_time_zone_unref (timezone);
     }
@@ -3070,7 +3069,6 @@ dms_get_time_disconnect_ready (QmiClientDms *client,
         computed_epoch = g_date_time_add_seconds (gpstime_epoch, ((gdouble) time_count / 1000.0));
         /* Store stop timestamp in the additional context */
         run_context_set_additional_context (ctx, computed_epoch, (GDestroyNotify) g_date_time_unref);
-        g_date_time_unref (computed_epoch);
         g_date_time_unref (gpstime_epoch);
         g_time_zone_unref (timezone);
     }
