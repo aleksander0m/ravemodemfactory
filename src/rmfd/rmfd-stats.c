@@ -63,6 +63,8 @@ write_record (gchar      record_type,
                  rx_bytes,
                  tx_bytes) < 0)
         g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (stats_file)));
+    else
+        fflush (stats_file);
 
     g_free (first_system_time_str);
     g_free (second_system_time_str);
