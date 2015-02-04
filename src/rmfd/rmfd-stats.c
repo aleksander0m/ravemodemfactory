@@ -47,6 +47,10 @@ write_record (gchar      record_type,
 
     g_assert (record_type == 'P' || record_type == 'F');
 
+    /* Bail out if stats not enabled */
+    if (!stats_file)
+        return;
+
     first_system_time_str  = first_system_time  ? g_date_time_format (first_system_time, "%F %T")  : g_strdup ("N/A");
     second_system_time_str = second_system_time ? g_date_time_format (second_system_time, "%F %T") : g_strdup ("N/A");
 
