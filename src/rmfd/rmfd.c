@@ -18,9 +18,9 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2015 Zodiac Inflight Innovations
  *
- * Author: Aleksander Morgado <aleksander@lanedo.com>
+ * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #include "config.h"
@@ -114,7 +114,7 @@ print_version_and_exit (void)
 {
     g_print ("\n"
              PROGRAM_NAME " " PROGRAM_VERSION "\n"
-             "Copyright (2013) Zodiac Inflight Innovations\n"
+             "Copyright (2013-2015) Zodiac Inflight Innovations\n"
              "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl-3.0.html>\n"
              "This is free software: you are free to change and redistribute it.\n"
              "There is NO WARRANTY, to the extent permitted by law.\n"

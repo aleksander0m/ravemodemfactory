@@ -18,9 +18,9 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2015 Zodiac Inflight Innovations
  *
- * Author: Aleksander Morgado <aleksander@lanedo.com>
+ * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
 #ifndef RMFD_ERROR_H
