@@ -2988,6 +2988,12 @@ get_packet_statistics_last_ready (QmiClientWds *client,
         rmfd_stats_stop ((GDateTime *)ctx->additional_context, rx_bytes_ok, tx_bytes_ok);
     }
 
+    /* Remove ongoing stats timeout */
+    if (ctx->self->priv->stats_timeout_id) {
+        g_source_remove (ctx->self->priv->stats_timeout_id);
+        ctx->self->priv->stats_timeout_id = 0;
+    }
+
     rmfd_port_data_setup (ctx->data,
                           FALSE,
                           (GAsyncReadyCallback)data_setup_stop_ready,
