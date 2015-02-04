@@ -45,7 +45,7 @@ write_record (gchar      record_type,
     gchar *first_system_time_str;
     gchar *second_system_time_str;
 
-    g_assert (record_type == 'P' || record_type == 'F');
+    g_assert (record_type == 'S' || record_type == 'P' || record_type == 'F');
 
     /* Bail out if stats not enabled */
     if (!stats_file)
