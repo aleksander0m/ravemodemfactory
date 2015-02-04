@@ -2539,6 +2539,9 @@ data_setup_start_ready (RmfdPortData *data,
         return;
     }
 
+    /* Report start of stats */
+    rmfd_stats_start ((GDateTime *)ctx->additional_context);
+
     /* Ok! */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
     response = rmf_message_connect_response_new ();
@@ -2716,10 +2719,54 @@ wds_set_ip_family_ready (QmiClientWds *client,
 }
 
 static void
-connect (RunContext *ctx)
+dms_get_time_connect_ready (QmiClientDms *client,
+                            GAsyncResult *res,
+                            RunContext   *ctx)
 {
     QmiMessageWdsSetIpFamilyInput *input;
+    QmiMessageDmsGetTimeOutput    *output;
+    guint64                        time_count;
 
+    if ((output = qmi_client_dms_get_time_finish (client, res, NULL)) &&
+        qmi_message_dms_get_time_output_get_result (output, NULL) &&
+        qmi_message_dms_get_time_output_get_system_time (
+            output,
+            &time_count,
+            NULL)){
+        GTimeZone *timezone;
+        GDateTime *gpstime_epoch;
+        GDateTime *computed_epoch;
+
+        /* January 6th 1980 */
+        timezone = g_time_zone_new_utc ();
+        gpstime_epoch = g_date_time_new (timezone, 1980, 1, 6, 0, 0, 0.0);
+        computed_epoch = g_date_time_add_seconds (gpstime_epoch, ((gdouble) time_count / 1000.0));
+        /* Store start timestamp in the additional context; we only want to actually report stats start
+         * when the connection is successfully started. */
+        run_context_set_additional_context (ctx, computed_epoch, (GDestroyNotify) g_date_time_unref);
+        g_date_time_unref (computed_epoch);
+        g_date_time_unref (gpstime_epoch);
+        g_time_zone_unref (timezone);
+    }
+
+    /* Start by setting IPv4 family */
+    input = qmi_message_wds_set_ip_family_input_new ();
+    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
+    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                  input,
+                                  10,
+                                  NULL,
+                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
+                                  ctx);
+    qmi_message_wds_set_ip_family_input_unref (input);
+
+    if (output)
+        qmi_message_dms_get_time_output_unref ();
+}
+
+static void
+connect (RunContext *ctx)
+{
     if (ctx->self->priv->connection_status != RMF_CONNECTION_STATUS_DISCONNECTED) {
         switch (ctx->self->priv->connection_status) {
         case RMF_CONNECTION_STATUS_DISCONNECTING:
@@ -2759,16 +2806,13 @@ connect (RunContext *ctx)
     /* Now connecting */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTING;
 
-    /* Start by setting IPv4 family */
-    input = qmi_message_wds_set_ip_family_input_new ();
-    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
-    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
-                                  input,
-                                  10,
-                                  NULL,
-                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
-                                  ctx);
-    qmi_message_wds_set_ip_family_input_unref (input);
+    /* Start by requesting system time */
+    qmi_client_dms_get_time (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                             NULL,
+                             10,
+                             NULL,
+                             (GAsyncReadyCallback)dms_get_time_connect_ready,
+                             ctx);
 }
 
 /**********************/
