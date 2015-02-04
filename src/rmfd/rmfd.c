@@ -38,6 +38,7 @@
 
 #include "rmfd-manager.h"
 #include "rmfd-syslog.h"
+#include "rmfd-stats.h"
 
 #define PROGRAM_NAME    "rmfd"
 #define PROGRAM_VERSION PACKAGE_VERSION
@@ -47,10 +48,15 @@ static GMainLoop *loop;
 RmfdManager *manager;
 
 /* Context */
-static gboolean verbose_flag;
-static gboolean version_flag;
+static gchar    *stats_file;
+static gboolean  verbose_flag;
+static gboolean  version_flag;
 
 static GOptionEntry main_entries[] = {
+    { "stats-file", 's', 0, G_OPTION_ARG_STRING, &stats_file,
+      "Path of the output stats file",
+      NULL
+    },
     { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose_flag,
       "Run action with verbose logs",
       NULL
@@ -147,6 +153,16 @@ main (int argc, char *argv[])
         g_log_set_handler ("Qmi", G_LOG_LEVEL_MASK, log_handler, NULL);
     }
 
+    /* Setup stats path, if any given */
+    if (stats_file) {
+        gchar *printable;
+
+        printable = g_filename_to_utf8 (stats_file, -1, NULL, NULL, NULL);
+        g_debug (PROGRAM_NAME " stats generation initiated at '%s'...", printable ? printable : "<unknown path>");
+        g_free (printable);
+        rmfd_stats_setup (stats_file);
+    }
+
     /* Initialize syslog if needed */
     rmfd_syslog_setup ();
 
@@ -168,6 +184,7 @@ main (int argc, char *argv[])
     g_main_loop_unref (loop);
     g_object_unref (manager);
 
+    rmfd_stats_teardown ();
     rmfd_syslog_teardown ();
 
     return 0;

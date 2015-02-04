@@ -33,8 +33,8 @@ rmfd_SOURCES = \
 	rmfd-port-processor.h rmfd-port-processor.c \
 	rmfd-port-processor-qmi.h rmfd-port-processor-qmi.c \
 	rmfd-port-data.h rmfd-port-data.c \
-	rmfd-port-data-wwan.h rmfd-port-data-wwan.c
-
+	rmfd-port-data-wwan.h rmfd-port-data-wwan.c \
+	rmfd-stats.h rmfd-stats.c
 
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
