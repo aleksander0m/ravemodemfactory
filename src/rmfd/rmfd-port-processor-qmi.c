@@ -2965,16 +2965,24 @@ get_packet_statistics_last_ready (QmiClientWds *client,
                                   GAsyncResult *res,
                                   RunContext   *ctx)
 {
-    GError *error = NULL;
     QmiMessageWdsGetPacketStatisticsOutput *output;
 
-    if ((output = qmi_client_wds_get_packet_statistics_finish (client, res, NULL)) &&
-        qmi_message_wds_get_packet_statistics_output_get_result (output, NULL)) {
+    if ((output = qmi_client_wds_get_packet_statistics_finish (client, res, NULL))) {
         guint64 tx_bytes_ok = 0;
         guint64 rx_bytes_ok = 0;
+        GError *error = NULL;
 
-        qmi_message_wds_get_packet_statistics_output_get_last_call_tx_bytes_ok (output, &tx_bytes_ok, NULL);
-        qmi_message_wds_get_packet_statistics_output_get_last_call_rx_bytes_ok (output, &rx_bytes_ok, NULL);
+        /* Note: don't check result, as we'll get an out-of-call error, so just read last-call TLVs */
+        qmi_message_wds_get_packet_statistics_output_get_last_call_tx_bytes_ok (output, &tx_bytes_ok, &error);
+        if (error) {
+            g_debug ("cannot get last call tx bytes: %s", error->message);
+            g_clear_error (&error);
+        }
+        qmi_message_wds_get_packet_statistics_output_get_last_call_rx_bytes_ok (output, &rx_bytes_ok, &error);
+        if (error) {
+            g_debug ("cannot get last call rx bytes: %s", error->message);
+            g_clear_error (&error);
+        }
 
         /* Report last stats */
         rmfd_stats_stop ((GDateTime *)ctx->additional_context, rx_bytes_ok, tx_bytes_ok);
