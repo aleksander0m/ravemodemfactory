@@ -29,6 +29,13 @@
 #include <glib.h>
 
 void     rmfd_stats_setup    (const gchar *path);
+void     rmfd_stats_start    (GDateTime   *system_time);
+void     rmfd_stats_tmp      (GDateTime   *tmp_system_time,
+                              guint64      rx_bytes,
+                              guint64      tx_bytes);
+void     rmfd_stats_stop     (GDateTime   *stop_system_time,
+                              guint64      rx_bytes,
+                              guint64      tx_bytes);
 void     rmfd_stats_teardown (void);
 gboolean rmfd_stats_enabled  (void);
 
