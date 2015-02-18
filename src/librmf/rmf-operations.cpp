@@ -661,14 +661,14 @@ Modem::EnablePin (bool         enable,
 
 void
 Modem::ChangePin (const string pin,
-                  const string new_pin)
+                  const string newPin)
 {
     uint8_t *request;
     uint8_t *response;
     uint32_t status;
     int ret;
 
-    request = rmf_message_change_pin_request_new (pin.c_str(), new_pin.c_str());
+    request = rmf_message_change_pin_request_new (pin.c_str(), newPin.c_str());
     ret = send_and_receive (request, 10, &response);
     free (request);
 
@@ -712,14 +712,14 @@ Modem::GetPowerStatus (void)
 /*****************************************************************************/
 
 void
-Modem::SetPowerStatus (PowerStatus power_status)
+Modem::SetPowerStatus (PowerStatus powerStatus)
 {
     uint8_t *request;
     uint8_t *response;
     uint32_t status;
     int ret;
 
-    request = rmf_message_set_power_status_request_new ((uint32_t)power_status);
+    request = rmf_message_set_power_status_request_new ((uint32_t)powerStatus);
     ret = send_and_receive (request, 10, &response);
     free (request);
 

@@ -142,12 +142,12 @@ namespace Modem {
     /**
      * ChangePin:
      * @pin: (in) current PIN.
-     * @new_pin: (in) new PIN.
+     * @newPin: (in) new PIN.
      *
      * Changes the PIN.
      */
     void ChangePin (const std::string pin,
-                    const std::string new_pin);
+                    const std::string newPin);
 
     /**
      * GetPowerStatus:
@@ -164,7 +164,7 @@ namespace Modem {
      *
      * Set radio power status.
      */
-    void SetPowerStatus (PowerStatus power_status);
+    void SetPowerStatus (PowerStatus powerStatus);
 
     /**
      * GetPowerInfo:
