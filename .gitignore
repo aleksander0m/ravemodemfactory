@@ -51,3 +51,5 @@ src/rmfd/.libs
 src/rmfd/rmfd-error-types.c
 src/rmfd/rmfd-error-types.h
 src/rmfd/rmfd-wwan-service
+
+examples/example
