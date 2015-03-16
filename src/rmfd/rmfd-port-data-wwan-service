@@ -70,7 +70,7 @@ start_network ()
     fi
 
     if [ -f $RESOLV_CONF_BACKUP ]; then
-	rm -f $RESOLV_CONF_BACKUP
+        rm -f $RESOLV_CONF_BACKUP
     fi
 
     echodbg "backing up resolv.conf file"
