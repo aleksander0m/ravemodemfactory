@@ -35,6 +35,8 @@ static gchar     *stats_file_path;
 static GDateTime *start_system_time;
 static time_t     start_time;
 
+#define MAX_LINE_LENGTH 255
+
 /******************************************************************************/
 /* Write to syslog */
 
@@ -67,6 +69,8 @@ write_record (gchar      record_type,
               guint64    rx_bytes,
               guint64    tx_bytes)
 {
+
+    gchar line[MAX_LINE_LENGTH + 1];
     gchar *first_system_time_str;
     gchar *second_system_time_str;
 
@@ -79,14 +83,17 @@ write_record (gchar      record_type,
     first_system_time_str  = first_system_time  ? g_date_time_format (first_system_time, "%F %T")  : g_strdup ("N/A");
     second_system_time_str = second_system_time ? g_date_time_format (second_system_time, "%F %T") : g_strdup ("N/A");
 
-    if (fprintf (stats_file, "%c\t%s\t%lu\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
-                 record_type,
-                 first_system_time_str,
-                 (gulong) first_time,
-                 second_system_time_str,
-                 (gulong) second_time,
-                 rx_bytes,
-                 tx_bytes) < 0)
+    /* We'll cap the max line length to a known value by default, just in case */
+    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%lu\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
+                record_type,
+                first_system_time_str,
+                (gulong) first_time,
+                second_system_time_str,
+                (gulong) second_time,
+                rx_bytes,
+                tx_bytes);
+
+    if (fprintf (stats_file, "%s", line) < 0)
         g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (stats_file)));
     else
         fflush (stats_file);
