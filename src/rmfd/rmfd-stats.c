@@ -39,6 +39,20 @@ static time_t     start_time;
 #define MAX_LINE_LENGTH 255
 
 /******************************************************************************/
+/* Build date string to show */
+
+static gchar *
+common_build_date_string (GDateTime *system_time,
+                          time_t     timestamp)
+{
+    /* Prefer system type when available */
+    if (system_time)
+        return g_date_time_format (system_time, "%F %T");
+    return g_strdup_printf ("(unix) %lu", timestamp);
+}
+
+
+/******************************************************************************/
 /* Write to syslog */
 
 static void
@@ -63,17 +77,17 @@ write_syslog_record (const gchar *from_timestamp,
 
 static void
 write_record (gchar      record_type,
-              GDateTime *first_system_time,
-              time_t     first_time,
-              GDateTime *second_system_time,
-              time_t     second_time,
+              GDateTime *from_system_time,
+              time_t     from_time,
+              GDateTime *to_system_time,
+              time_t     to_time,
               guint64    rx_bytes,
               guint64    tx_bytes)
 {
 
-    gchar line[MAX_LINE_LENGTH + 1];
-    gchar *first_system_time_str;
-    gchar *second_system_time_str;
+    gchar  line[MAX_LINE_LENGTH + 1];
+    gchar *from_str;
+    gchar *to_str;
 
     g_assert (record_type == 'S' || record_type == 'P' || record_type == 'F');
 
@@ -81,15 +95,15 @@ write_record (gchar      record_type,
     if (!stats_file)
         return;
 
-    first_system_time_str  = first_system_time  ? g_date_time_format (first_system_time, "%F %T")  : g_strdup ("N/A");
-    second_system_time_str = second_system_time ? g_date_time_format (second_system_time, "%F %T") : g_strdup ("N/A");
+    from_str = common_build_date_string (from_system_time, from_time);
+    to_str   = common_build_date_string (to_system_time,   to_time);
 
     /* We'll cap the max line length to a known value by default, just in case */
     g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
                 record_type,
-                first_system_time_str,
-                second_system_time_str,
-                (gulong) (second_time > first_time ? (second_time - first_time) : 0),
+                from_str,
+                to_str,
+                (gulong) (to_time > from_time ? (to_time - from_time) : 0),
                 rx_bytes,
                 tx_bytes);
 
@@ -98,8 +112,8 @@ write_record (gchar      record_type,
     else
         fflush (stats_file);
 
-    g_free (first_system_time_str);
-    g_free (second_system_time_str);
+    g_free (from_str);
+    g_free (to_str);
 }
 
 /******************************************************************************/
@@ -283,21 +297,24 @@ rmfd_stats_stop (GDateTime *stop_system_time,
                  guint64    rx_bytes,
                  guint64    tx_bytes)
 {
+    time_t stop_time;
+
     /* If for any reason stop is called multiple times, don't write multiple final records */
     if (!start_system_time)
         return;
 
-    write_record ('F', start_system_time, start_time, stop_system_time, time (NULL), rx_bytes, tx_bytes);
+    stop_time = time (NULL);
+
+    write_record ('F', start_system_time, start_time, stop_system_time, stop_time, rx_bytes, tx_bytes);
 
     /* Syslog writing */
     {
         gchar *from_str;
         gchar *to_str;
-        time_t stop_time;
 
-        from_str  = start_system_time  ? g_date_time_format (start_system_time, "%F %T") : g_strdup ("N/A");
-        to_str    = stop_system_time   ? g_date_time_format (stop_system_time, "%F %T")  : g_strdup ("N/A");
-        stop_time = time (NULL);
+
+        from_str = common_build_date_string (start_system_time, start_time);
+        to_str   = common_build_date_string (stop_system_time,  stop_time);
 
         g_debug ("writing stats to syslog...");
         write_syslog_record (from_str,
