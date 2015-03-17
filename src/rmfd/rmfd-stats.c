@@ -285,41 +285,40 @@ rmfd_stats_start (GDateTime *system_time)
 }
 
 void
-rmfd_stats_tmp (GDateTime *tmp_system_time,
-                guint64    rx_bytes,
-                guint64    tx_bytes)
+rmfd_stats_record (gboolean   final,
+                   GDateTime *system_time,
+                   guint64    rx_bytes,
+                   guint64    tx_bytes)
 {
-    write_record ('P', start_system_time, start_time, tmp_system_time, time (NULL), rx_bytes, tx_bytes);
-}
+    time_t current_time;
 
-void
-rmfd_stats_stop (GDateTime *stop_system_time,
-                 guint64    rx_bytes,
-                 guint64    tx_bytes)
-{
-    time_t stop_time;
+    current_time = time (NULL);
+
+    /* Partial record? */
+    if (!final) {
+        write_record ('P', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes);
+        return;
+    }
 
     /* If for any reason stop is called multiple times, don't write multiple final records */
     if (!start_system_time)
         return;
 
-    stop_time = time (NULL);
-
-    write_record ('F', start_system_time, start_time, stop_system_time, stop_time, rx_bytes, tx_bytes);
+    /* Final record */
+    write_record ('F', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes);
 
     /* Syslog writing */
     {
         gchar *from_str;
         gchar *to_str;
 
-
         from_str = common_build_date_string (start_system_time, start_time);
-        to_str   = common_build_date_string (stop_system_time,  stop_time);
+        to_str   = common_build_date_string (system_time,       current_time);
 
         g_debug ("writing stats to syslog...");
         write_syslog_record (from_str,
                              to_str,
-                             (stop_time > start_time ? (stop_time - start_time) : 0),
+                             (current_time > start_time ? (current_time - start_time) : 0),
                              rx_bytes,
                              tx_bytes);
 

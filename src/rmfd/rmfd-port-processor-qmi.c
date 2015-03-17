@@ -2637,12 +2637,9 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
     }
 
     case WRITE_CONNECTION_STATS_STEP_LAST:
-        if (!ctx->final)
-            /* Report tmp stats */
-            rmfd_stats_tmp (ctx->system_time, ctx->rx_bytes, ctx->tx_bytes);
-        else
-            rmfd_stats_stop (ctx->system_time, ctx->rx_bytes, ctx->tx_bytes);
 
+        /* Issue stats record */
+        rmfd_stats_record (ctx->final, ctx->system_time, ctx->rx_bytes, ctx->tx_bytes);
         /* Complete and finish */
         g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
         write_connection_stats_context_complete_and_free (ctx);
