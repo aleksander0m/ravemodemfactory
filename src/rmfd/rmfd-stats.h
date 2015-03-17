@@ -34,7 +34,7 @@ typedef enum {
     RMFD_STATS_RECORD_TYPE_FINAL,
 } RmfdStatsRecordType;
 
-void     rmfd_stats_setup    (const gchar         *path);
+void     rmfd_stats_setup    (void);
 void     rmfd_stats_record   (RmfdStatsRecordType  type,
                               GDateTime           *system_time,
                               guint64              rx_bytes,

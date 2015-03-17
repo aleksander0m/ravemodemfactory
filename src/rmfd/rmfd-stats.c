@@ -34,9 +34,10 @@
 #include "rmfd-syslog.h"
 
 static FILE      *stats_file;
-static gchar     *stats_file_path;
 static GDateTime *start_system_time;
 static time_t     start_time;
+
+#define STATS_FILE_PATH "/var/log/rmfd.stats"
 
 #define MAX_LINE_LENGTH 255
 
@@ -288,14 +289,14 @@ process_last_stats (void)
 {
     FILE *file;
 
-    if ((file = fopen (stats_file_path, "r"))) {
+    if ((file = fopen (STATS_FILE_PATH, "r"))) {
         gboolean processed;
 
         processed = process_last_record (file);
         fclose (file);
 
         g_debug ("removing previous stats file: (%s)", processed ? "processed" : "couldn't be processed") ;
-        g_unlink (stats_file_path);
+        g_unlink (STATS_FILE_PATH);
     }
 }
 
@@ -321,7 +322,7 @@ rmfd_stats_record (RmfdStatsRecordType  type,
     if (type == RMFD_STATS_RECORD_TYPE_START) {
         /* Open the file only when started */
         errno = 0;
-        if (!(stats_file = fopen (stats_file_path, "w"))) {
+        if (!(stats_file = fopen (STATS_FILE_PATH, "w"))) {
             g_warning ("error: cannot open stats file: %s", g_strerror (errno));
             return;
         }
@@ -401,17 +402,12 @@ rmfd_stats_record (RmfdStatsRecordType  type,
 
     /* Once written to syslog, remove the file */
     g_debug ("removing stats file...");
-    g_unlink (stats_file_path);
+    g_unlink (STATS_FILE_PATH);
 }
 
 void
-rmfd_stats_setup (const gchar *path)
+rmfd_stats_setup (void)
 {
-    g_assert (!stats_file);
-    g_assert (!stats_file_path);
-
-    stats_file_path = g_strdup (path);
-
     /* Try to process last stats right away */
     process_last_stats ();
 }
@@ -428,7 +424,4 @@ rmfd_stats_teardown (void)
         fclose (stats_file);
         stats_file = NULL;
     }
-
-    g_free (stats_file_path);
-    stats_file_path = NULL;
 }
