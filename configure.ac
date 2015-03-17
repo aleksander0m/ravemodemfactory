@@ -17,6 +17,9 @@ dnl Initialize libtool
 LT_PREREQ([2.2])
 LT_INIT
 
+dnl Specific warnings to always use
+RMF_COMPILER_WARNINGS
+
 dnl Require glib
 PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.32 gio-2.0 gio-unix-2.0)
 AC_SUBST(GLIB_CFLAGS)
