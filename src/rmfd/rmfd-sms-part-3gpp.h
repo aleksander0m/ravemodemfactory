@@ -42,4 +42,15 @@ guint8    *rmfd_sms_part_3gpp_get_submit_pdu (RmfdSmsPart *part,
                                               guint *out_msgstart,
                                               GError **error);
 
+guint rmfd_sms_part_3gpp_encode_address (const gchar *address,
+                                         guint8 *buf,
+                                         gsize buflen,
+                                         gboolean is_smsc);
+
+gchar **rmfd_sms_part_3gpp_util_split_text (const gchar *text,
+                                            RmfdSmsEncoding *encoding);
+
+GByteArray **rmfd_sms_part_3gpp_util_split_data (const guint8 *data,
+                                                 gsize data_len);
+
 #endif /* RMFD_SMS_PART_3GPP_H */
