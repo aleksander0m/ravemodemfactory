@@ -145,12 +145,18 @@ rmfd_stats_stop (GDateTime *stop_system_time,
     {
         gchar *from_str;
         gchar *to_str;
+        time_t stop_time;
 
-        from_str = start_system_time  ? g_date_time_format (start_system_time, "%F %T") : g_strdup ("N/A");
-        to_str   = stop_system_time   ? g_date_time_format (stop_system_time, "%F %T")  : g_strdup ("N/A");
+        from_str  = start_system_time  ? g_date_time_format (start_system_time, "%F %T") : g_strdup ("N/A");
+        to_str    = stop_system_time   ? g_date_time_format (stop_system_time, "%F %T")  : g_strdup ("N/A");
+        stop_time = time (NULL);
 
         g_debug ("writing stats to syslog...");
-        write_syslog_record (from_str, to_str, (time (NULL) - start_time), rx_bytes, tx_bytes);
+        write_syslog_record (from_str,
+                             to_str,
+                             (stop_time > start_time ? (stop_time - start_time) : 0),
+                             rx_bytes,
+                             tx_bytes);
 
         g_free (from_str);
         g_free (to_str);
