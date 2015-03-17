@@ -28,10 +28,34 @@
 #include <errno.h>
 
 #include "rmfd-stats.h"
+#include "rmfd-syslog.h"
 
 static FILE      *stats_file;
 static GDateTime *start_system_time;
 static time_t     start_time;
+
+/******************************************************************************/
+/* Write to syslog */
+
+static void
+write_syslog_record (const gchar *from_timestamp,
+                     const gchar *to_timestamp,
+                     gulong       duration,
+                     guint64      rx_bytes,
+                     guint64      tx_bytes)
+{
+    rmfd_syslog (LOG_INFO,
+                 "Connection stats [From: %s] [To: %s] [Duration: %lu] "
+                 "[RX: %" G_GUINT64_FORMAT "] [TX: %" G_GUINT64_FORMAT "]",
+                 from_timestamp,
+                 to_timestamp,
+                 duration,
+                 rx_bytes,
+                 tx_bytes);
+}
+
+/******************************************************************************/
+/* Write to tmp stats file */
 
 static void
 write_record (gchar      record_type,
@@ -70,6 +94,8 @@ write_record (gchar      record_type,
     g_free (second_system_time_str);
 }
 
+/******************************************************************************/
+
 void
 rmfd_stats_start (GDateTime *system_time)
 {
@@ -100,6 +126,20 @@ rmfd_stats_stop (GDateTime *stop_system_time,
         return;
 
     write_record ('F', start_system_time, start_time, stop_system_time, time (NULL), rx_bytes, tx_bytes);
+
+    /* Syslog writing */
+    {
+        gchar *from_str;
+        gchar *to_str;
+
+        from_str = start_system_time  ? g_date_time_format (start_system_time, "%F %T") : g_strdup ("N/A");
+        to_str   = stop_system_time   ? g_date_time_format (stop_system_time, "%F %T")  : g_strdup ("N/A");
+
+        write_syslog_record (from_str, to_str, (time (NULL) - start_time), rx_bytes, tx_bytes);
+
+        g_free (from_str);
+        g_free (to_str);
+    }
 
     /* Cleanup start time */
     if (start_system_time)
