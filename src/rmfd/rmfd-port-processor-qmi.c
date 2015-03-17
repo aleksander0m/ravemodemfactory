@@ -2499,6 +2499,7 @@ typedef enum {
     WRITE_CONNECTION_STATS_STEP_TIMESTAMP,
     WRITE_CONNECTION_STATS_STEP_STATS,
     WRITE_CONNECTION_STATS_STEP_SIGNAL_STRENGTH,
+    WRITE_CONNECTION_STATS_STEP_SERVING_SYSTEM,
     WRITE_CONNECTION_STATS_STEP_LAST
 } WriteConnectionStatsStep;
 
@@ -2512,6 +2513,10 @@ typedef struct {
     GDateTime                *system_time;
     gint8                     rssi;
     QmiNasRadioInterface      radio_interface;
+    guint16                   mcc;
+    guint16                   mnc;
+    guint16                   lac;
+    guint32                   cid;
 } WriteConnectionStatsContext;
 
 static void
@@ -2533,6 +2538,31 @@ write_connection_stats_finish (RmfdPortProcessorQmi  *self,
 }
 
 static void write_connection_stats_context_step (WriteConnectionStatsContext *ctx);
+
+static void
+get_serving_system_stats_ready (QmiClientNas                *client,
+                                GAsyncResult                *res,
+                                WriteConnectionStatsContext *ctx)
+{
+    QmiMessageNasGetServingSystemOutput *output;
+    GError *error = NULL;
+
+    if ((output = qmi_client_nas_get_serving_system_finish (client, res, NULL)) &&
+        qmi_message_nas_get_serving_system_output_get_result (output, NULL)) {
+        /* MCC/MNC */
+        qmi_message_nas_get_serving_system_output_get_current_plmn (output, &ctx->mcc, &ctx->mnc, NULL, NULL);
+        /* LAC/CID */
+        qmi_message_nas_get_serving_system_output_get_lac_3gpp (output, &ctx->lac, NULL);
+        qmi_message_nas_get_serving_system_output_get_cid_3gpp (output, &ctx->cid, NULL);
+    }
+
+    if (output)
+        qmi_message_nas_get_serving_system_output_unref (output);
+
+    /* Continue */
+    ctx->step++;
+    write_connection_stats_context_step (ctx);
+}
 
 static void
 get_signal_strength_stats_ready (QmiClientNas                *client,
@@ -2676,6 +2706,15 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                                             ctx);
         return;
 
+    case WRITE_CONNECTION_STATS_STEP_SERVING_SYSTEM:
+        qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (ctx->self->priv->nas),
+                                           NULL,
+                                           10,
+                                           NULL,
+                                           (GAsyncReadyCallback)get_serving_system_stats_ready,
+                                           ctx);
+        return;
+
     case WRITE_CONNECTION_STATS_STEP_LAST:
         /* Issue stats record */
         rmfd_stats_record (ctx->type,
@@ -2683,7 +2722,12 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                            ctx->rx_bytes,
                            ctx->tx_bytes,
                            qmi_nas_radio_interface_get_string (ctx->radio_interface),
-                           ctx->rssi);
+                           ctx->rssi,
+                           ctx->mcc,
+                           ctx->mnc,
+                           ctx->lac,
+                           ctx->cid);
+
         /* Complete and finish */
         g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
         write_connection_stats_context_complete_and_free (ctx);

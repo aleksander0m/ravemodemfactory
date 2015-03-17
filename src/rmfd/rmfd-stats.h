@@ -40,7 +40,11 @@ void     rmfd_stats_record   (RmfdStatsRecordType  type,
                               guint64              rx_bytes,
                               guint64              tx_bytes,
                               const gchar         *radio_interface,
-                              gint8                rssi);
+                              gint8                rssi,
+                              guint16              mcc,
+                              guint16              mnc,
+                              guint16              lac,
+                              guint32              cid);
 void     rmfd_stats_teardown (void);
 
 #endif /* RMFD_STATS_H */

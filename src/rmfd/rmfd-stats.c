@@ -62,19 +62,22 @@ write_syslog_record (const gchar *from_timestamp,
                      guint64      rx_bytes,
                      guint64      tx_bytes,
                      const gchar *radio_interface,
-                     gint8        rssi)
+                     gint8        rssi,
+                     guint16      mcc,
+                     guint16      mnc,
+                     guint16      lac,
+                     guint32      cid)
 {
     rmfd_syslog (LOG_INFO,
-                 "Connection stats [From: %s] [To: %s] [Duration: %lus] "
-                 "[RX: %" G_GUINT64_FORMAT "] [TX: %" G_GUINT64_FORMAT "] "
-                 "[Access Tech: %s] [RSSI: %ddBm]",
-                 from_timestamp,
-                 to_timestamp,
-                 duration,
-                 rx_bytes,
-                 tx_bytes,
-                 radio_interface,
-                 rssi);
+                 "Connection stats "
+                 "[from: %s, to: %s, duration: %lus] "
+                 "[rx: %" G_GUINT64_FORMAT ", tx: %" G_GUINT64_FORMAT "] "
+                 "[access tech: %s, rssi: %ddBm] "
+                 "[mcc: %u, mnc: %u, lac: %u, cid: %u]",
+                 from_timestamp, to_timestamp, duration,
+                 rx_bytes, tx_bytes,
+                 radio_interface, rssi,
+                 mcc, mnc, lac, cid);
 }
 
 /******************************************************************************/
@@ -89,7 +92,11 @@ write_record (gchar        record_type,
               guint64      rx_bytes,
               guint64      tx_bytes,
               const gchar *radio_interface,
-              gint8        rssi)
+              gint8        rssi,
+              guint16      mcc,
+              guint16      mnc,
+              guint16      lac,
+              guint32      cid)
 {
 
     gchar  line[MAX_LINE_LENGTH + 1];
@@ -106,7 +113,7 @@ write_record (gchar        record_type,
     to_str   = common_build_date_string (to_system_time,   to_time);
 
     /* We'll cap the max line length to a known value by default, just in case */
-    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\t%s\t%d\n",
+    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\t%s\t%d\t%u\t%u\t%u\t%u\n",
                 record_type,
                 from_str,
                 to_str,
@@ -114,7 +121,11 @@ write_record (gchar        record_type,
                 rx_bytes,
                 tx_bytes,
                 radio_interface,
-                (gint) rssi);
+                (gint) rssi,
+                (guint) mcc,
+                (guint) mnc,
+                (guint) lac,
+                (guint) cid);
 
     if (fprintf (stats_file, "%s", line) < 0)
         g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (stats_file)));
@@ -137,6 +148,10 @@ enum {
     FIELD_TX_BYTES         = 5,
     FIELD_RADIO_INTERFACE  = 6,
     FIELD_RSSI             = 7,
+    FIELD_MCC              = 8,
+    FIELD_MNC              = 9,
+    FIELD_LAC              = 10,
+    FIELD_CID              = 11,
     N_FIELDS
 };
 
@@ -161,7 +176,6 @@ process_record (FILE  *file)
             if (!aux)
                 return FALSE;
         }
-
         *aux = '\0';
     }
 
@@ -175,7 +189,11 @@ process_record (FILE  *file)
                          g_ascii_strtoull (fields[FIELD_RX_BYTES], NULL, 10),
                          g_ascii_strtoull (fields[FIELD_TX_BYTES], NULL, 10),
                          fields[FIELD_RADIO_INTERFACE],
-                         (gint) g_ascii_strtoll (fields[FIELD_RSSI], NULL, 10));
+                         (gint) g_ascii_strtoll (fields[FIELD_RSSI], NULL, 10),
+                         (guint16) g_ascii_strtoull (fields[FIELD_MCC], NULL, 10),
+                         (guint16) g_ascii_strtoull (fields[FIELD_MNC], NULL, 10),
+                         (guint32) g_ascii_strtoull (fields[FIELD_LAC], NULL, 10),
+                         (guint32)g_ascii_strtoull (fields[FIELD_CID], NULL, 10));
 
     return TRUE;
 }
@@ -287,12 +305,17 @@ rmfd_stats_record (RmfdStatsRecordType  type,
                    guint64              rx_bytes,
                    guint64              tx_bytes,
                    const gchar         *radio_interface,
-                   gint8                rssi)
+                   gint8                rssi,
+                   guint16              mcc,
+                   guint16              mnc,
+                   guint16              lac,
+                   guint32              cid)
 {
     time_t current_time;
 
     current_time = time (NULL);
 
+    /* Start record */
     if (type == RMFD_STATS_RECORD_TYPE_START) {
         /* Open the file only when started */
         errno = 0;
@@ -307,13 +330,24 @@ rmfd_stats_record (RmfdStatsRecordType  type,
         start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
         start_time = current_time;
 
-        write_record ('S', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
+        write_record ('S',
+                      start_system_time, start_time,
+                      system_time, current_time,
+                      rx_bytes, tx_bytes,
+                      radio_interface, rssi,
+                      mcc, mnc, lac, cid);
+
         return;
     }
 
     /* Partial record? */
     if (type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
-        write_record ('P', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
+        write_record ('P',
+                      start_system_time, start_time,
+                      system_time, current_time,
+                      rx_bytes, tx_bytes,
+                      radio_interface, rssi,
+                      mcc, mnc, lac, cid);
         return;
     }
 
@@ -324,7 +358,12 @@ rmfd_stats_record (RmfdStatsRecordType  type,
         return;
 
     /* Final record */
-    write_record ('F', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
+    write_record ('F',
+                  start_system_time, start_time,
+                  system_time, current_time,
+                  rx_bytes, tx_bytes,
+                  radio_interface, rssi,
+                  mcc, mnc, lac, cid);
 
     /* Syslog writing */
     {
@@ -340,7 +379,8 @@ rmfd_stats_record (RmfdStatsRecordType  type,
                              (current_time > start_time ? (current_time - start_time) : 0),
                              rx_bytes,
                              tx_bytes,
-                             radio_interface, rssi);
+                             radio_interface, rssi,
+                             mcc, mnc, lac, cid);
 
         g_free (from_str);
         g_free (to_str);
