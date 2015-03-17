@@ -1986,7 +1986,7 @@ dms_set_operating_mode_ready (QmiClientDms *client,
                                                    (GDestroyNotify)g_byte_array_unref);
 
         power_ctx = (PowerContext *)ctx->additional_context;
-        if (power_ctx->mode == RMF_POWER_STATUS_FULL)
+        if (power_ctx->mode == QMI_DMS_OPERATING_MODE_ONLINE)
             /* Launch automatic registration */
             initiate_registration (ctx->self, TRUE);
     }
