@@ -100,6 +100,13 @@ write_record (gchar      record_type,
 void
 rmfd_stats_start (GDateTime *system_time)
 {
+    /* Open the file only when started */
+    errno = 0;
+    if (!(stats_file = fopen (stats_file_path, "w"))) {
+        g_warning ("error: cannot open stats file: %s", g_strerror (errno));
+        return;
+    }
+
     /* Keep track of when this was started */
     if (start_system_time)
         g_date_time_unref (start_system_time);
@@ -136,6 +143,7 @@ rmfd_stats_stop (GDateTime *stop_system_time,
         from_str = start_system_time  ? g_date_time_format (start_system_time, "%F %T") : g_strdup ("N/A");
         to_str   = stop_system_time   ? g_date_time_format (stop_system_time, "%F %T")  : g_strdup ("N/A");
 
+        g_debug ("writing stats to syslog...");
         write_syslog_record (from_str, to_str, (time (NULL) - start_time), rx_bytes, tx_bytes);
 
         g_free (from_str);
@@ -145,8 +153,17 @@ rmfd_stats_stop (GDateTime *stop_system_time,
     /* Cleanup start time */
     if (start_system_time)
         g_date_time_unref (start_system_time);
-    start_system_time =NULL;
+    start_system_time = NULL;
     start_time = 0;
+
+    if (stats_file) {
+        fclose (stats_file);
+        stats_file = NULL;
+    }
+
+    /* Once written to syslog, remove the file */
+    g_debug ("removing stats file...");
+    g_unlink (stats_file_path);
 }
 
 void
@@ -156,26 +173,21 @@ rmfd_stats_setup (const gchar *path)
     g_assert (!stats_file_path);
 
     stats_file_path = g_strdup (path);
-    errno = 0;
-    if (!(stats_file = fopen (path, "a")))
-        g_warning ("error: cannot open stats file: %s", g_strerror (errno));
 }
 
 void
 rmfd_stats_teardown (void)
 {
-    g_free (stats_file_path);
-    stats_file_path = NULL;
+    if (start_system_time) {
+        g_date_time_unref (start_system_time);
+        start_system_time = NULL;
+    }
 
     if (stats_file) {
         fclose (stats_file);
         stats_file = NULL;
     }
 
-    if (start_system_time) {
-        g_date_time_unref (start_system_time);
-        start_system_time = NULL;
-    }
-
-    start_time = 0;
+    g_free (stats_file_path);
+    stats_file_path = NULL;
 }
