@@ -153,6 +153,9 @@ main (int argc, char *argv[])
         g_log_set_handler ("Qmi", G_LOG_LEVEL_MASK, log_handler, NULL);
     }
 
+    /* Initialize syslog if needed */
+    rmfd_syslog_setup ();
+
     /* Setup stats path, if any given */
     if (stats_file) {
         gchar *printable;
@@ -162,9 +165,6 @@ main (int argc, char *argv[])
         g_free (printable);
         rmfd_stats_setup (stats_file);
     }
-
-    /* Initialize syslog if needed */
-    rmfd_syslog_setup ();
 
     g_debug (PROGRAM_NAME " starting...");
 
