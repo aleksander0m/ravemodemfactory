@@ -2545,7 +2545,6 @@ get_serving_system_stats_ready (QmiClientNas                *client,
                                 WriteConnectionStatsContext *ctx)
 {
     QmiMessageNasGetServingSystemOutput *output;
-    GError *error = NULL;
 
     if ((output = qmi_client_nas_get_serving_system_finish (client, res, NULL)) &&
         qmi_message_nas_get_serving_system_output_get_result (output, NULL)) {
@@ -2640,7 +2639,6 @@ dms_get_time_stats_ready (QmiClientDms                *client,
             NULL)) {
         GTimeZone *timezone;
         GDateTime *gpstime_epoch;
-        GDateTime *computed_epoch;
 
         /* January 6th 1980 */
         timezone = g_time_zone_new_utc ();
