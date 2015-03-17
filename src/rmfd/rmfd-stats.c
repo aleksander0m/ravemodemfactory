@@ -31,6 +31,7 @@
 #include "rmfd-syslog.h"
 
 static FILE      *stats_file;
+static gchar     *stats_file_path;
 static GDateTime *start_system_time;
 static time_t     start_time;
 
@@ -152,7 +153,9 @@ void
 rmfd_stats_setup (const gchar *path)
 {
     g_assert (!stats_file);
+    g_assert (!stats_file_path);
 
+    stats_file_path = g_strdup (path);
     errno = 0;
     if (!(stats_file = fopen (path, "a")))
         g_warning ("error: cannot open stats file: %s", g_strerror (errno));
@@ -161,6 +164,9 @@ rmfd_stats_setup (const gchar *path)
 void
 rmfd_stats_teardown (void)
 {
+    g_free (stats_file_path);
+    stats_file_path = NULL;
+
     if (stats_file) {
         fclose (stats_file);
         stats_file = NULL;
