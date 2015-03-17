@@ -142,12 +142,15 @@ process_record (FILE  *file)
 
     for (i = 0, aux = line; i < N_FIELDS; i++, aux++) {
         fields[i] = aux;
-        if (i < (N_FIELDS -1))
-            aux = strchr (aux, '\t');
-        else
-            aux = strchr (aux, '\n');
-        if (!aux)
-            return FALSE;
+        aux = strchr (fields[i], '\t');
+        if (!aux) {
+            if (i < (N_FIELDS -1))
+                return FALSE;
+            aux = strchr (fields[i], '\n');
+            if (!aux)
+                return FALSE;
+        }
+
         *aux = '\0';
     }
 
