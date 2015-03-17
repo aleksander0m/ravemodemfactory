@@ -233,11 +233,9 @@ rmf_message_read_string (const uint8_t *buffer,
 {
     uint32_t absolute_fixed_offset;
     uint32_t string_relative_variable_offset;
-    uint32_t string_len;
 
     absolute_fixed_offset = sizeof (struct RmfMessageHeader) + *relative_fixed_offset;
     string_relative_variable_offset = *((uint32_t *)(&buffer[absolute_fixed_offset]));
-    string_len = *((uint32_t *)(&buffer[absolute_fixed_offset + 4]));
     *relative_fixed_offset += 8;
 
     return (const char *) &buffer[sizeof (struct RmfMessageHeader) +
