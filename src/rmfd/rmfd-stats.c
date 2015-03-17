@@ -25,6 +25,7 @@
 
 #include <glib.h>
 #include <stdio.h>
+#include <string.h>
 #include <errno.h>
 
 #include "rmfd-stats.h"
@@ -99,6 +100,153 @@ write_record (gchar      record_type,
 
     g_free (first_system_time_str);
     g_free (second_system_time_str);
+}
+
+/******************************************************************************/
+/* Read the last full valid record from the stats file, if any */
+
+enum {
+    FIELD_RECORD_TYPE      = 0,
+    FIELD_FROM_SYSTEM_TIME = 1,
+    FIELD_TO_SYSTEM_TIME   = 2,
+    FIELD_DURATION         = 3,
+    FIELD_RX_BYTES         = 4,
+    FIELD_TX_BYTES         = 5,
+    N_FIELDS
+};
+
+static gboolean
+process_record (FILE  *file)
+{
+    gchar  line  [MAX_LINE_LENGTH + 1];
+    gchar *fields[N_FIELDS];
+    gchar *aux;
+    guint  i = 0;
+
+    if (!fgets (line, sizeof (line), file))
+        return FALSE;
+
+    for (i = 0, aux = line; i < N_FIELDS; i++, aux++) {
+        fields[i] = aux;
+        if (i < (N_FIELDS -1))
+            aux = strchr (aux, '\t');
+        else
+            aux = strchr (aux, '\n');
+        if (!aux)
+            return FALSE;
+        *aux = '\0';
+    }
+
+    g_debug ("previous stats file found:");
+    for (i = 0; i < N_FIELDS; i++)
+        g_debug ("\tlast record [%u]: '%s'", i, fields[i]);
+
+    write_syslog_record (fields[FIELD_FROM_SYSTEM_TIME],
+                         fields[FIELD_TO_SYSTEM_TIME],
+                         (gulong) g_ascii_strtoull (fields[FIELD_DURATION], NULL, 10),
+                         g_ascii_strtoull (fields[FIELD_RX_BYTES], NULL, 10),
+                         g_ascii_strtoull (fields[FIELD_TX_BYTES], NULL, 10));
+
+    return TRUE;
+}
+
+static gboolean
+seek_current_record (FILE *file)
+{
+    guint n_rewinds = 0;
+    glong offset;
+
+    offset = ftell (file);
+    if (offset < 0)
+        return FALSE;
+
+    /* Beginning of first line already */
+    if (offset == 0)
+        return TRUE;
+
+    /* Move file pointer 1 byte back */
+    if (fseek (file, -1, SEEK_CUR) < 0)
+        return FALSE;
+
+    while (1) {
+        gint c;
+
+        /* Absolute offset 0? We're in the beginning of first line already */
+        offset = ftell (file);
+        if (offset < 0)
+            return FALSE;
+        if (offset == 0)
+            return TRUE;
+
+        /* Read single byte */
+        if ((c = fgetc (file)) == EOF)
+            return FALSE;
+
+        /* If previous char is EOL, return record start found.
+         * Note: the read() operation moved the file pointer already */
+        if (c == '\n')
+            return TRUE;
+
+        /* If too many rewinds looking for an EOL, fail */
+        if (n_rewinds == MAX_LINE_LENGTH) {
+            g_warning ("stats file record line too long");
+            return FALSE;
+        }
+        n_rewinds++;
+
+        /* Move file pointer 2 bytes back; we want to put the file pointer
+         * in the byte before the one we think may be the record start. */
+        if (fseek (file, -2, SEEK_CUR) < 0)
+            return FALSE;
+    }
+
+    g_assert_not_reached ();
+}
+
+static gboolean
+process_last_record (FILE *file)
+{
+    glong offset;
+
+    /* Move file pointer to the last one */
+    if (fseek (file, 0, SEEK_END) < 0)
+        return FALSE;
+
+    while (1) {
+        /* Seek to start of the current record */
+        if (!seek_current_record (file))
+            return FALSE;
+
+        /* Store offset */
+        if ((offset = ftell (file)) < 0)
+            return FALSE;
+
+        /* Try to process record */
+        if (process_record (file))
+            return TRUE;
+
+        /* Need to go backwards one more line */
+        if (fseek (file, offset - 1, SEEK_SET) < 0)
+            return FALSE;
+    }
+
+    g_assert_not_reached ();
+}
+
+static void
+process_last_stats (void)
+{
+    FILE *file;
+
+    if ((file = fopen (stats_file_path, "r"))) {
+        gboolean processed;
+
+        processed = process_last_record (file);
+        fclose (file);
+
+        g_debug ("removing previous stats file: (%s)", processed ? "processed" : "couldn't be processed") ;
+        g_unlink (stats_file_path);
+    }
 }
 
 /******************************************************************************/
@@ -185,6 +333,9 @@ rmfd_stats_setup (const gchar *path)
     g_assert (!stats_file_path);
 
     stats_file_path = g_strdup (path);
+
+    /* Try to process last stats right away */
+    process_last_stats ();
 }
 
 void
