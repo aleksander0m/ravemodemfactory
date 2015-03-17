@@ -282,41 +282,42 @@ process_last_stats (void)
 /******************************************************************************/
 
 void
-rmfd_stats_start (GDateTime *system_time)
-{
-    /* Open the file only when started */
-    errno = 0;
-    if (!(stats_file = fopen (stats_file_path, "w"))) {
-        g_warning ("error: cannot open stats file: %s", g_strerror (errno));
-        return;
-    }
-
-    /* Keep track of when this was started */
-    if (start_system_time)
-        g_date_time_unref (start_system_time);
-    start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
-    start_time = time (NULL);
-
-    write_record ('S', start_system_time, start_time, start_system_time, start_time, 0, 0, "unknown", -1);
-}
-
-void
-rmfd_stats_record (gboolean     final,
-                   GDateTime   *system_time,
-                   guint64      rx_bytes,
-                   guint64      tx_bytes,
-                   const gchar *radio_interface,
-                   gint8        rssi)
+rmfd_stats_record (RmfdStatsRecordType  type,
+                   GDateTime           *system_time,
+                   guint64              rx_bytes,
+                   guint64              tx_bytes,
+                   const gchar         *radio_interface,
+                   gint8                rssi)
 {
     time_t current_time;
 
     current_time = time (NULL);
 
+    if (type == RMFD_STATS_RECORD_TYPE_START) {
+        /* Open the file only when started */
+        errno = 0;
+        if (!(stats_file = fopen (stats_file_path, "w"))) {
+            g_warning ("error: cannot open stats file: %s", g_strerror (errno));
+            return;
+        }
+
+        /* Keep track of when this was started */
+        if (start_system_time)
+            g_date_time_unref (start_system_time);
+        start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
+        start_time = current_time;
+
+        write_record ('S', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
+        return;
+    }
+
     /* Partial record? */
-    if (!final) {
+    if (type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
         write_record ('P', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
         return;
     }
+
+    g_assert (type == RMFD_STATS_RECORD_TYPE_FINAL);
 
     /* If for any reason stop is called multiple times, don't write multiple final records */
     if (!start_system_time)

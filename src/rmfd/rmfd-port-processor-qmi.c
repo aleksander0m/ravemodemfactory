@@ -31,6 +31,7 @@
 
 #include "rmfd-syslog.h"
 #include "rmfd-utils.h"
+#include "rmfd-stats.h"
 #include "rmfd-port-processor-qmi.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
@@ -2503,7 +2504,7 @@ typedef enum {
 
 typedef struct {
     RmfdPortProcessorQmi     *self;
-    gboolean                  final;
+    RmfdStatsRecordType       type;
     GSimpleAsyncResult       *result;
     WriteConnectionStatsStep  step;
     guint64                   rx_bytes;
@@ -2562,7 +2563,7 @@ get_packet_statistics_stats_ready (QmiClientWds                *client,
 
     if ((output = qmi_client_wds_get_packet_statistics_finish (client, res, NULL))) {
         /* Get TX and RX bytes */
-        if (ctx->final) {
+        if (ctx->type == RMFD_STATS_RECORD_TYPE_FINAL) {
             GError *error = NULL;
 
             /* Note: don't check result, as we'll get an out-of-call error, so just read last-call TLVs */
@@ -2576,10 +2577,13 @@ get_packet_statistics_stats_ready (QmiClientWds                *client,
                 g_debug ("cannot get last call rx bytes: %s", error->message);
                 g_clear_error (&error);
             }
-        } else if (qmi_message_wds_get_packet_statistics_output_get_result (output, NULL)) {
-            qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok (output, &ctx->tx_bytes, NULL);
-            qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok (output, &ctx->rx_bytes, NULL);
-        }
+        } else if (ctx->type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
+            if (qmi_message_wds_get_packet_statistics_output_get_result (output, NULL)) {
+                qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok (output, &ctx->tx_bytes, NULL);
+                qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok (output, &ctx->rx_bytes, NULL);
+            }
+        } else
+            g_assert_not_reached ();
 
         qmi_message_wds_get_packet_statistics_output_unref (output);
     }
@@ -2641,23 +2645,27 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                                  ctx);
         return;
 
-    case WRITE_CONNECTION_STATS_STEP_STATS: {
-        QmiMessageWdsGetPacketStatisticsInput *input;
+    case WRITE_CONNECTION_STATS_STEP_STATS:
+        /* For the START record, just assume 0 bytes TX/RX */
+        if (ctx->type != RMFD_STATS_RECORD_TYPE_START) {
+            QmiMessageWdsGetPacketStatisticsInput *input;
 
-        input = qmi_message_wds_get_packet_statistics_input_new ();
-        qmi_message_wds_get_packet_statistics_input_set_mask (input,
-                                                              (QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_BYTES_OK |
-                                                               QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_BYTES_OK),
-                                                              NULL);
-        qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
-                                              input,
-                                              10,
-                                              NULL,
-                                              (GAsyncReadyCallback)get_packet_statistics_stats_ready,
-                                              ctx);
-        qmi_message_wds_get_packet_statistics_input_unref (input);
-        return;
-    }
+            input = qmi_message_wds_get_packet_statistics_input_new ();
+            qmi_message_wds_get_packet_statistics_input_set_mask (input,
+                                                                  (QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_BYTES_OK |
+                                                                   QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_BYTES_OK),
+                                                                  NULL);
+            qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                                  input,
+                                                  10,
+                                                  NULL,
+                                                  (GAsyncReadyCallback)get_packet_statistics_stats_ready,
+                                                  ctx);
+            qmi_message_wds_get_packet_statistics_input_unref (input);
+            return;
+        }
+        ctx->step++;
+        /* Fall down */
 
     case WRITE_CONNECTION_STATS_STEP_SIGNAL_STRENGTH:
         qmi_client_nas_get_signal_strength (QMI_CLIENT_NAS (ctx->self->priv->nas),
@@ -2670,7 +2678,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
 
     case WRITE_CONNECTION_STATS_STEP_LAST:
         /* Issue stats record */
-        rmfd_stats_record (ctx->final,
+        rmfd_stats_record (ctx->type,
                            ctx->system_time,
                            ctx->rx_bytes,
                            ctx->tx_bytes,
@@ -2688,7 +2696,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
 
 static void
 write_connection_stats (RmfdPortProcessorQmi *self,
-                        gboolean              final,
+                        RmfdStatsRecordType   type,
                         GAsyncReadyCallback   callback,
                         gpointer              user_data)
 {
@@ -2698,7 +2706,7 @@ write_connection_stats (RmfdPortProcessorQmi *self,
 
     ctx->self            = g_object_ref (self);
     ctx->result          = g_simple_async_result_new (G_OBJECT (self), callback, user_data, write_connection_stats);
-    ctx->final           = final;
+    ctx->type            = type;
     ctx->step            = WRITE_CONNECTION_STATS_STEP_FIRST;
     ctx->radio_interface = QMI_NAS_RADIO_INTERFACE_UNKNOWN;
 
@@ -2708,7 +2716,7 @@ write_connection_stats (RmfdPortProcessorQmi *self,
 static gboolean
 stats_cb (RmfdPortProcessorQmi *self)
 {
-    write_connection_stats (self, FALSE, NULL, NULL);
+    write_connection_stats (self, RMFD_STATS_RECORD_TYPE_PARTIAL, NULL, NULL);
     return TRUE;
 }
 
@@ -2739,12 +2747,37 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
 }
 
 static void
+write_connection_stats_start_ready (RmfdPortProcessorQmi *self,
+                                    GAsyncResult         *res,
+                                    RunContext           *ctx)
+{
+    GError *error = NULL;
+    guint8 *response;
+
+    if (!write_connection_stats_finish (self, res, &error)) {
+        g_debug ("couldn't write initial connection stats: %s", error->message);
+        g_clear_error (&error);
+    }
+
+    if (ctx->self->priv->stats_timeout_id)
+        g_source_remove (ctx->self->priv->stats_timeout_id);
+    ctx->self->priv->stats_timeout_id = g_timeout_add_seconds (DEFAULT_STATS_TIMEOUT_SECS, (GSourceFunc) stats_cb, ctx->self);
+
+    /* Ok! */
+    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
+    response = rmf_message_connect_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
 data_setup_start_ready (RmfdPortData *data,
                         GAsyncResult *res,
                         RunContext   *ctx)
 {
     GError *error = NULL;
-    guint8 *response;
 
     if (!rmfd_port_data_setup_finish (data, res, &error)) {
         QmiMessageWdsStopNetworkInput *input;
@@ -2765,18 +2798,10 @@ data_setup_start_ready (RmfdPortData *data,
     }
 
     /* Report start of stats */
-    rmfd_stats_start ((GDateTime *)ctx->additional_context);
-    if (ctx->self->priv->stats_timeout_id)
-        g_source_remove (ctx->self->priv->stats_timeout_id);
-    ctx->self->priv->stats_timeout_id = g_timeout_add_seconds (DEFAULT_STATS_TIMEOUT_SECS, (GSourceFunc) stats_cb, ctx->self);
-
-    /* Ok! */
-    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
-    response = rmf_message_connect_response_new ();
-    g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                               (GDestroyNotify)g_byte_array_unref);
-    run_context_complete_and_free (ctx);
+    write_connection_stats (ctx->self,
+                            RMFD_STATS_RECORD_TYPE_START,
+                            (GAsyncReadyCallback) write_connection_stats_start_ready,
+                            ctx);
 }
 
 static void
@@ -2947,53 +2972,10 @@ wds_set_ip_family_ready (QmiClientWds *client,
 }
 
 static void
-dms_get_time_connect_ready (QmiClientDms *client,
-                            GAsyncResult *res,
-                            RunContext   *ctx)
-{
-    QmiMessageWdsSetIpFamilyInput *input;
-    QmiMessageDmsGetTimeOutput    *output;
-    guint64                        time_count;
-
-    if ((output = qmi_client_dms_get_time_finish (client, res, NULL)) &&
-        qmi_message_dms_get_time_output_get_result (output, NULL) &&
-        qmi_message_dms_get_time_output_get_system_time (
-            output,
-            &time_count,
-            NULL)){
-        GTimeZone *timezone;
-        GDateTime *gpstime_epoch;
-        GDateTime *computed_epoch;
-
-        /* January 6th 1980 */
-        timezone = g_time_zone_new_utc ();
-        gpstime_epoch = g_date_time_new (timezone, 1980, 1, 6, 0, 0, 0.0);
-        computed_epoch = g_date_time_add_seconds (gpstime_epoch, ((gdouble) time_count / 1000.0));
-        /* Store start timestamp in the additional context; we only want to actually report stats start
-         * when the connection is successfully started. */
-        run_context_set_additional_context (ctx, computed_epoch, (GDestroyNotify) g_date_time_unref);
-        g_date_time_unref (gpstime_epoch);
-        g_time_zone_unref (timezone);
-    }
-
-    /* Start by setting IPv4 family */
-    input = qmi_message_wds_set_ip_family_input_new ();
-    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
-    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
-                                  input,
-                                  10,
-                                  NULL,
-                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
-                                  ctx);
-    qmi_message_wds_set_ip_family_input_unref (input);
-
-    if (output)
-        qmi_message_dms_get_time_output_unref (output);
-}
-
-static void
 connect (RunContext *ctx)
 {
+    QmiMessageWdsSetIpFamilyInput *input;
+
     if (ctx->self->priv->connection_status != RMF_CONNECTION_STATUS_DISCONNECTED) {
         switch (ctx->self->priv->connection_status) {
         case RMF_CONNECTION_STATUS_DISCONNECTING:
@@ -3033,13 +3015,16 @@ connect (RunContext *ctx)
     /* Now connecting */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTING;
 
-    /* Start by requesting system time */
-    qmi_client_dms_get_time (QMI_CLIENT_DMS (ctx->self->priv->dms),
-                             NULL,
-                             10,
-                             NULL,
-                             (GAsyncReadyCallback)dms_get_time_connect_ready,
-                             ctx);
+    /* Start by setting IPv4 family */
+    input = qmi_message_wds_set_ip_family_input_new ();
+    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
+    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                  input,
+                                  10,
+                                  NULL,
+                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
+                                  ctx);
+    qmi_message_wds_set_ip_family_input_unref (input);
 }
 
 /**********************/
@@ -3075,9 +3060,9 @@ data_setup_stop_ready (RmfdPortData *data,
 }
 
 static void
-write_connection_stats_ready (RmfdPortProcessorQmi *self,
-                              GAsyncResult         *res,
-                              RunContext           *ctx)
+write_connection_stats_stop_ready (RmfdPortProcessorQmi *self,
+                                   GAsyncResult         *res,
+                                   RunContext           *ctx)
 {
     GError *error = NULL;
 
@@ -3137,8 +3122,8 @@ wds_stop_network_ready (QmiClientWds *client,
 
     /* Then, query stats */
     write_connection_stats (ctx->self,
-                            TRUE,
-                            (GAsyncReadyCallback)write_connection_stats_ready,
+                            RMFD_STATS_RECORD_TYPE_FINAL,
+                            (GAsyncReadyCallback)write_connection_stats_stop_ready,
                             ctx);
 }
 
