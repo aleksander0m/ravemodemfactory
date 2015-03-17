@@ -33,7 +33,9 @@ void     rmfd_stats_start    (GDateTime   *system_time);
 void     rmfd_stats_record   (gboolean     final,
                               GDateTime   *system_time,
                               guint64      rx_bytes,
-                              guint64      tx_bytes);
+                              guint64      tx_bytes,
+                              const gchar *radio_interface,
+                              gint8        rssi);
 void     rmfd_stats_teardown (void);
 
 #endif /* RMFD_STATS_H */

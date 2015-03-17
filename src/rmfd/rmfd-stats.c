@@ -60,29 +60,36 @@ write_syslog_record (const gchar *from_timestamp,
                      const gchar *to_timestamp,
                      gulong       duration,
                      guint64      rx_bytes,
-                     guint64      tx_bytes)
+                     guint64      tx_bytes,
+                     const gchar *radio_interface,
+                     gint8        rssi)
 {
     rmfd_syslog (LOG_INFO,
-                 "Connection stats [From: %s] [To: %s] [Duration: %lu] "
-                 "[RX: %" G_GUINT64_FORMAT "] [TX: %" G_GUINT64_FORMAT "]",
+                 "Connection stats [From: %s] [To: %s] [Duration: %lus] "
+                 "[RX: %" G_GUINT64_FORMAT "] [TX: %" G_GUINT64_FORMAT "] "
+                 "[Access Tech: %s] [RSSI: %ddBm]",
                  from_timestamp,
                  to_timestamp,
                  duration,
                  rx_bytes,
-                 tx_bytes);
+                 tx_bytes,
+                 radio_interface,
+                 rssi);
 }
 
 /******************************************************************************/
 /* Write to tmp stats file */
 
 static void
-write_record (gchar      record_type,
-              GDateTime *from_system_time,
-              time_t     from_time,
-              GDateTime *to_system_time,
-              time_t     to_time,
-              guint64    rx_bytes,
-              guint64    tx_bytes)
+write_record (gchar        record_type,
+              GDateTime   *from_system_time,
+              time_t       from_time,
+              GDateTime   *to_system_time,
+              time_t       to_time,
+              guint64      rx_bytes,
+              guint64      tx_bytes,
+              const gchar *radio_interface,
+              gint8        rssi)
 {
 
     gchar  line[MAX_LINE_LENGTH + 1];
@@ -99,13 +106,15 @@ write_record (gchar      record_type,
     to_str   = common_build_date_string (to_system_time,   to_time);
 
     /* We'll cap the max line length to a known value by default, just in case */
-    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
+    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\t%s\t%d\n",
                 record_type,
                 from_str,
                 to_str,
                 (gulong) (to_time > from_time ? (to_time - from_time) : 0),
                 rx_bytes,
-                tx_bytes);
+                tx_bytes,
+                radio_interface,
+                (gint) rssi);
 
     if (fprintf (stats_file, "%s", line) < 0)
         g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (stats_file)));
@@ -126,6 +135,8 @@ enum {
     FIELD_DURATION         = 3,
     FIELD_RX_BYTES         = 4,
     FIELD_TX_BYTES         = 5,
+    FIELD_RADIO_INTERFACE  = 6,
+    FIELD_RSSI             = 7,
     N_FIELDS
 };
 
@@ -162,7 +173,9 @@ process_record (FILE  *file)
                          fields[FIELD_TO_SYSTEM_TIME],
                          (gulong) g_ascii_strtoull (fields[FIELD_DURATION], NULL, 10),
                          g_ascii_strtoull (fields[FIELD_RX_BYTES], NULL, 10),
-                         g_ascii_strtoull (fields[FIELD_TX_BYTES], NULL, 10));
+                         g_ascii_strtoull (fields[FIELD_TX_BYTES], NULL, 10),
+                         fields[FIELD_RADIO_INTERFACE],
+                         (gint) g_ascii_strtoll (fields[FIELD_RSSI], NULL, 10));
 
     return TRUE;
 }
@@ -284,14 +297,16 @@ rmfd_stats_start (GDateTime *system_time)
     start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
     start_time = time (NULL);
 
-    write_record ('S', start_system_time, start_time, start_system_time, start_time, 0, 0);
+    write_record ('S', start_system_time, start_time, start_system_time, start_time, 0, 0, "unknown", -1);
 }
 
 void
-rmfd_stats_record (gboolean   final,
-                   GDateTime *system_time,
-                   guint64    rx_bytes,
-                   guint64    tx_bytes)
+rmfd_stats_record (gboolean     final,
+                   GDateTime   *system_time,
+                   guint64      rx_bytes,
+                   guint64      tx_bytes,
+                   const gchar *radio_interface,
+                   gint8        rssi)
 {
     time_t current_time;
 
@@ -299,7 +314,7 @@ rmfd_stats_record (gboolean   final,
 
     /* Partial record? */
     if (!final) {
-        write_record ('P', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes);
+        write_record ('P', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
         return;
     }
 
@@ -308,7 +323,7 @@ rmfd_stats_record (gboolean   final,
         return;
 
     /* Final record */
-    write_record ('F', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes);
+    write_record ('F', start_system_time, start_time, system_time, current_time, rx_bytes, tx_bytes, radio_interface, rssi);
 
     /* Syslog writing */
     {
@@ -323,7 +338,8 @@ rmfd_stats_record (gboolean   final,
                              to_str,
                              (current_time > start_time ? (current_time - start_time) : 0),
                              rx_bytes,
-                             tx_bytes);
+                             tx_bytes,
+                             radio_interface, rssi);
 
         g_free (from_str);
         g_free (to_str);
