@@ -84,12 +84,11 @@ write_record (gchar      record_type,
     second_system_time_str = second_system_time ? g_date_time_format (second_system_time, "%F %T") : g_strdup ("N/A");
 
     /* We'll cap the max line length to a known value by default, just in case */
-    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%lu\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
+    g_snprintf (line, MAX_LINE_LENGTH, "%c\t%s\t%s\t%lu\t%" G_GUINT64_FORMAT "\t%" G_GUINT64_FORMAT "\n",
                 record_type,
                 first_system_time_str,
-                (gulong) first_time,
                 second_system_time_str,
-                (gulong) second_time,
+                (gulong) (second_time > first_time ? (second_time - first_time) : 0),
                 rx_bytes,
                 tx_bytes);
 
