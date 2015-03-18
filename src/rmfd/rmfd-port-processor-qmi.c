@@ -2637,15 +2637,15 @@ dms_get_time_stats_ready (QmiClientDms                *client,
             output,
             &time_count,
             NULL)) {
-        GTimeZone *timezone;
+        GTimeZone *tz;
         GDateTime *gpstime_epoch;
 
         /* January 6th 1980 */
-        timezone = g_time_zone_new_utc ();
-        gpstime_epoch = g_date_time_new (timezone, 1980, 1, 6, 0, 0, 0.0);
+        tz = g_time_zone_new_utc ();
+        gpstime_epoch = g_date_time_new (tz, 1980, 1, 6, 0, 0, 0.0);
         ctx->system_time = g_date_time_add_seconds (gpstime_epoch, ((gdouble) time_count / 1000.0));
         g_date_time_unref (gpstime_epoch);
-        g_time_zone_unref (timezone);
+        g_time_zone_unref (tz);
     }
 
     if (output)
