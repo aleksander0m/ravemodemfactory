@@ -705,7 +705,7 @@ isModemAvailable (void)
 int
 main (int argc, char **argv)
 {
-    int index;
+    int i;
     int iarg = 0;
 
     const struct option longopts[] = {
@@ -748,7 +748,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrtT:cxC:DA", longopts, &index);
+        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrtT:cxC:DA", longopts, &i);
 
         switch (iarg) {
         case 'h':

@@ -3390,7 +3390,7 @@ sms_added_cb (RmfdSmsList          *sms_list,
 static void
 process_read_sms_part (RmfdPortProcessorQmi *self,
                        QmiWmsStorageType     storage,
-                       guint32               index,
+                       guint32               ind,
                        QmiWmsMessageTagType  tag,
                        QmiWmsMessageFormat   format,
                        GArray               *data)
@@ -3404,8 +3404,8 @@ process_read_sms_part (RmfdPortProcessorQmi *self,
         return;
     }
 
-    g_debug ("[messaging] received 3GPP SMS part (%s,%u)", qmi_wms_storage_type_get_string (storage), index);
-    part = rmfd_sms_part_3gpp_new_from_binary_pdu (index, (guint8 *)data->data, data->len, &error);
+    g_debug ("[messaging] received 3GPP SMS part (%s,%u)", qmi_wms_storage_type_get_string (storage), ind);
+    part = rmfd_sms_part_3gpp_new_from_binary_pdu (ind, (guint8 *)data->data, data->len, &error);
     if (!part) {
         g_warning ("[messaging] error creating SMS part from PDU: %s", error->message);
         g_error_free (error);

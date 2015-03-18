@@ -87,7 +87,7 @@ void         rmfd_sms_part_unref (RmfdSmsPart *part);
 
 guint             rmfd_sms_part_get_index              (RmfdSmsPart *part);
 void              rmfd_sms_part_set_index              (RmfdSmsPart *part,
-                                                        guint index);
+                                                        guint value);
 
 RmfdSmsPduType    rmfd_sms_part_get_pdu_type           (RmfdSmsPart *part);
 void              rmfd_sms_part_set_pdu_type           (RmfdSmsPart *part,

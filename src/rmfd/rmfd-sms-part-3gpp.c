@@ -317,7 +317,7 @@ validity_to_relative (guint validity)
 }
 
 RmfdSmsPart *
-rmfd_sms_part_3gpp_new_from_pdu (guint index,
+rmfd_sms_part_3gpp_new_from_pdu (guint ind,
                                  const gchar *hexpdu,
                                  GError **error)
 {
@@ -335,14 +335,14 @@ rmfd_sms_part_3gpp_new_from_pdu (guint index,
         return NULL;
     }
 
-    part = rmfd_sms_part_3gpp_new_from_binary_pdu (index, pdu, pdu_len, error);
+    part = rmfd_sms_part_3gpp_new_from_binary_pdu (ind, pdu, pdu_len, error);
     g_free (pdu);
 
     return part;
 }
 
 RmfdSmsPart *
-rmfd_sms_part_3gpp_new_from_binary_pdu (guint index,
+rmfd_sms_part_3gpp_new_from_binary_pdu (guint ind,
                                         const guint8 *pdu,
                                         gsize pdu_len,
                                         GError **error)
@@ -363,10 +363,10 @@ rmfd_sms_part_3gpp_new_from_binary_pdu (guint index,
     RmfdSmsEncoding user_data_encoding = RMFD_SMS_ENCODING_UNKNOWN;
 
     /* Create the new RmfdSmsPart */
-    sms_part = rmfd_sms_part_new (index, RMFD_SMS_PDU_TYPE_UNKNOWN);
+    sms_part = rmfd_sms_part_new (ind, RMFD_SMS_PDU_TYPE_UNKNOWN);
 
-    if (index != SMS_PART_INVALID_INDEX)
-        g_debug ("Parsing PDU (%u)...", index);
+    if (ind != SMS_PART_INVALID_INDEX)
+        g_debug ("Parsing PDU (%u)...", ind);
     else
         g_debug ("Parsing PDU...");
 
