@@ -174,14 +174,14 @@ rmfd_sms_part_should_concat (RmfdSmsPart *self)
 }
 
 RmfdSmsPart *
-rmfd_sms_part_new (guint index,
+rmfd_sms_part_new (guint ind,
                    RmfdSmsPduType pdu_type)
 {
     RmfdSmsPart *sms_part;
 
     sms_part = g_slice_new0 (RmfdSmsPart);
     sms_part->ref_count = 1;
-    sms_part->index = index;
+    sms_part->index = ind;
     sms_part->pdu_type = pdu_type;
     sms_part->encoding = RMFD_SMS_ENCODING_UNKNOWN;
     sms_part->delivery_state = RMFD_SMS_DELIVERY_STATE_UNKNOWN;
