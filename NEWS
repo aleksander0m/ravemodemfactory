@@ -1,4 +1,11 @@
 
+Overview of changes in RaveModemFactory 1.20
+---------------------------------------------
+
+ * Implemented support for retrieving and notifying TX/RX stats for each
+   connection and also cumulative stats for the ongoing month.
+
+
 Overview of changes in RaveModemFactory 1.18.2
 ---------------------------------------------
 
