@@ -339,7 +339,7 @@ seek_current_record (FILE *file)
 static void
 process_previous_stats (FILE     *file,
                         glong     record_offset,
-                        gboolean  notify,
+                        gboolean  set_as_final,
                         gboolean  append_monthly_stats)
 {
     if (fseek (file, record_offset, SEEK_SET) < 0) {
@@ -362,7 +362,7 @@ process_previous_stats (FILE     *file,
                 monthly_stats_append_record (fields[FIELD_FROM_SYSTEM_TIME],
                                              fields[FIELD_RX_BYTES],
                                              fields[FIELD_TX_BYTES]);
-            if (notify)
+            if (set_as_final) {
                 write_syslog_record (TRUE,
                                      fields[FIELD_FROM_SYSTEM_TIME],
                                      fields[FIELD_TO_SYSTEM_TIME],
@@ -379,6 +379,14 @@ process_previous_stats (FILE     *file,
                                      monthly_stats.month,
                                      monthly_stats.rx_bytes,
                                      monthly_stats.tx_bytes);
+
+                if (fseek (file, record_offset, SEEK_SET) < 0)
+                    g_warning ("  cannot seek to previous record to update it");
+                else {
+                    g_debug ("  previous record set as final");
+                    fputc ('F', file);
+                }
+            }
 
             return;
         }
@@ -410,7 +418,7 @@ load_previous_stats (void)
 
     g_debug ("loading previous monthly stats...");
 
-    if (!(file = fopen (STATS_FILE_PATH, "r"))) {
+    if (!(file = fopen (STATS_FILE_PATH, "r+"))) {
         g_debug ("  stats file doesn't exist");
         return;
     }
@@ -429,6 +437,9 @@ load_previous_stats (void)
                      * to syslog, so we must do it ourselves now. Re-read the
                      * previous record as final and continue. */
                     process_previous_stats (file, previous_line_offset, TRUE, TRUE);
+                    /* Seek to the end again */
+                    if (fseek (file, 0, SEEK_END) < 0)
+                        break;
                 }
             }
             break;
