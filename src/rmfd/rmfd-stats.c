@@ -531,10 +531,11 @@ rmfd_stats_record (RmfdStatsRecordType  type,
         /* If changing stats month, syslog and remove the previous file */
         if ((year == monthly_stats.year && month > monthly_stats.month) ||
             (year > monthly_stats.year)) {
-            write_monthly_stats (monthly_stats.year,
-                                 monthly_stats.month,
-                                 monthly_stats.rx_bytes,
-                                 monthly_stats.tx_bytes);
+            if (monthly_stats.year > 0)
+                write_monthly_stats (monthly_stats.year,
+                                     monthly_stats.month,
+                                     monthly_stats.rx_bytes,
+                                     monthly_stats.tx_bytes);
 
             g_debug ("updated stats date: %u/%u", year, month);
             monthly_stats.year     = year;
