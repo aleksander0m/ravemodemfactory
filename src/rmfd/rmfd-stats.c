@@ -44,6 +44,8 @@ static time_t     start_time;
 /******************************************************************************/
 /* Build date string to show */
 
+#define UNIX_TIMESTAMP_PREFIX "(unix)"
+
 static gchar *
 common_build_date_string (GDateTime *system_time,
                           time_t     timestamp)
@@ -51,7 +53,7 @@ common_build_date_string (GDateTime *system_time,
     /* Prefer system type when available */
     if (system_time)
         return g_date_time_format (system_time, "%F %T");
-    return g_strdup_printf ("(unix) %lu", timestamp);
+    return g_strdup_printf ("%s %lu", UNIX_TIMESTAMP_PREFIX, timestamp);
 }
 
 /******************************************************************************/
@@ -225,30 +227,44 @@ monthly_stats_append_record (const gchar *system_time_str,
                              const gchar *rx_bytes_str,
                              const gchar *tx_bytes_str)
 {
-    gchar   **split;
-    guint     year;
-    guint     month;
-    guint64   rx_bytes;
-    guint64   tx_bytes;
+    guint   year  = 0;
+    guint   month = 0;
+    guint64 rx_bytes;
+    guint64 tx_bytes;
 
     /* Try to gather year and month integers from the string */
-    split = g_strsplit_set (system_time_str, "- :", -1);
-    if (g_strv_length (split) == 1) {
-        gint64     timestamp;
-        GDateTime *datetime;
 
-        /* We have a unix timestamp here */
-        timestamp = g_ascii_strtoll (split[0], NULL, 10);
+    if (g_str_has_prefix (system_time_str, UNIX_TIMESTAMP_PREFIX)) {
+        gint64       timestamp;
+        GDateTime   *datetime;
+        const gchar *aux;
+
+        aux = system_time_str + strlen (UNIX_TIMESTAMP_PREFIX);
+        timestamp = g_ascii_strtoll (aux, NULL, 10);
         datetime  = g_date_time_new_from_unix_utc (timestamp);
-        year      = g_date_time_get_year (datetime);
-        month     = g_date_time_get_month (datetime);
-        g_date_time_unref (datetime);
+        if (datetime) {
+            year  = g_date_time_get_year  (datetime);
+            month = g_date_time_get_month (datetime);
+            g_date_time_unref (datetime);
+        }
     } else {
-        /* Time may be given in ISO861 format: YYYY-MM-DD HH:MM:SS */
-        year  = (guint) g_ascii_strtoull (split[0], NULL, 10);
-        month = (guint) g_ascii_strtoull (split[1], NULL, 10);
+        gchar **split;
+
+        split = g_strsplit_set (system_time_str, "- :", -1);
+        if (split && split[0] && split[1]) {
+            /* Time may be given in ISO861 format: YYYY-MM-DD HH:MM:SS */
+            year  = (guint) g_ascii_strtoull (split[0], NULL, 10);
+            month = (guint) g_ascii_strtoull (split[1], NULL, 10);
+        } else {
+
+        }
+        g_strfreev (split);
     }
-    g_strfreev (split);
+
+    if (year == 0 || month == 0) {
+        g_warning ("  cannot read timestamp: '%s'", system_time_str);
+        return;
+    }
 
     rx_bytes = g_ascii_strtoull (rx_bytes_str, NULL, 10);
     tx_bytes = g_ascii_strtoull (tx_bytes_str, NULL, 10);
