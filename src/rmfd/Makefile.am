@@ -1,12 +1,21 @@
 
-sbin_PROGRAMS = rmfd
-dist_bin_SCRIPTS = rmfd-port-data-wwan-service
+sbin_PROGRAMS      = rmfd
+dist_bin_SCRIPTS   = rmfd-port-data-wwan-service
+noinst_LTLIBRARIES =
 
 BUILT_SOURCES = \
 	rmfd-error-types.h \
 	rmfd-error-types.c
 
 CLEANFILES = $(BUILT_SOURCES)
+
+# Stats support
+noinst_LTLIBRARIES += librmfd-stats.la
+librmfd_stats_la_SOURCES = \
+	rmfd-stats.h rmfd-stats.c
+librmfd_stats_la_CPPFLAGS = \
+	-I$(top_srcdir) \
+	$(GLIB_CFLAGS)
 
 # rmfd daemon
 rmfd_CPPFLAGS = \
@@ -33,12 +42,12 @@ rmfd_SOURCES = \
 	rmfd-port-processor.h rmfd-port-processor.c \
 	rmfd-port-processor-qmi.h rmfd-port-processor-qmi.c \
 	rmfd-port-data.h rmfd-port-data.c \
-	rmfd-port-data-wwan.h rmfd-port-data-wwan.c \
-	rmfd-stats.h rmfd-stats.c
+	rmfd-port-data-wwan.h rmfd-port-data-wwan.c
 
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
 	$(top_builddir)/src/librmf-common/librmf-common.la \
+	$(top_builddir)/src/rmfd/librmfd-stats.la \
 	$(GLIB_LIBS) \
 	$(QMI_LIBS) \
 	$(GUDEV_LIBS)
