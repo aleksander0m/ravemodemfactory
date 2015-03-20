@@ -1,18 +1,28 @@
 
+Overview of changes in RaveModemFactory 1.20.8
+----------------------------------------------
+
+Bugfix release, including:
+
+ * Added unit tests for the stats file processing.
+ * Avoid writing partial records with 0 bytes TX/RX.
+ * Fix reading records with unix timestamps.
+
+
 Overview of changes in RaveModemFactory 1.20.6
----------------------------------------------
+----------------------------------------------
 
  * Fix compilation issue with the 'timezone' variable.
 
 
 Overview of changes in RaveModemFactory 1.20.4
----------------------------------------------
+----------------------------------------------
 
  * Fix more compilation issues with the 'index' variable.
 
 
 Overview of changes in RaveModemFactory 1.20.2
----------------------------------------------
+----------------------------------------------
 
  * Fix compilation issue with the 'index' variable.
 
@@ -25,7 +35,7 @@ Overview of changes in RaveModemFactory 1.20
 
 
 Overview of changes in RaveModemFactory 1.18.2
----------------------------------------------
+----------------------------------------------
 
 Bugfix release, including:
 
