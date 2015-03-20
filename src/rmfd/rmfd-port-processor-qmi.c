@@ -2595,33 +2595,39 @@ get_packet_statistics_stats_ready (QmiClientWds                *client,
                                    WriteConnectionStatsContext *ctx)
 {
     QmiMessageWdsGetPacketStatisticsOutput *output;
+    GError *error = NULL;
 
-    if ((output = qmi_client_wds_get_packet_statistics_finish (client, res, NULL))) {
-        /* Get TX and RX bytes */
-        if (ctx->type == RMFD_STATS_RECORD_TYPE_FINAL) {
-            GError *error = NULL;
-
-            /* Note: don't check result, as we'll get an out-of-call error, so just read last-call TLVs */
-            qmi_message_wds_get_packet_statistics_output_get_last_call_tx_bytes_ok (output, &ctx->tx_bytes, &error);
-            if (error) {
-                g_debug ("cannot get last call tx bytes: %s", error->message);
-                g_clear_error (&error);
-            }
-            qmi_message_wds_get_packet_statistics_output_get_last_call_rx_bytes_ok (output, &ctx->rx_bytes, &error);
-            if (error) {
-                g_debug ("cannot get last call rx bytes: %s", error->message);
-                g_clear_error (&error);
-            }
-        } else if (ctx->type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
-            if (qmi_message_wds_get_packet_statistics_output_get_result (output, NULL)) {
-                qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok (output, &ctx->tx_bytes, NULL);
-                qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok (output, &ctx->rx_bytes, NULL);
-            }
-        } else
-            g_assert_not_reached ();
-
-        qmi_message_wds_get_packet_statistics_output_unref (output);
+    if (!(output = qmi_client_wds_get_packet_statistics_finish (client, res, &error))) {
+        /* Loading packet statistics failed (e.g. timeout error); we'll fully
+         * skip writing a record. */
+        /* Complete and finish */
+        g_simple_async_result_take_error (ctx->result, error);
+        write_connection_stats_context_complete_and_free (ctx);
+        return;
     }
+
+    /* Get TX and RX bytes */
+    if (ctx->type == RMFD_STATS_RECORD_TYPE_FINAL) {
+        /* Note: don't check result, as we'll get an out-of-call error, so just read last-call TLVs */
+        qmi_message_wds_get_packet_statistics_output_get_last_call_tx_bytes_ok (output, &ctx->tx_bytes, &error);
+        if (error) {
+            g_debug ("cannot get last call tx bytes: %s", error->message);
+            g_clear_error (&error);
+        }
+        qmi_message_wds_get_packet_statistics_output_get_last_call_rx_bytes_ok (output, &ctx->rx_bytes, &error);
+        if (error) {
+            g_debug ("cannot get last call rx bytes: %s", error->message);
+            g_clear_error (&error);
+        }
+    } else if (ctx->type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
+        if (qmi_message_wds_get_packet_statistics_output_get_result (output, NULL)) {
+            qmi_message_wds_get_packet_statistics_output_get_tx_bytes_ok (output, &ctx->tx_bytes, NULL);
+            qmi_message_wds_get_packet_statistics_output_get_rx_bytes_ok (output, &ctx->rx_bytes, NULL);
+        }
+    } else
+        g_assert_not_reached ();
+
+    qmi_message_wds_get_packet_statistics_output_unref (output);
 
     /* Continue */
     ctx->step++;
