@@ -87,6 +87,7 @@ struct _RmfdPortProcessorQmiPrivate {
     RmfConnectionStatus connection_status;
     guint32 packet_data_handle;
     guint stats_timeout_id;
+    gboolean stats_enabled;
 
     /* Registration related info */
     guint32 registration_timeout;
@@ -2761,11 +2762,41 @@ write_connection_stats (RmfdPortProcessorQmi *self,
     write_connection_stats_context_step (ctx);
 }
 
+/**********************/
+
+static void schedule_stats (RmfdPortProcessorQmi *self);
+
+static void
+write_connection_stats_timeout_ready (RmfdPortProcessorQmi *self,
+                                      GAsyncResult         *res)
+{
+    write_connection_stats_finish (self, res, NULL);
+    schedule_stats (self);
+}
+
 static gboolean
 stats_cb (RmfdPortProcessorQmi *self)
 {
-    write_connection_stats (self, RMFD_STATS_RECORD_TYPE_PARTIAL, NULL, NULL);
-    return TRUE;
+    self->priv->stats_timeout_id = 0;
+
+    write_connection_stats (self,
+                            RMFD_STATS_RECORD_TYPE_PARTIAL,
+                            (GAsyncReadyCallback) write_connection_stats_timeout_ready,
+                            NULL);
+
+    return FALSE;
+}
+
+static void
+schedule_stats (RmfdPortProcessorQmi *self)
+{
+    if (self->priv->stats_timeout_id) {
+        g_source_remove (self->priv->stats_timeout_id);
+        self->priv->stats_timeout_id = 0;
+    }
+
+    if (self->priv->stats_enabled)
+        self->priv->stats_timeout_id = g_timeout_add_seconds (DEFAULT_STATS_TIMEOUT_SECS, (GSourceFunc) stats_cb, self);
 }
 
 /**********************/
@@ -2807,9 +2838,8 @@ write_connection_stats_start_ready (RmfdPortProcessorQmi *self,
         g_clear_error (&error);
     }
 
-    if (ctx->self->priv->stats_timeout_id)
-        g_source_remove (ctx->self->priv->stats_timeout_id);
-    ctx->self->priv->stats_timeout_id = g_timeout_add_seconds (DEFAULT_STATS_TIMEOUT_SECS, (GSourceFunc) stats_cb, ctx->self);
+    self->priv->stats_enabled = TRUE;
+    schedule_stats (self);
 
     /* Ok! */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
@@ -3120,10 +3150,8 @@ write_connection_stats_stop_ready (RmfdPortProcessorQmi *self,
     }
 
     /* Remove ongoing stats timeout */
-    if (ctx->self->priv->stats_timeout_id) {
-        g_source_remove (ctx->self->priv->stats_timeout_id);
-        ctx->self->priv->stats_timeout_id = 0;
-    }
+    self->priv->stats_enabled = FALSE;
+    schedule_stats (self);
 
     rmfd_port_data_setup (ctx->data,
                           FALSE,
