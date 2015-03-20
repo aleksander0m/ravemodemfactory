@@ -29,6 +29,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/types.h>
 
 #include "rmfd-stats.h"
 #include "rmfd-syslog.h"
@@ -378,6 +380,10 @@ process_previous_stats (RmfdStatsContext *ctx,
                                              fields[FIELD_RX_BYTES],
                                              fields[FIELD_TX_BYTES]);
             if (set_as_final) {
+                glong record_end;
+
+                record_end = ftell (ctx->file);
+
                 write_syslog_record (TRUE,
                                      fields[FIELD_FROM_SYSTEM_TIME],
                                      fields[FIELD_TO_SYSTEM_TIME],
@@ -400,6 +406,10 @@ process_previous_stats (RmfdStatsContext *ctx,
                 else {
                     g_debug ("  previous record set as final");
                     fputc ('F', ctx->file);
+                    /* Also, remove any additional text found after this record,
+                     * like e.g. a possible record which wasn't correctly parsed */
+                    if (record_end > 0)
+                        truncate (ctx->path, (off_t) record_end);
                 }
             }
 
