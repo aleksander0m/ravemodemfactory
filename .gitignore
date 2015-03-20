@@ -52,4 +52,8 @@ src/rmfd/rmfd-error-types.c
 src/rmfd/rmfd-error-types.h
 src/rmfd/rmfd-wwan-service
 
+src/rmfd/test/.deps
+src/rmfd/test/.libs
+src/rmfd/test/test-stats
+
 examples/example

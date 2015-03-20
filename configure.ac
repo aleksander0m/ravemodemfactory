@@ -47,6 +47,7 @@ AC_CONFIG_FILES([Makefile
                  src/librmf/Makefile
                  src/rmfcli/Makefile
                  src/rmfd/Makefile
+                 src/rmfd/test/Makefile
                  test/Makefile])
 AC_OUTPUT
 

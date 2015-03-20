@@ -1,4 +1,6 @@
 
+SUBDIRS = . test
+
 sbin_PROGRAMS      = rmfd
 dist_bin_SCRIPTS   = rmfd-port-data-wwan-service
 noinst_LTLIBRARIES =
