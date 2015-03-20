@@ -42,6 +42,7 @@
 
 #define PROGRAM_NAME    "rmfd"
 #define PROGRAM_VERSION PACKAGE_VERSION
+#define STATS_FILE_PATH "/var/log/rmfd.stats"
 
 /* Globals */
 static GMainLoop *loop;
@@ -151,7 +152,6 @@ main (int argc, char *argv[])
     g_debug (PROGRAM_NAME " starting...");
 
     rmfd_syslog_setup ();
-    rmfd_stats_setup ();
 
     /* Setup signals */
     g_unix_signal_add (SIGTERM, quit_cb, NULL);
@@ -169,7 +169,6 @@ main (int argc, char *argv[])
     g_main_loop_unref (loop);
     g_object_unref (manager);
 
-    rmfd_stats_teardown ();
     rmfd_syslog_teardown ();
 
     return 0;

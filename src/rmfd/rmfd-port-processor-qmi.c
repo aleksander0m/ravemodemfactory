@@ -55,6 +55,8 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 
 #define DEFAULT_STATS_TIMEOUT_SECS 10
 
+#define STATS_FILE_PATH "/var/log/rmfd.stats"
+
 typedef enum {
     MESSAGING_LIST_STATUS_NONE,
     MESSAGING_LIST_STATUS_ONGOING,
@@ -101,6 +103,9 @@ struct _RmfdPortProcessorQmiPrivate {
     guint messaging_event_report_indication_id;
     RmfdSmsList *messaging_sms_list;
     GArray *messaging_sms_contexts;
+
+    /* Stats */
+    RmfdStatsContext *stats;
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
@@ -2715,7 +2720,8 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
 
     case WRITE_CONNECTION_STATS_STEP_LAST:
         /* Issue stats record */
-        rmfd_stats_record (ctx->type,
+        rmfd_stats_record (ctx->self->priv->stats,
+                           ctx->type,
                            ctx->system_time,
                            ctx->rx_bytes,
                            ctx->tx_bytes,
@@ -4343,12 +4349,20 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
     /* Setup SMS list handler */
     self->priv->messaging_sms_list = rmfd_sms_list_new ();
     g_signal_connect (self->priv->messaging_sms_list, "sms-added", G_CALLBACK (sms_added_cb), self);
+
+    /* Initialize stats */
+    self->priv->stats = rmfd_stats_setup (STATS_FILE_PATH);
 }
 
 static void
 dispose (GObject *object)
 {
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
+
+    if (self->priv->stats) {
+        rmfd_stats_teardown (self->priv->stats);
+        self->priv->stats = NULL;
+    }
 
     messaging_list_contexts_cancel (self);
     registration_context_cancel (self);

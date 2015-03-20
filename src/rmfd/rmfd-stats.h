@@ -34,17 +34,20 @@ typedef enum {
     RMFD_STATS_RECORD_TYPE_FINAL,
 } RmfdStatsRecordType;
 
-void     rmfd_stats_setup    (void);
-void     rmfd_stats_record   (RmfdStatsRecordType  type,
-                              GDateTime           *system_time,
-                              guint64              rx_bytes,
-                              guint64              tx_bytes,
-                              const gchar         *radio_interface,
-                              gint8                rssi,
-                              guint16              mcc,
-                              guint16              mnc,
-                              guint16              lac,
-                              guint32              cid);
-void     rmfd_stats_teardown (void);
+typedef struct _RmfdStatsContext RmfdStatsContext;
+
+RmfdStatsContext *rmfd_stats_setup    (const gchar         *path);
+void              rmfd_stats_record   (RmfdStatsContext    *ctx,
+                                       RmfdStatsRecordType  type,
+                                       GDateTime           *system_time,
+                                       guint64              rx_bytes,
+                                       guint64              tx_bytes,
+                                       const gchar         *radio_interface,
+                                       gint8                rssi,
+                                       guint16              mcc,
+                                       guint16              mnc,
+                                       guint16              lac,
+                                       guint32              cid);
+void              rmfd_stats_teardown (RmfdStatsContext    *ctx);
 
 #endif /* RMFD_STATS_H */

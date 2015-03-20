@@ -33,11 +33,20 @@
 #include "rmfd-stats.h"
 #include "rmfd-syslog.h"
 
-static FILE      *stats_file;
-static GDateTime *start_system_time;
-static time_t     start_time;
+typedef struct {
+    guint   year;
+    guint   month;
+    guint64 rx_bytes;
+    guint64 tx_bytes;
+} MonthlyStats;
 
-#define STATS_FILE_PATH "/var/log/rmfd.stats"
+struct _RmfdStatsContext {
+    gchar        *path;
+    FILE         *file;
+    GDateTime    *start_system_time;
+    time_t        start_time;
+    MonthlyStats  monthly_stats;
+};
 
 #define MAX_LINE_LENGTH 255
 
@@ -109,7 +118,8 @@ write_monthly_stats (guint   year,
 /* Write to tmp stats file */
 
 static void
-write_record (gchar        record_type,
+write_record (FILE        *file,
+              gchar        record_type,
               GDateTime   *from_system_time,
               time_t       from_time,
               GDateTime   *to_system_time,
@@ -130,10 +140,6 @@ write_record (gchar        record_type,
 
     g_assert (record_type == 'S' || record_type == 'P' || record_type == 'F');
 
-    /* Bail out if stats not enabled */
-    if (!stats_file)
-        return;
-
     from_str = common_build_date_string (from_system_time, from_time);
     to_str   = common_build_date_string (to_system_time,   to_time);
 
@@ -152,10 +158,10 @@ write_record (gchar        record_type,
                 (guint) lac,
                 (guint) cid);
 
-    if (fprintf (stats_file, "%s", line) < 0)
-        g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (stats_file)));
+    if (fprintf (file, "%s", line) < 0)
+        g_warning ("error: cannot write to stats file: %s", g_strerror (ferror (file)));
     else
-        fflush (stats_file);
+        fflush (file);
 
     g_free (from_str);
     g_free (to_str);
@@ -213,19 +219,11 @@ parse_record (gchar *line,
 /******************************************************************************/
 /* Monthly stats computation */
 
-typedef struct {
-    guint   year;
-    guint   month;
-    guint64 rx_bytes;
-    guint64 tx_bytes;
-} MonthlyStats;
-
-static MonthlyStats monthly_stats;
-
 static void
-monthly_stats_append_record (const gchar *system_time_str,
-                             const gchar *rx_bytes_str,
-                             const gchar *tx_bytes_str)
+monthly_stats_append_record (RmfdStatsContext *ctx,
+                             const gchar      *system_time_str,
+                             const gchar      *rx_bytes_str,
+                             const gchar      *tx_bytes_str)
 {
     guint   year  = 0;
     guint   month = 0;
@@ -270,30 +268,30 @@ monthly_stats_append_record (const gchar *system_time_str,
     tx_bytes = g_ascii_strtoull (tx_bytes_str, NULL, 10);
 
     /* If year/month info not yet added, do it right away */
-    if (monthly_stats.year == 0 || monthly_stats.month == 0) {
+    if (ctx->monthly_stats.year == 0 || ctx->monthly_stats.month == 0) {
         g_debug ("  set initial stats date: %u/%u", year, month);
-        monthly_stats.year = year;
-        monthly_stats.month = month;
+        ctx->monthly_stats.year = year;
+        ctx->monthly_stats.month = month;
     }
 
     /* If stats for the same month as the first one, add them */
-    if (year == monthly_stats.year && month == monthly_stats.month) {
+    if (year == ctx->monthly_stats.year && month == ctx->monthly_stats.month) {
         g_debug ("  record (%u/%u): rx+=%" G_GUINT64_FORMAT ", tx+=%" G_GUINT64_FORMAT,
                  year, month, rx_bytes, tx_bytes);
-        monthly_stats.rx_bytes += rx_bytes;
-        monthly_stats.tx_bytes += tx_bytes;
-    } else if ((year == monthly_stats.year && month > monthly_stats.month) ||
-               (year > monthly_stats.year)) {
+        ctx->monthly_stats.rx_bytes += rx_bytes;
+        ctx->monthly_stats.tx_bytes += tx_bytes;
+    } else if ((year == ctx->monthly_stats.year && month > ctx->monthly_stats.month) ||
+               (year > ctx->monthly_stats.year)) {
         g_debug ("  updated stats date: %u/%u", year, month);
         g_debug ("  record (%u/%u): rx=%" G_GUINT64_FORMAT ", tx=%" G_GUINT64_FORMAT,
                  year, month, rx_bytes, tx_bytes);
-        monthly_stats.year     = year;
-        monthly_stats.month    = month;
-        monthly_stats.rx_bytes = rx_bytes;
-        monthly_stats.tx_bytes = tx_bytes;
+        ctx->monthly_stats.year     = year;
+        ctx->monthly_stats.month    = month;
+        ctx->monthly_stats.rx_bytes = rx_bytes;
+        ctx->monthly_stats.tx_bytes = tx_bytes;
     } else {
         g_debug ("  ignoring record with wrong date: %u/%u (reference: %u/%u)",
-                 year, month, monthly_stats.year, monthly_stats.month);
+                 year, month, ctx->monthly_stats.year, ctx->monthly_stats.month);
         g_debug ("  record (%u/%u): rx (ignored) %" G_GUINT64_FORMAT ", tx (ignored) %" G_GUINT64_FORMAT,
                  year, month, rx_bytes, tx_bytes);
     }
@@ -353,12 +351,12 @@ seek_current_record (FILE *file)
 }
 
 static void
-process_previous_stats (FILE     *file,
-                        glong     record_offset,
-                        gboolean  set_as_final,
-                        gboolean  append_monthly_stats)
+process_previous_stats (RmfdStatsContext *ctx,
+                        glong             record_offset,
+                        gboolean          set_as_final,
+                        gboolean          append_monthly_stats)
 {
-    if (fseek (file, record_offset, SEEK_SET) < 0) {
+    if (fseek (ctx->file, record_offset, SEEK_SET) < 0) {
         g_warning ("  cannot seek to previous record");
         return;
     }
@@ -369,13 +367,14 @@ process_previous_stats (FILE     *file,
 
         /* This may happen if e.g. the immediate previous record wasn't correctly
          * parsed and also was actually the first one in the log file */
-        if (!fgets (line, sizeof (line), file))
+        if (!fgets (line, sizeof (line), ctx->file))
             return;
 
         /* If correctly parsed, notify and we're done */
         if (parse_record (line, fields)) {
             if (append_monthly_stats)
-                monthly_stats_append_record (fields[FIELD_FROM_SYSTEM_TIME],
+                monthly_stats_append_record (ctx,
+                                             fields[FIELD_FROM_SYSTEM_TIME],
                                              fields[FIELD_RX_BYTES],
                                              fields[FIELD_TX_BYTES]);
             if (set_as_final) {
@@ -391,16 +390,16 @@ process_previous_stats (FILE     *file,
                                      (guint16) g_ascii_strtoull (fields[FIELD_MNC], NULL, 10),
                                      (guint32) g_ascii_strtoull (fields[FIELD_LAC], NULL, 10),
                                      (guint32) g_ascii_strtoull (fields[FIELD_CID], NULL, 10),
-                                     monthly_stats.year,
-                                     monthly_stats.month,
-                                     monthly_stats.rx_bytes,
-                                     monthly_stats.tx_bytes);
+                                     ctx->monthly_stats.year,
+                                     ctx->monthly_stats.month,
+                                     ctx->monthly_stats.rx_bytes,
+                                     ctx->monthly_stats.tx_bytes);
 
-                if (fseek (file, record_offset, SEEK_SET) < 0)
+                if (fseek (ctx->file, record_offset, SEEK_SET) < 0)
                     g_warning ("  cannot seek to previous record to update it");
                 else {
                     g_debug ("  previous record set as final");
-                    fputc ('F', file);
+                    fputc ('F', ctx->file);
                 }
             }
 
@@ -409,13 +408,13 @@ process_previous_stats (FILE     *file,
 
         /* If not correctly parsed, go one record back */
         /* Need to go backwards one more line */
-        if (fseek (file, record_offset - 1, SEEK_SET) < 0)
+        if (fseek (ctx->file, record_offset - 1, SEEK_SET) < 0)
             return;
         /* Seek to start of the current record */
-        if (!seek_current_record (file))
+        if (!seek_current_record (ctx->file))
             return;
         /* Store new record offset */
-        if ((record_offset = ftell (file)) < 0)
+        if ((record_offset = ftell (ctx->file)) < 0)
             return;
         /* Looooop */
     }
@@ -424,37 +423,36 @@ process_previous_stats (FILE     *file,
 }
 
 static void
-load_previous_stats (void)
+load_previous_stats (RmfdStatsContext *ctx)
 {
-    FILE     *file;
-    gchar     line [MAX_LINE_LENGTH + 1];
-    gboolean  started = FALSE;
-    glong     previous_line_offset = -1;
-    glong     current_line_offset = 0;
+    gchar    line [MAX_LINE_LENGTH + 1];
+    gboolean started = FALSE;
+    glong    previous_line_offset = -1;
+    glong    current_line_offset = 0;
 
     g_debug ("loading previous monthly stats...");
 
-    if (!(file = fopen (STATS_FILE_PATH, "r+"))) {
+    if (!(ctx->file = fopen (ctx->path, "r+"))) {
         g_debug ("  stats file doesn't exist");
         return;
     }
 
     do {
-        current_line_offset = ftell (file);
+        current_line_offset = ftell (ctx->file);
         if (current_line_offset < 0)
             break;
 
-        if (!fgets (line, sizeof (line), file)) {
+        if (!fgets (line, sizeof (line), ctx->file)) {
             /* When reaching EOF, check if the last log was notified to syslog or not */
-            if (feof (file)) {
+            if (feof (ctx->file)) {
                 if (started && previous_line_offset >= 0) {
                     /* We got a new Start record without a previous Final record.
                      * This means that rmfd was halted before being able to log
                      * to syslog, so we must do it ourselves now. Re-read the
                      * previous record as final and continue. */
-                    process_previous_stats (file, previous_line_offset, TRUE, TRUE);
+                    process_previous_stats (ctx, previous_line_offset, TRUE, TRUE);
                     /* Seek to the end again */
-                    if (fseek (file, 0, SEEK_END) < 0)
+                    if (fseek (ctx->file, 0, SEEK_END) < 0)
                         break;
                 }
             }
@@ -463,7 +461,7 @@ load_previous_stats (void)
 
         if (line[0] == 'S') {
             if (started) {
-                current_line_offset = ftell (file);
+                current_line_offset = ftell (ctx->file);
                 if (current_line_offset < 0)
                     break;
 
@@ -471,10 +469,10 @@ load_previous_stats (void)
                  * need to parse the previous record and add it as if it were a
                  * final one */
                 if (previous_line_offset >= 0)
-                    process_previous_stats (file, previous_line_offset, FALSE, TRUE);
+                    process_previous_stats (ctx, previous_line_offset, FALSE, TRUE);
 
                 /* Seek to the start record */
-                if (fseek (file, current_line_offset, SEEK_SET) < 0)
+                if (fseek (ctx->file, current_line_offset, SEEK_SET) < 0)
                     break;
 
                 /* Re-read the new start record, this time we won't have the started
@@ -491,7 +489,8 @@ load_previous_stats (void)
 
             /* If correctly parsed, notify and we're done */
             if (parse_record (line, fields))
-                monthly_stats_append_record (fields[FIELD_FROM_SYSTEM_TIME],
+                monthly_stats_append_record (ctx,
+                                             fields[FIELD_FROM_SYSTEM_TIME],
                                              fields[FIELD_RX_BYTES],
                                              fields[FIELD_TX_BYTES]);
             started = FALSE;
@@ -500,17 +499,19 @@ load_previous_stats (void)
         previous_line_offset = current_line_offset;
     } while (1);
 
-    fclose (file);
+    fclose (ctx->file);
+    ctx->file = NULL;
 
-    if (monthly_stats.year && monthly_stats.month)
+    if (ctx->monthly_stats.year && ctx->monthly_stats.month)
         g_debug ("  monthly stats (%u/%u): rx %" G_GUINT64_FORMAT ", tx %" G_GUINT64_FORMAT,
-                 monthly_stats.year, monthly_stats.month, monthly_stats.rx_bytes, monthly_stats.tx_bytes);
+                 ctx->monthly_stats.year, ctx->monthly_stats.month, ctx->monthly_stats.rx_bytes, ctx->monthly_stats.tx_bytes);
 }
 
 /******************************************************************************/
 
 void
-rmfd_stats_record (RmfdStatsRecordType  type,
+rmfd_stats_record (RmfdStatsContext    *ctx,
+                   RmfdStatsRecordType  type,
                    GDateTime           *system_time,
                    guint64              rx_bytes,
                    guint64              tx_bytes,
@@ -523,6 +524,10 @@ rmfd_stats_record (RmfdStatsRecordType  type,
 {
     time_t current_time;
 
+    /* Bail out if stats not enabled */
+    if (!ctx)
+        return;
+
     current_time = time (NULL);
 
     /* Start record */
@@ -533,7 +538,7 @@ rmfd_stats_record (RmfdStatsRecordType  type,
 
         /* If we changed month, remove previous file */
         if (system_time) {
-            year = g_date_time_get_year   (system_time);
+            year  = g_date_time_get_year   (system_time);
             month = g_date_time_get_month (system_time);
         } else {
             GDateTime *datetime;
@@ -545,38 +550,39 @@ rmfd_stats_record (RmfdStatsRecordType  type,
         }
 
         /* If changing stats month, syslog and remove the previous file */
-        if ((year == monthly_stats.year && month > monthly_stats.month) ||
-            (year > monthly_stats.year)) {
-            if (monthly_stats.year > 0)
-                write_monthly_stats (monthly_stats.year,
-                                     monthly_stats.month,
-                                     monthly_stats.rx_bytes,
-                                     monthly_stats.tx_bytes);
+        if ((year == ctx->monthly_stats.year && month > ctx->monthly_stats.month) ||
+            (year > ctx->monthly_stats.year)) {
+            if (ctx->monthly_stats.year > 0)
+                write_monthly_stats (ctx->monthly_stats.year,
+                                     ctx->monthly_stats.month,
+                                     ctx->monthly_stats.rx_bytes,
+                                     ctx->monthly_stats.tx_bytes);
 
             g_debug ("updated stats date: %u/%u", year, month);
-            monthly_stats.year     = year;
-            monthly_stats.month    = month;
-            monthly_stats.rx_bytes = 0;
-            monthly_stats.tx_bytes = 0;
+            ctx->monthly_stats.year     = year;
+            ctx->monthly_stats.month    = month;
+            ctx->monthly_stats.rx_bytes = 0;
+            ctx->monthly_stats.tx_bytes = 0;
 
             append = FALSE;
         }
 
         /* Open the file only when started */
         errno = 0;
-        if (!(stats_file = fopen (STATS_FILE_PATH, append ? "a" : "w"))) {
+        if (!(ctx->file = fopen (ctx->path, append ? "a" : "w"))) {
             g_warning ("error: cannot open stats file: %s", g_strerror (errno));
             return;
         }
 
         /* Keep track of when this was started */
-        if (start_system_time)
-            g_date_time_unref (start_system_time);
-        start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
-        start_time = current_time;
+        if (ctx->start_system_time)
+            g_date_time_unref (ctx->start_system_time);
+        ctx->start_system_time = system_time ? g_date_time_ref (system_time) : NULL;
+        ctx->start_time = current_time;
 
-        write_record ('S',
-                      start_system_time, start_time,
+        write_record (ctx->file,
+                      'S',
+                      ctx->start_system_time, ctx->start_time,
                       system_time, current_time,
                       rx_bytes, tx_bytes,
                       radio_interface, rssi,
@@ -587,8 +593,9 @@ rmfd_stats_record (RmfdStatsRecordType  type,
 
     /* Partial record? */
     if (type == RMFD_STATS_RECORD_TYPE_PARTIAL) {
-        write_record ('P',
-                      start_system_time, start_time,
+        write_record (ctx->file,
+                      'P',
+                      ctx->start_system_time, ctx->start_time,
                       system_time, current_time,
                       rx_bytes, tx_bytes,
                       radio_interface, rssi,
@@ -599,76 +606,86 @@ rmfd_stats_record (RmfdStatsRecordType  type,
     g_assert (type == RMFD_STATS_RECORD_TYPE_FINAL);
 
     /* If for any reason stop is called multiple times, don't write multiple final records */
-    if (!start_system_time)
+    if (!ctx->start_system_time)
         return;
 
     /* Final record */
-    write_record ('F',
-                  start_system_time, start_time,
+    write_record (ctx->file,
+                  'F',
+                  ctx->start_system_time, ctx->start_time,
                   system_time, current_time,
                   rx_bytes, tx_bytes,
                   radio_interface, rssi,
                   mcc, mnc, lac, cid);
 
     /* Update monthly stats */
-    monthly_stats.rx_bytes += rx_bytes;
-    monthly_stats.tx_bytes += tx_bytes;
+    ctx->monthly_stats.rx_bytes += rx_bytes;
+    ctx->monthly_stats.tx_bytes += tx_bytes;
 
     /* Syslog writing */
     {
         gchar *from_str;
         gchar *to_str;
 
-        from_str = common_build_date_string (start_system_time, start_time);
-        to_str   = common_build_date_string (system_time,       current_time);
+        from_str = common_build_date_string (ctx->start_system_time, ctx->start_time);
+        to_str   = common_build_date_string (system_time, current_time);
 
         g_debug ("writing stats to syslog...");
         write_syslog_record (FALSE,
                              from_str,
                              to_str,
-                             (current_time > start_time ? (current_time - start_time) : 0),
+                             (current_time > ctx->start_time ? (current_time - ctx->start_time) : 0),
                              rx_bytes,
                              tx_bytes,
                              radio_interface, rssi,
                              mcc, mnc, lac, cid,
-                             monthly_stats.year,
-                             monthly_stats.month,
-                             monthly_stats.rx_bytes,
-                             monthly_stats.tx_bytes);
+                             ctx->monthly_stats.year,
+                             ctx->monthly_stats.month,
+                             ctx->monthly_stats.rx_bytes,
+                             ctx->monthly_stats.tx_bytes);
 
         g_free (from_str);
         g_free (to_str);
     }
 
     /* Cleanup start time */
-    if (start_system_time)
-        g_date_time_unref (start_system_time);
-    start_system_time = NULL;
-    start_time = 0;
+    if (ctx->start_system_time)
+        g_date_time_unref (ctx->start_system_time);
+    ctx->start_system_time = NULL;
+    ctx->start_time = 0;
 
-    if (stats_file) {
-        fclose (stats_file);
-        stats_file = NULL;
+    if (ctx->file) {
+        fclose (ctx->file);
+        ctx->file = NULL;
     }
 }
 
-void
-rmfd_stats_setup (void)
+/******************************************************************************/
+
+RmfdStatsContext *
+rmfd_stats_setup (const gchar *path)
 {
+    RmfdStatsContext *ctx;
+
+    ctx = g_slice_new0 (RmfdStatsContext);
+    ctx->path = g_strdup (path);
+
     /* Try to process last stats right away */
-    load_previous_stats ();
+    load_previous_stats (ctx);
+
+    return ctx;
 }
 
 void
-rmfd_stats_teardown (void)
+rmfd_stats_teardown (RmfdStatsContext *ctx)
 {
-    if (start_system_time) {
-        g_date_time_unref (start_system_time);
-        start_system_time = NULL;
-    }
+    if (!ctx)
+        return;
 
-    if (stats_file) {
-        fclose (stats_file);
-        stats_file = NULL;
-    }
+    if (ctx->start_system_time)
+        g_date_time_unref (ctx->start_system_time);
+    if (ctx->file)
+        fclose (ctx->file);
+    g_free (ctx->path);
+    g_slice_free (RmfdStatsContext, ctx);
 }
