@@ -408,8 +408,8 @@ process_previous_stats (RmfdStatsContext *ctx,
                     fputc ('F', ctx->file);
                     /* Also, remove any additional text found after this record,
                      * like e.g. a possible record which wasn't correctly parsed */
-                    if (record_end > 0)
-                        truncate (ctx->path, (off_t) record_end);
+                    if (record_end > 0 && truncate (ctx->path, (off_t) record_end) < 0)
+                        g_warning ("  cannot truncate stats file: %s", g_strerror (errno));
                 }
             }
 
