@@ -2691,7 +2691,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                                                                   NULL);
             qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
                                                   input,
-                                                  10,
+                                                  5,
                                                   NULL,
                                                   (GAsyncReadyCallback)get_packet_statistics_stats_ready,
                                                   ctx);
@@ -2704,7 +2704,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
     case WRITE_CONNECTION_STATS_STEP_SIGNAL_STRENGTH:
         qmi_client_nas_get_signal_strength (QMI_CLIENT_NAS (ctx->self->priv->nas),
                                             NULL,
-                                            10,
+                                            5,
                                             NULL,
                                             (GAsyncReadyCallback)get_signal_strength_stats_ready,
                                             ctx);
@@ -2713,7 +2713,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
     case WRITE_CONNECTION_STATS_STEP_SERVING_SYSTEM:
         qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (ctx->self->priv->nas),
                                            NULL,
-                                           10,
+                                           5,
                                            NULL,
                                            (GAsyncReadyCallback)get_serving_system_stats_ready,
                                            ctx);
