@@ -689,3 +689,35 @@ rmfd_stats_teardown (RmfdStatsContext *ctx)
     g_free (ctx->path);
     g_slice_free (RmfdStatsContext, ctx);
 }
+
+guint
+rmfd_stats_get_year (RmfdStatsContext *ctx)
+{
+    g_return_val_if_fail (ctx != NULL, 0);
+
+    return ctx->monthly_stats.year;
+}
+
+guint
+rmfd_stats_get_month (RmfdStatsContext *ctx)
+{
+    g_return_val_if_fail (ctx != NULL, 0);
+
+    return ctx->monthly_stats.month;
+}
+
+guint64
+rmfd_stats_get_rx_bytes (RmfdStatsContext *ctx)
+{
+    g_return_val_if_fail (ctx != NULL, 0);
+
+    return ctx->monthly_stats.rx_bytes;
+}
+
+guint64
+rmfd_stats_get_tx_bytes (RmfdStatsContext *ctx)
+{
+    g_return_val_if_fail (ctx != NULL, 0);
+
+    return ctx->monthly_stats.tx_bytes;
+}
