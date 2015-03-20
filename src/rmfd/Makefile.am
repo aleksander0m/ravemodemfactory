@@ -49,7 +49,7 @@ rmfd_SOURCES = \
 rmfd_LDADD = \
 	$(top_builddir)/src/librmf/librmf.la \
 	$(top_builddir)/src/librmf-common/librmf-common.la \
-	$(top_builddir)/src/rmfd/librmfd-stats.la \
+	$(builddir)/librmfd-stats.la \
 	$(GLIB_LIBS) \
 	$(QMI_LIBS) \
 	$(GUDEV_LIBS)
