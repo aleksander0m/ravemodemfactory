@@ -59,6 +59,7 @@ printHelp (void)
     std::cout << "\t-F, --change-pin=\"pin newpin\"" << std::endl;
     std::cout << "\t-p, --get-power-status" << std::endl;
     std::cout << "\t-P, --set-power-status=\"[Full|Low]\"" << std::endl;
+    std::cout << "\t-Z, --power-cycle" << std::endl;
     std::cout << "\t-a, --get-power-info" << std::endl;
     std::cout << "\t-s, --get-signal-info" << std::endl;
     std::cout << "\t-r, --get-registration-status" << std::endl;
@@ -373,6 +374,20 @@ setPowerStatus (const std::string str)
     }
 
     std::cout << "Power status successfully changed" << std::endl;
+    return 0;
+}
+
+static int
+powerCycle (void)
+{
+    try {
+        Modem::PowerCycle ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "Power cycle successfully requested" << std::endl;
     return 0;
 }
 
@@ -726,6 +741,7 @@ main (int argc, char **argv)
         { "change-pin",               required_argument, 0, 'F' },
         { "get-power-status",         no_argument,       0, 'p' },
         { "set-power-status",         required_argument, 0, 'P' },
+        { "power-cycle",              no_argument,       0, 'Z' },
         { "get-power-info",           no_argument,       0, 'a' },
         { "get-signal-info",          no_argument,       0, 's' },
         { "get-registration-status",  no_argument,       0, 'r' },
@@ -748,7 +764,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:asrtT:cxC:DA", longopts, &i);
+        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DA", longopts, &i);
 
         switch (iarg) {
         case 'h':
@@ -787,6 +803,8 @@ main (int argc, char **argv)
             return getPowerStatus ();
         case 'P':
             return setPowerStatus (optarg);
+        case 'Z':
+            return powerCycle ();
         case 'a':
             return getPowerInfo ();
         case 's':
