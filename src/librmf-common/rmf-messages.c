@@ -1616,3 +1616,43 @@ rmf_message_set_registration_timeout_response_parse (const uint8_t *message,
     if (status)
         *status = rmf_message_get_status (message);
 }
+
+/******************************************************************************/
+/* Modem power cycle */
+
+uint8_t *
+rmf_message_power_cycle_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_POWER_CYCLE, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_power_cycle_response_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_POWER_CYCLE, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_power_cycle_response_parse (const uint8_t *message,
+                                        uint32_t      *status)
+{
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_POWER_CYCLE);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+}

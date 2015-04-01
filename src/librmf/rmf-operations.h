@@ -167,6 +167,13 @@ namespace Modem {
     void SetPowerStatus (PowerStatus powerStatus);
 
     /**
+     * PowerCycle:
+     *
+     * Request to power cycle the modem.
+     */
+    void PowerCycle (void);
+
+    /**
      * GetPowerInfo:
      *
      * Get the radio power information.

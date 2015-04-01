@@ -2046,6 +2046,95 @@ set_power_status (RunContext *ctx)
 }
 
 /**********************/
+/* Power cycle */
+
+static void
+dms_power_cycle_set_operating_mode_reset_ready (QmiClientDms *client,
+                                                GAsyncResult *res,
+                                                RunContext   *ctx)
+{
+    QmiMessageDmsSetOperatingModeOutput *output = NULL;
+    GError *error = NULL;
+
+    output = qmi_client_dms_set_operating_mode_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_dms_set_operating_mode_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't set operating mode: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint8 *response = NULL;
+
+        response = rmf_message_power_cycle_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+    }
+
+    if (output)
+        qmi_message_dms_set_operating_mode_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+dms_power_cycle_set_operating_mode_offline_ready (QmiClientDms *client,
+                                                  GAsyncResult *res,
+                                                  RunContext   *ctx)
+{
+    QmiMessageDmsSetOperatingModeOutput *output = NULL;
+    QmiMessageDmsSetOperatingModeInput  *input;
+    GError *error = NULL;
+
+    output = qmi_client_dms_set_operating_mode_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (!qmi_message_dms_set_operating_mode_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't set operating mode: ");
+        g_simple_async_result_take_error (ctx->result, error);
+        qmi_message_dms_set_operating_mode_output_unref (output);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    qmi_message_dms_set_operating_mode_output_unref (output);
+
+    /* Then, reset */
+    input = qmi_message_dms_set_operating_mode_input_new ();
+    qmi_message_dms_set_operating_mode_input_set_mode (input, QMI_DMS_OPERATING_MODE_RESET, NULL);
+    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                       input,
+                                       20,
+                                       NULL,
+                                       (GAsyncReadyCallback)dms_power_cycle_set_operating_mode_reset_ready,
+                                       ctx);
+    qmi_message_dms_set_operating_mode_input_unref (input);
+}
+
+static void
+power_cycle (RunContext *ctx)
+{
+    QmiMessageDmsSetOperatingModeInput *input;
+
+    /* First, offline */
+    input = qmi_message_dms_set_operating_mode_input_new ();
+    qmi_message_dms_set_operating_mode_input_set_mode (input, QMI_DMS_OPERATING_MODE_OFFLINE, NULL);
+    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+                                       input,
+                                       20,
+                                       NULL,
+                                       (GAsyncReadyCallback)dms_power_cycle_set_operating_mode_offline_ready,
+                                       ctx);
+    qmi_message_dms_set_operating_mode_input_unref (input);
+}
+
+/**********************/
 /* Get power info */
 
 typedef struct {
@@ -3335,6 +3424,9 @@ run (RmfdPortProcessor   *self,
         return;
     case RMF_MESSAGE_COMMAND_SET_POWER_STATUS:
         set_power_status (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_POWER_CYCLE:
+        power_cycle (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_POWER_INFO:
         get_power_info (ctx);

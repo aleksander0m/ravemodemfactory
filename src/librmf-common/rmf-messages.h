@@ -187,7 +187,8 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_IS_MODEM_AVAILABLE       = 21,
     RMF_MESSAGE_COMMAND_GET_SIM_INFO             = 22,
     RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT = 23,
-    RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT = 24
+    RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT = 24,
+    RMF_MESSAGE_COMMAND_POWER_CYCLE              = 25
 };
 
 /******************************************************************************/
@@ -545,6 +546,14 @@ void     rmf_message_set_registration_timeout_request_parse  (const uint8_t *mes
 uint8_t *rmf_message_set_registration_timeout_response_new   (void);
 void     rmf_message_set_registration_timeout_response_parse (const uint8_t *message,
                                                               uint32_t      *status);
+
+/******************************************************************************/
+/* Modem power cycle */
+
+uint8_t *rmf_message_power_cycle_request_new    (void);
+uint8_t *rmf_message_power_cycle_response_new   (void);
+void     rmf_message_power_cycle_response_parse (const uint8_t *message,
+                                                 uint32_t      *status);
 
 
 #endif /* _RMF_MESSAGES_H_ */
