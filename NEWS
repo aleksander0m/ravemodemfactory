@@ -1,4 +1,11 @@
 
+Overview of changes in RaveModemFactory 1.22.0
+----------------------------------------------
+
+ * Added new operations in the API and the CLI to request power cycling the
+   modem.
+
+
 Overview of changes in RaveModemFactory 1.20.8
 ----------------------------------------------
 
