@@ -1402,6 +1402,8 @@ get_card_status_ready (QmiClientUim *client,
         /* go on to next card */
     }
 
+    qmi_message_uim_get_card_status_output_unref (output);
+
     /* We're done */
     ctx->unlocked = TRUE;
     ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
