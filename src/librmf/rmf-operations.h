@@ -290,6 +290,15 @@ namespace Modem {
     void Disconnect (void);
 
     /**
+     * GetDataPort:
+     *
+     * Get the name of the data port.
+     *
+     * Returns: a string.
+     */
+    std::string GetDataPort (void);
+
+    /**
      * IsModemAvailable:
      *
      * Gets whether a modem is available.

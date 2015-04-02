@@ -1656,3 +1656,53 @@ rmf_message_power_cycle_response_parse (const uint8_t *message,
     if (status)
         *status = rmf_message_get_status (message);
 }
+
+/******************************************************************************/
+/* Get Data Port */
+
+uint8_t *
+rmf_message_get_data_port_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_DATA_PORT, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_get_data_port_response_new (const char *data_port)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_DATA_PORT, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_string (builder, data_port);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_get_data_port_response_parse (const uint8_t  *message,
+                                          uint32_t       *status,
+                                          const char    **data_port)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_DATA_PORT);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
+    if (data_port)
+        *data_port = rmf_message_read_string (message, &offset);
+}

@@ -3357,6 +3357,28 @@ disconnect (RunContext *ctx)
 }
 
 /**********************/
+/* Get manufacturer */
+
+static gboolean
+get_data_port_cb (RunContext *ctx)
+{
+    guint8 *response;
+
+    response = rmf_message_get_data_port_response_new (rmfd_port_get_interface (RMFD_PORT (ctx->data)));
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+    return FALSE;
+}
+
+static void
+get_data_port (RunContext *ctx)
+{
+    g_idle_add ((GSourceFunc) get_data_port_cb, ctx);
+}
+
+/**********************/
 
 static void
 run (RmfdPortProcessor   *self,
@@ -3457,6 +3479,9 @@ run (RmfdPortProcessor   *self,
         return;
     case RMF_MESSAGE_COMMAND_DISCONNECT:
         disconnect (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_DATA_PORT:
+        get_data_port (ctx);
         return;
     default:
         break;

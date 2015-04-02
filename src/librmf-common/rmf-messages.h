@@ -188,7 +188,8 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_GET_SIM_INFO             = 22,
     RMF_MESSAGE_COMMAND_GET_REGISTRATION_TIMEOUT = 23,
     RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT = 24,
-    RMF_MESSAGE_COMMAND_POWER_CYCLE              = 25
+    RMF_MESSAGE_COMMAND_POWER_CYCLE              = 25,
+    RMF_MESSAGE_COMMAND_GET_DATA_PORT            = 26,
 };
 
 /******************************************************************************/
@@ -554,6 +555,15 @@ uint8_t *rmf_message_power_cycle_request_new    (void);
 uint8_t *rmf_message_power_cycle_response_new   (void);
 void     rmf_message_power_cycle_response_parse (const uint8_t *message,
                                                  uint32_t      *status);
+
+/******************************************************************************/
+/* Get Data Port */
+
+uint8_t *rmf_message_get_data_port_request_new    (void);
+uint8_t *rmf_message_get_data_port_response_new   (const char     *data_port);
+void     rmf_message_get_data_port_response_parse (const uint8_t  *message,
+                                                   uint32_t       *status,
+                                                   const char    **data_port);
 
 
 #endif /* _RMF_MESSAGES_H_ */

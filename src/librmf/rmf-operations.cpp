@@ -1165,6 +1165,37 @@ Modem::Disconnect (void)
 
 /*****************************************************************************/
 
+std::string
+Modem::GetDataPort (void)
+{
+    uint8_t *request;
+    uint8_t *response;
+    const char *str;
+    uint32_t status;
+    int ret;
+    string result;
+
+    request = rmf_message_get_data_port_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_data_port_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
+    free (response);
+
+    return result;
+}
+
+/*****************************************************************************/
+
 bool
 Modem::IsModemAvailable (void)
 {
