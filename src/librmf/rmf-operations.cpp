@@ -345,6 +345,7 @@ Modem::GetManufacturer (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_manufacturer_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -354,12 +355,15 @@ Modem::GetManufacturer (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_manufacturer_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -372,6 +376,7 @@ Modem::GetModel (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_model_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -381,12 +386,15 @@ Modem::GetModel (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_model_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -399,6 +407,7 @@ Modem::GetSoftwareRevision (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_software_revision_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -408,12 +417,15 @@ Modem::GetSoftwareRevision (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_software_revision_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -427,6 +439,7 @@ Modem::GetHardwareRevision (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_hardware_revision_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -436,12 +449,15 @@ Modem::GetHardwareRevision (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_hardware_revision_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -454,6 +470,7 @@ Modem::GetImei (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_imei_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -463,12 +480,15 @@ Modem::GetImei (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_imei_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -481,6 +501,7 @@ Modem::GetImsi (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_imsi_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -490,12 +511,15 @@ Modem::GetImsi (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_imsi_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
@@ -508,6 +532,7 @@ Modem::GetIccid (void)
     const char *str;
     uint32_t status;
     int ret;
+    string result;
 
     request = rmf_message_get_iccid_request_new ();
     ret = send_and_receive (request, 10, &response);
@@ -517,12 +542,15 @@ Modem::GetIccid (void)
         throw std::runtime_error (error_strings[ret]);
 
     rmf_message_get_iccid_response_parse (response, &status, &str);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    result = str;
     free (response);
 
-    if (status != RMF_RESPONSE_STATUS_OK)
-        throw_response_error (status);
-
-    return str;
+    return result;
 }
 
 /*****************************************************************************/
