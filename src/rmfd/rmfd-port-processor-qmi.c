@@ -2618,6 +2618,7 @@ static void
 write_connection_stats_context_complete_and_free (WriteConnectionStatsContext *ctx)
 {
     g_simple_async_result_complete (ctx->result);
+    g_object_unref (ctx->result);
     if (ctx->system_time)
         g_date_time_unref (ctx->system_time);
     g_object_unref (ctx->self);
