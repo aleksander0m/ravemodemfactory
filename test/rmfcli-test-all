@@ -78,11 +78,6 @@ command rmfcli --disable-pin=$PIN
 command rmfcli --enable-pin=$PIN
 command rmfcli --change-pin=\"$PIN 0000\"
 command rmfcli --change-pin=\"0000 $PIN\"
-command rmfcli --get-power-status
-command rmfcli --set-power-status=Low
-command rmfcli --set-power-status=Full
-# Wait some time after powering on the radio
-sleep 5
 command rmfcli --get-signal-info
 command rmfcli --get-registration-status
 command rmfcli --get-connection-status
@@ -93,5 +88,11 @@ command rmfcli --get-connection-status
 command rmfcli --get-power-info
 command rmfcli --get-connection-stats
 command rmfcli --disconnect
-
+# Test power status commands only at the very end, so that powering off the
+# radio isn't done just before the connection attempt
+command rmfcli --get-power-status
+command rmfcli --set-power-status=Low
+command rmfcli --set-power-status=Full
+# Last test, requesting modem reboot
+command rmfcli --power-cycle
 exit 0
