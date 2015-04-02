@@ -1132,6 +1132,7 @@ Modem::Connect (const string apn,
         const char *error_str;
 
         rmf_message_error_response_parse (response, NULL, &error_str);
+        free (response);
         throw_verbose_response_error (status, error_str);
     }
 
