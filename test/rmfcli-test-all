@@ -82,6 +82,7 @@ command rmfcli --get-signal-info
 command rmfcli --get-registration-status
 command rmfcli --get-connection-status
 command rmfcli --connect=$APN
+command rmfcli --get-data-port
 # Wait some time after connecting
 sleep 5
 command rmfcli --get-connection-status

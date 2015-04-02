@@ -69,6 +69,7 @@ printHelp (void)
     std::cout << "\t-x, --get-connection-stats" << std::endl;
     std::cout << "\t-C, --connect=\"apn user password\"" << std::endl;
     std::cout << "\t-D, --disconnect" << std::endl;
+    std::cout << "\t-b, --get-data-port" << std::endl;
     std::cout << "\t-A, --is-available" << std::endl;
     std::cout << std::endl;
 }
@@ -698,6 +699,22 @@ disconnect (void)
 }
 
 static int
+getDataPort (void)
+{
+    std::string data_port;
+
+    try {
+        data_port = Modem::GetDataPort ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "Data port: "  << data_port << std::endl;
+    return 0;
+}
+
+static int
 isModemAvailable (void)
 {
     bool available;
@@ -750,7 +767,8 @@ main (int argc, char **argv)
         { "get-connection-status",    no_argument,       0, 'c' },
         { "get-connection-stats",     no_argument,       0, 'x' },
         { "connect",                  required_argument, 0, 'C' },
-        { "disconnect",               no_argument      , 0, 'D' },
+        { "disconnect",               no_argument,       0, 'D' },
+        { "get-data-port",            no_argument,       0, 'b' },
         { "is-available",             no_argument,       0, 'A' },
         { 0,                          0,                 0, 0   },
     };
@@ -764,7 +782,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DA", longopts, &i);
+        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DbA", longopts, &i);
 
         switch (iarg) {
         case 'h':
@@ -823,6 +841,8 @@ main (int argc, char **argv)
             return connect (optarg);
         case 'D':
             return disconnect ();
+        case 'b':
+            return getDataPort ();
         case 'A':
             return isModemAvailable ();
         }
