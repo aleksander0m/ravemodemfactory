@@ -1,4 +1,13 @@
 
+Overview of changes in RaveModemFactory 1.24.0
+----------------------------------------------
+
+ * Added new operations in the API and the CLI to request the name of the net
+   interface managed by the RMF system.
+
+ * Fixed memory leaks and invalid reads in rmfd and librmf.
+
+
 Overview of changes in RaveModemFactory 1.22.0
 ----------------------------------------------
 
