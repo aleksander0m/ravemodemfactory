@@ -24,10 +24,10 @@ echoerr() { echo "[$PROGRAM] $@" 1>&2; }
 
 print_usage ()
 {
-    echodbg "usage: $0 [PIN] [APN]"
+    echodbg "usage: $0 PIN APN [--with-valgrind]"
 }
 
-if [ $# -ne 2 ]; then
+if [ $# -lt 2 ]; then
     echoerr "error: missing arguments" 1>&2
     print_usage
     exit 255
@@ -35,11 +35,24 @@ fi
 
 PIN=$1
 APN=$2
+WITH_VALGRIND=no
+if [ $# -gt 2 ]; then
+    if [ $3 = '--with-valgrind' ]; then
+        WITH_VALGRIND=yes
+    fi
+fi
+
+VALGRIND_FILE_INDEX=0
 
 command ()
 {
     echo ======================================
-    COMMAND=$@
+    if [ x$WITH_VALGRIND = xyes ]; then
+        COMMAND="valgrind --leak-check=full --log-file=valgrind-${VALGRIND_FILE_INDEX}.out $@"
+        VALGRIND_FILE_INDEX=`expr $VALGRIND_FILE_INDEX + 1`
+    else
+        COMMAND=$@
+    fi
     echo $COMMAND
     eval $COMMAND
     if [ $? -ne 0 ]; then
