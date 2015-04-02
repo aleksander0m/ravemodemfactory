@@ -40,6 +40,6 @@ RmfdModemType rmfd_utils_get_modem_type (GUdevDevice *device);
 
 gchar *rmfd_utils_build_interface_name (GUdevDevice *device);
 
-GUdevDevice *rmfd_utils_peek_physical_device (GUdevDevice *child);
+GUdevDevice *rmfd_utils_get_physical_device (GUdevDevice *child);
 
 #endif /* RMFD_UTILS_H */

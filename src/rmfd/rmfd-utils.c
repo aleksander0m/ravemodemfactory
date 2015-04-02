@@ -113,7 +113,7 @@ rmfd_utils_build_interface_name (GUdevDevice *device)
 
 /* From ModemManager sources */
 GUdevDevice *
-rmfd_utils_peek_physical_device (GUdevDevice *child)
+rmfd_utils_get_physical_device (GUdevDevice *child)
 {
     GUdevDevice *iter, *old = NULL;
     GUdevDevice *physdev = NULL;

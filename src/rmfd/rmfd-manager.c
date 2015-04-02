@@ -284,7 +284,7 @@ port_added (RmfdManager *self,
         goto out;
 
     /* Find physical device in the incoming port */
-    parent = rmfd_utils_peek_physical_device (device);
+    parent = rmfd_utils_get_physical_device (device);
     if (!parent)
         goto out;
 
@@ -304,6 +304,8 @@ port_added (RmfdManager *self,
             self->priv->type = RMFD_MODEM_TYPE_QMI;
         }
     }
+
+    g_object_unref (parent);
 
     /* QMI modem? */
     if (self->priv->type == RMFD_MODEM_TYPE_QMI) {
