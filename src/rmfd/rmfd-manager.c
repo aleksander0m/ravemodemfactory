@@ -435,7 +435,7 @@ processor_run_ready (RmfdPortProcessor *processor,
 
     request->response = rmfd_port_processor_run_finish (processor, result, &error);
     if (!request->response) {
-        g_warning ("error processing the request: %s", error->message);
+        g_message ("couldn't process the request: %s", error->message);
         request->response = rmfd_error_message_new_from_gerror (request->message, error);
         g_error_free (error);
     }
