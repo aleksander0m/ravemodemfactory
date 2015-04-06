@@ -260,8 +260,8 @@ sms_decode_text (const guint8 *text, int len, RmfdSmsEncoding encoding, int bit_
 
 
     if (!utf8) {
-        /* Verbose warning about invalid PDU decodes */
-        g_warning ("Couldn't decode text in PDU (encoding %s, bit offset %d): %s [%s]",
+        /* Verbose message about invalid PDU decodes */
+        g_message ("Couldn't decode text in PDU (encoding %s, bit offset %d): %s [%s]",
                    rmfd_sms_encoding_get_string (encoding),
                    bit_offset,
                    inner_error ? inner_error->message : "unknown error",
