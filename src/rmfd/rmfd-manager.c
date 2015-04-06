@@ -230,7 +230,7 @@ processor_qmi_new_ready (GObject      *source,
         /* Couldn't get data port for QMI; so let's try with another QMI port */
         g_clear_object (&ctx->self->priv->processor);
     } else {
-        g_warning ("couldn't create processor for port '%s': %s",
+        g_message ("couldn't create processor for port '%s': %s",
                    g_udev_device_get_name (ctx->device),
                    error->message);
         g_error_free (error);
