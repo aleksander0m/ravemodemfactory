@@ -237,25 +237,44 @@ sms_encoding_type (int dcs)
 static char *
 sms_decode_text (const guint8 *text, int len, RmfdSmsEncoding encoding, int bit_offset)
 {
-    char *utf8;
-    guint8 *unpacked;
-    guint32 unpacked_len;
+    gchar   *utf8 = NULL;
+    guint8  *unpacked;
+    guint32  unpacked_len;
+    GError  *inner_error = NULL;
+    gchar   *hexstr;
+
+    /* Printable hex string */
+    hexstr = rmfd_utils_bin2hexstr (text, len);
+
+    g_debug ("Converting SMS part text to utf8...");
+    g_debug ("   Encoding:   %s", rmfd_sms_encoding_get_string (encoding));
+    g_debug ("   Bit offset: %d", bit_offset);
+    g_debug ("   Input PDU:  %s", hexstr);
 
     if (encoding == RMFD_SMS_ENCODING_GSM7) {
-        g_debug ("Converting SMS part text from GSM7 to UTF8...");
         unpacked = gsm_unpack ((const guint8 *) text, len, bit_offset, &unpacked_len);
         utf8 = (char *) rmfd_charset_gsm_unpacked_to_utf8 (unpacked, unpacked_len);
-        g_debug ("   Got UTF-8 text: '%s'", utf8);
         g_free (unpacked);
-    } else if (encoding == RMFD_SMS_ENCODING_UCS2) {
-        g_debug ("Converting SMS part text from UCS-2BE to UTF8...");
-        utf8 = g_convert ((char *) text, len, "UTF8", "UCS-2BE", NULL, NULL, NULL);
-        g_debug ("   Got UTF-8 text: '%s'", utf8);
-    } else {
-        g_warn_if_reached ();
+    } else if (encoding == RMFD_SMS_ENCODING_UCS2)
+        utf8 = g_convert ((char *) text, len, "UTF8", "UCS-2BE", NULL, NULL, &inner_error);
+
+
+    if (!utf8) {
+        /* Verbose warning about invalid PDU decodes */
+        g_warning ("Couldn't decode text in PDU (encoding %s, bit offset %d): %s [%s]",
+                   rmfd_sms_encoding_get_string (encoding),
+                   bit_offset,
+                   inner_error ? inner_error->message : "unknown error",
+                   hexstr);
+        /* When decoding not possible, we still return an empty string */
         utf8 = g_strdup ("");
     }
+    if (inner_error)
+        g_error_free (inner_error);
 
+    g_debug ("   Got UTF-8 text: '%s'", utf8);
+
+    g_free (hexstr);
     return utf8;
 }
 
@@ -698,7 +717,6 @@ rmfd_sms_part_3gpp_new_from_binary_pdu (guint ind,
                                                       tp_user_data_size_elements,
                                                       user_data_encoding,
                                                       bit_offset));
-            g_warn_if_fail (rmfd_sms_part_get_text (sms_part) != NULL);
             break;
 
         default:

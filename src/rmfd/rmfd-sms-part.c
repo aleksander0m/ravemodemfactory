@@ -26,6 +26,26 @@
 
 #include "rmfd-sms-part.h"
 
+/******************************************************************************/
+
+const gchar *
+rmfd_sms_encoding_get_string (RmfdSmsEncoding encoding)
+{
+    static const gchar *encoding_strings [] = {
+        "unknown",
+        "gsm7",
+        "utf8"
+        "ucs2"
+    };
+
+    if (encoding < RMFD_SMS_ENCODING_UNKNOWN || encoding > RMFD_SMS_ENCODING_UCS2)
+        return "invalid";
+
+    return encoding_strings[encoding];
+}
+
+/******************************************************************************/
+
 struct _RmfdSmsPart {
     /* Reference counting */
     volatile gint ref_count;

@@ -38,6 +38,8 @@ typedef enum {
     RMFD_SMS_ENCODING_UCS2
 } RmfdSmsEncoding;
 
+const gchar *rmfd_sms_encoding_get_string (RmfdSmsEncoding encoding);
+
 typedef enum {
     /* --------------- 3GPP specific errors ---------------------- */
     /* Completed deliveries */
