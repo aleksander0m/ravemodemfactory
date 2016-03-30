@@ -29,6 +29,8 @@
 #include <sstream>
 #include <cstdlib>
 #include <getopt.h>
+#include <assert.h>
+#include <string.h>
 
 #include <rmf-types.h>
 #include <rmf-operations.h>
@@ -40,10 +42,8 @@ static void
 printHelp (void)
 {
     std::cout << std::endl;
-    std::cout << "Usage: " << PROGRAM_NAME << " <option>" << std::endl;
-    std::cout << "Options: " << std::endl;
-    std::cout << "\t-h, --help" << std::endl;
-    std::cout << "\t-v, --version" << std::endl;
+    std::cout << "Usage: " << PROGRAM_NAME << " <action>" << std::endl;
+    std::cout << "Actions:" << std::endl;
     std::cout << "\t-f, --get-manufacturer" << std::endl;
     std::cout << "\t-d, --get-model" << std::endl;
     std::cout << "\t-j, --get-software-revision" << std::endl;
@@ -71,6 +71,10 @@ printHelp (void)
     std::cout << "\t-D, --disconnect" << std::endl;
     std::cout << "\t-b, --get-data-port" << std::endl;
     std::cout << "\t-A, --is-available" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Common actions:" << std::endl;
+    std::cout << "\t-h, --help" << std::endl;
+    std::cout << "\t-v, --version" << std::endl;
     std::cout << std::endl;
 }
 
@@ -715,7 +719,7 @@ getDataPort (void)
 }
 
 static int
-isModemAvailable (void)
+isAvailable (void)
 {
     bool available;
 
@@ -734,49 +738,113 @@ isModemAvailable (void)
     return 0;
 }
 
+//-----------------------------------------------------------------------------
+
+static const struct option longopts[] = {
+    { "version",                  no_argument,       0, 'v' },
+    { "help",                     no_argument,       0, 'h' },
+    { "get-manufacturer",         no_argument,       0, 'f' },
+    { "get-model",                no_argument,       0, 'd' },
+    { "get-software-revision",    no_argument,       0, 'j' },
+    { "get-hardware-revision",    no_argument,       0, 'k' },
+    { "get-imei",                 no_argument,       0, 'e' },
+    { "get-imsi",                 no_argument,       0, 'i' },
+    { "get-iccid",                no_argument,       0, 'o' },
+    { "get-sim-info",             no_argument,       0, 'z' },
+    { "is-locked",                no_argument,       0, 'L' },
+    { "unlock",                   required_argument, 0, 'U' },
+    { "enable-pin",               required_argument, 0, 'E' },
+    { "disable-pin",              required_argument, 0, 'G' },
+    { "change-pin",               required_argument, 0, 'F' },
+    { "get-power-status",         no_argument,       0, 'p' },
+    { "set-power-status",         required_argument, 0, 'P' },
+    { "power-cycle",              no_argument,       0, 'Z' },
+    { "get-power-info",           no_argument,       0, 'a' },
+    { "get-signal-info",          no_argument,       0, 's' },
+    { "get-registration-status",  no_argument,       0, 'r' },
+    { "get-registration-timeout", no_argument,       0, 't' },
+    { "set-registration-timeout", required_argument, 0, 'T' },
+    { "get-connection-status",    no_argument,       0, 'c' },
+    { "get-connection-stats",     no_argument,       0, 'x' },
+    { "connect",                  required_argument, 0, 'C' },
+    { "disconnect",               no_argument,       0, 'D' },
+    { "get-data-port",            no_argument,       0, 'b' },
+    { "is-available",             no_argument,       0, 'A' },
+    { 0,                          0,                 0, 0   },
+};
+
+static const char *
+get_iarg_long_opt (int iarg)
+{
+    int i;
+
+    for (i = 0; longopts[i].val != 0; i++) {
+        if (longopts[i].val == iarg)
+            return longopts[i].name;
+    }
+    assert (0);
+    return NULL;
+}
+
+static void
+enable_arg_int (unsigned int & arg,
+                int iarg)
+{
+    if (arg) {
+        std::cerr << "error: " << get_iarg_long_opt (iarg) << " option specified multiple times" << std::endl;
+        exit (-1);
+    }
+    arg = 1;
+}
+
+static void
+enable_arg_str (char * & arg,
+                const char *value,
+                int iarg)
+{
+    if (arg) {
+        std::cerr << "error: " << get_iarg_long_opt (iarg) << " option specified multiple times" << std::endl;
+        exit (-1);
+    }
+
+    /* Note: we use C strings because we want to use "!!" to convert the string to a boolean */
+    arg = strdup (value);
+}
+
 int
 main (int argc, char **argv)
 {
     int i;
     int iarg = 0;
-
-    const struct option longopts[] = {
-        { "version",                  no_argument, 0, 'v' },
-        { "help",                     no_argument, 0, 'h' },
-        { "get-manufacturer",         no_argument, 0, 'f' },
-        { "get-model",                no_argument, 0, 'd' },
-        { "get-software-revision",    no_argument, 0, 'j' },
-        { "get-hardware-revision",    no_argument, 0, 'k' },
-        { "get-imei",                 no_argument, 0, 'e' },
-        { "get-imsi",                 no_argument, 0, 'i' },
-        { "get-iccid",                no_argument, 0, 'o' },
-        { "get-sim-info",             no_argument, 0, 'z' },
-        { "is-locked",                no_argument, 0, 'L' },
-        { "unlock",                   required_argument, 0, 'U' },
-        { "enable-pin",               required_argument, 0, 'E' },
-        { "disable-pin",              required_argument, 0, 'G' },
-        { "change-pin",               required_argument, 0, 'F' },
-        { "get-power-status",         no_argument,       0, 'p' },
-        { "set-power-status",         required_argument, 0, 'P' },
-        { "power-cycle",              no_argument,       0, 'Z' },
-        { "get-power-info",           no_argument,       0, 'a' },
-        { "get-signal-info",          no_argument,       0, 's' },
-        { "get-registration-status",  no_argument,       0, 'r' },
-        { "get-registration-timeout", no_argument,       0, 't' },
-        { "set-registration-timeout", required_argument, 0, 'T' },
-        { "get-connection-status",    no_argument,       0, 'c' },
-        { "get-connection-stats",     no_argument,       0, 'x' },
-        { "connect",                  required_argument, 0, 'C' },
-        { "disconnect",               no_argument,       0, 'D' },
-        { "get-data-port",            no_argument,       0, 'b' },
-        { "is-available",             no_argument,       0, 'A' },
-        { 0,                          0,                 0, 0   },
-    };
-
-    if (argc != 2) {
-        printHelp ();
-        return -1;
-    }
+    unsigned int action_get_manufacturer = 0;
+    unsigned int action_get_model = 0;
+    unsigned int action_get_software_revision = 0;
+    unsigned int action_get_hardware_revision = 0;
+    unsigned int action_get_imei = 0;
+    unsigned int action_get_imsi = 0;
+    unsigned int action_get_iccid = 0;
+    unsigned int action_get_sim_info = 0;
+    unsigned int action_is_sim_locked = 0;
+    char *action_unlock = NULL;
+    char *action_enable_pin = NULL;
+    char *action_disable_pin = NULL;
+    char *action_change_pin = NULL;
+    unsigned int action_get_power_status = 0;
+    char *action_set_power_status = NULL;
+    unsigned int action_power_cycle = 0;
+    unsigned int action_get_power_info = 0;
+    unsigned int action_get_signal_info = 0;
+    unsigned int action_get_registration_status = 0;
+    unsigned int action_get_registration_timeout = 0;
+    char *action_set_registration_timeout = NULL;
+    unsigned int action_get_connection_status = 0;
+    unsigned int action_get_connection_stats = 0;
+    char *action_connect = NULL;
+    unsigned int action_disconnect = 0;
+    unsigned int action_get_data_port = 0;
+    unsigned int action_is_available = 0;
+    unsigned int n_actions;
+    int result;
 
     // turn off getopt error message
     opterr = 1;
@@ -792,61 +860,192 @@ main (int argc, char **argv)
             printVersion ();
             return 0;
         case 'f':
-            return getManufacturer ();
+            enable_arg_int (action_get_manufacturer, iarg);
+            break;
         case 'd':
-            return getModel ();
+            enable_arg_int (action_get_model, iarg);
+            break;
         case 'j':
-            return getSoftwareRevision ();
+            enable_arg_int (action_get_software_revision, iarg);
+            break;
         case 'k':
-            return getHardwareRevision ();
+            enable_arg_int (action_get_hardware_revision, iarg);
+            break;
         case 'e':
-            return getImei ();
+            enable_arg_int (action_get_imei, iarg);
+            break;
         case 'i':
-            return getImsi ();
+            enable_arg_int (action_get_imsi, iarg);
+            break;
         case 'o':
-            return getIccid ();
+            enable_arg_int (action_get_iccid, iarg);
+            break;
         case 'z':
-            return getSimInfo ();
+            enable_arg_int (action_get_sim_info, iarg);
+            break;
         case 'L':
-            return isSimLocked ();
+            enable_arg_int (action_is_sim_locked, iarg);
+            break;
         case 'U':
-            return unlock (optarg);
+            enable_arg_str (action_unlock, optarg, iarg);
+            break;
         case 'E':
-            return enablePin (optarg);
+            enable_arg_str (action_enable_pin, optarg, iarg);
+            break;
         case 'G':
-            return disablePin (optarg);
+            enable_arg_str (action_disable_pin, optarg, iarg);
+            break;
         case 'F':
-            return changePin (optarg);
+            enable_arg_str (action_change_pin, optarg, iarg);
+            break;
         case 'p':
-            return getPowerStatus ();
+            enable_arg_int (action_get_power_status, iarg);
+            break;
         case 'P':
-            return setPowerStatus (optarg);
+            enable_arg_str (action_set_power_status, optarg, iarg);
+            break;
         case 'Z':
-            return powerCycle ();
+            enable_arg_int (action_power_cycle, iarg);
+            break;
         case 'a':
-            return getPowerInfo ();
+            enable_arg_int (action_get_power_info, iarg);
+            break;
         case 's':
-            return getSignalInfo ();
+            enable_arg_int (action_get_signal_info, iarg);
+            break;
         case 'r':
-            return getRegistrationStatus ();
+            enable_arg_int (action_get_registration_status, iarg);
+            break;
         case 't':
-            return getRegistrationTimeout ();
+            enable_arg_int (action_get_registration_timeout, iarg);
+            break;
         case 'T':
-            return setRegistrationTimeout (optarg);
+            enable_arg_str (action_set_registration_timeout, optarg, iarg);
+            break;
         case 'c':
-            return getConnectionStatus ();
+            enable_arg_int (action_get_connection_status, iarg);
+            break;
         case 'x':
-            return getConnectionStats ();
+            enable_arg_int (action_get_connection_stats, iarg);
+            break;
         case 'C':
-            return connect (optarg);
+            enable_arg_str (action_connect, optarg, iarg);
+            break;
         case 'D':
-            return disconnect ();
+            enable_arg_int (action_disconnect, iarg);
+            break;
         case 'b':
-            return getDataPort ();
+            enable_arg_int (action_get_data_port, iarg);
+            break;
         case 'A':
-            return isModemAvailable ();
+            enable_arg_int (action_is_available, iarg);
+            break;
         }
     }
 
+    n_actions = (
+        action_get_manufacturer +
+        action_get_model +
+        action_get_software_revision +
+        action_get_hardware_revision +
+        action_get_imei +
+        action_get_imsi +
+        action_get_iccid +
+        action_get_sim_info +
+        action_is_sim_locked +
+        !!action_unlock +
+        !!action_enable_pin +
+        !!action_disable_pin +
+        !!action_change_pin +
+        action_get_power_status +
+        !!action_set_power_status +
+        action_power_cycle +
+        action_get_power_info +
+        action_get_signal_info +
+        action_get_registration_status +
+        action_get_registration_timeout +
+        !!action_set_registration_timeout +
+        action_get_connection_status +
+        action_get_connection_stats +
+        !!action_connect +
+        action_disconnect +
+        action_get_data_port +
+        action_is_available);
+
+    if (n_actions == 0) {
+        std::cerr << "error: no actions specified" << std::endl;
+        return -1;
+    }
+
+    if (n_actions > 1) {
+        std::cerr << "error: too many actions specified" << std::endl;
+        return -1;
+    }
+
+    if (action_get_manufacturer)
+        result = getManufacturer ();
+    else if (action_get_model)
+        result = getModel ();
+    else if (action_get_software_revision)
+        result = getSoftwareRevision ();
+    else if (action_get_hardware_revision)
+        result = getHardwareRevision ();
+    else if (action_get_imei)
+        result = getImei ();
+    else if (action_get_imsi)
+        result = getImsi ();
+    else if (action_get_iccid)
+        result = getIccid ();
+    else if (action_get_sim_info)
+        result = getSimInfo ();
+    else if (action_is_sim_locked)
+        result = isSimLocked ();
+    else if (action_unlock)
+        result = unlock (action_unlock);
+    else if (action_enable_pin)
+        result =  enablePin (action_enable_pin);
+    else if (action_disable_pin)
+        result = disablePin (action_disable_pin);
+    else if (action_change_pin)
+        result = changePin (action_change_pin);
+    else if (action_get_power_status)
+        result = getPowerStatus ();
+    else if (action_set_power_status)
+        result = setPowerStatus (action_set_power_status);
+    else if (action_power_cycle)
+        result = powerCycle ();
+    else if (action_get_power_info)
+        result = getPowerInfo ();
+    else if (action_get_signal_info)
+        result = getSignalInfo ();
+    else if (action_get_registration_status)
+        result = getRegistrationStatus ();
+    else if (action_get_registration_timeout)
+        result = getRegistrationTimeout ();
+    else if (action_set_registration_timeout)
+        result = setRegistrationTimeout (action_set_registration_timeout);
+    else if (action_get_connection_status)
+        result = getConnectionStatus ();
+    else if (action_get_connection_stats)
+        result = getConnectionStats ();
+    else if (action_connect)
+        result = connect (action_connect);
+    else if (action_disconnect)
+        result = disconnect ();
+    else if (action_get_data_port)
+        result = getDataPort ();
+    else if (action_is_available)
+        result = isAvailable ();
+    else
+        assert (0);
+
+    /* Clean exit, for a clean memleak report */
+    free (action_unlock);
+    free (action_enable_pin);
+    free (action_disable_pin);
+    free (action_change_pin);
+    free (action_set_power_status);
+    free (action_set_registration_timeout);
+    free (action_connect);
     return 0;
 }
