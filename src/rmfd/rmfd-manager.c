@@ -42,6 +42,13 @@
 
 G_DEFINE_TYPE (RmfdManager, rmfd_manager, G_TYPE_OBJECT)
 
+enum {
+    PROP_0,
+    PROP_IP_ADDRESS,
+    PROP_TCP_PORT,
+    LAST_PROP
+};
+
 struct _RmfdManagerPrivate {
     /* The UDev client */
     GUdevClient *udev_client;
@@ -55,6 +62,10 @@ struct _RmfdManagerPrivate {
     RmfdPortData *data;
     GList *processor_ports;
     GList *data_ports;
+
+    /* TCP properties */
+    gchar *ip_address;
+    guint16 tcp_port;
 
     /* Unix socket service */
     GSocketService *socket_service;
@@ -568,27 +579,37 @@ incoming_cb (GSocketService    *service,
 static void
 setup_socket_service (RmfdManager *self)
 {
-    GSocketAddress *socket_address;
-    GError *error = NULL;
+    GSocketAddress  *socket_address;
+    GSocketProtocol  socket_protocol;
+    GError          *error = NULL;
 
-    g_debug ("creating UNIX socket service...");
+    if (self->priv->ip_address && self->priv->tcp_port) {
+        g_debug ("creating TCP socket service...");
+        socket_address = g_inet_socket_address_new_from_string (self->priv->ip_address,
+                                                                self->priv->tcp_port);
+        socket_protocol = G_SOCKET_PROTOCOL_TCP;
+    } else {
+        g_debug ("creating UNIX socket service...");
 
-    /* Remove any previously existing socket file */
-    g_unlink (RMFD_SOCKET_PATH);
+        /* Remove any previously existing socket file */
+        g_unlink (RMFD_SOCKET_PATH);
 
-    /* Create socket address */
-    socket_address = g_unix_socket_address_new (RMFD_SOCKET_PATH);
+        /* Create socket address */
+        socket_address = g_unix_socket_address_new (RMFD_SOCKET_PATH);
+        socket_protocol = G_SOCKET_PROTOCOL_DEFAULT;
+    }
+
     if (!g_socket_listener_add_address (G_SOCKET_LISTENER (self->priv->socket_service),
                                         socket_address,
                                         G_SOCKET_TYPE_STREAM,
-                                        G_SOCKET_PROTOCOL_DEFAULT,
+                                        socket_protocol,
                                         G_OBJECT (self),
                                         NULL, /* effective_address */
                                         &error)) {
         g_warning ("error adding address to socket service: %s", error->message);
         g_error_free (error);
     } else {
-        g_debug ("starting UNIX socket service...");
+        g_debug ("starting socket service...");
         g_socket_service_start (self->priv->socket_service);
     }
 
@@ -634,7 +655,20 @@ initial_scan_cb (RmfdManager *self)
 /*****************************************************************************/
 
 RmfdManager *
-rmfd_manager_new (void)
+rmfd_manager_new_tcp (const gchar *address,
+                      guint16      port)
+{
+    g_return_val_if_fail (address != NULL, NULL);
+    g_return_val_if_fail (port != 0,       NULL);
+
+    return g_object_new (RMFD_TYPE_MANAGER,
+                         "ip-address", address,
+                         "tcp-port",   port,
+                         NULL);
+}
+
+RmfdManager *
+rmfd_manager_new_unix (void)
 {
     return g_object_new (RMFD_TYPE_MANAGER, NULL);
 }
@@ -662,6 +696,49 @@ rmfd_manager_init (RmfdManager *self)
 
     /* Socket service started after initial scan */
     self->priv->socket_buffer = g_byte_array_sized_new (RMF_MESSAGE_MAX_SIZE);
+}
+
+static void
+set_property (GObject *object,
+              guint prop_id,
+              const GValue *value,
+              GParamSpec *pspec)
+{
+    RmfdManagerPrivate *priv = RMFD_MANAGER (object)->priv;
+
+    switch (prop_id) {
+    case PROP_IP_ADDRESS:
+        g_free (priv->ip_address);
+        priv->ip_address = g_value_dup_string (value);
+        break;
+    case PROP_TCP_PORT:
+        priv->tcp_port = g_value_get_uint (value);
+        break;
+    default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+        break;
+    }
+}
+
+static void
+get_property (GObject *object,
+              guint prop_id,
+              GValue *value,
+              GParamSpec *pspec)
+{
+    RmfdManagerPrivate *priv = RMFD_MANAGER (object)->priv;
+
+    switch (prop_id) {
+    case PROP_IP_ADDRESS:
+        g_value_set_string (value, priv->ip_address);
+        break;
+    case PROP_TCP_PORT:
+        g_value_set_uint (value, priv->tcp_port);
+        break;
+    default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+        break;
+    }
 }
 
 static void
@@ -694,6 +771,11 @@ dispose (GObject *object)
         priv->socket_buffer = NULL;
     }
 
+    if (priv->ip_address) {
+        g_free (priv->ip_address);
+        priv->ip_address = NULL;
+    }
+
     g_clear_object (&priv->socket_service);
     g_clear_object (&priv->processor);
     g_clear_object (&priv->data);
@@ -711,4 +793,22 @@ rmfd_manager_class_init (RmfdManagerClass *manager_class)
 
     /* Virtual methods */
     object_class->dispose = dispose;
+    object_class->set_property = set_property;
+    object_class->get_property = get_property;
+
+    g_object_class_install_property
+        (object_class, PROP_IP_ADDRESS,
+         g_param_spec_string ("ip-address",
+                              "IP address",
+                              "IP address where the RMFD daemon should be listening",
+                              NULL,
+                              G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
+
+    g_object_class_install_property
+        (object_class, PROP_TCP_PORT,
+         g_param_spec_uint ("tcp-port",
+                            "TCP port",
+                            "TCP port where the RMFD daemon should be listening",
+                            0, G_MAXUINT16, 0,
+                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY));
 }

@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2015 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2016 Zodiac Inflight Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -42,7 +42,12 @@ static void
 printHelp (void)
 {
     std::cout << std::endl;
-    std::cout << "Usage: " << PROGRAM_NAME << " <action>" << std::endl;
+    std::cout << "Usage: " << PROGRAM_NAME << " <options> <action>" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Options:" << std::endl;
+    std::cout << "\t-y, --target-address=\"ip\"" << std::endl;
+    std::cout << "\t-Y, --target-port=\"port\"" << std::endl;
+    std::cout << "\t-v, --version" << std::endl;
     std::cout << "Actions:" << std::endl;
     std::cout << "\t-f, --get-manufacturer" << std::endl;
     std::cout << "\t-d, --get-model" << std::endl;
@@ -83,7 +88,7 @@ printVersion (void)
 {
     std::cout << std::endl;
     std::cout << PROGRAM_NAME << " " PROGRAM_VERSION << std::endl;
-    std::cout << "Copyright (2013-2015) Zodiac Inflight Innovations" << std::endl;
+    std::cout << "Copyright (2013-2016) Zodiac Inflight Innovations" << std::endl;
     std::cout << std::endl;
 }
 
@@ -743,6 +748,8 @@ isAvailable (void)
 static const struct option longopts[] = {
     { "version",                  no_argument,       0, 'v' },
     { "help",                     no_argument,       0, 'h' },
+    { "target-address",           required_argument, 0, 'y' },
+    { "target-port",              required_argument, 0, 'Y' },
     { "get-manufacturer",         no_argument,       0, 'f' },
     { "get-model",                no_argument,       0, 'd' },
     { "get-software-revision",    no_argument,       0, 'j' },
@@ -816,6 +823,8 @@ main (int argc, char **argv)
 {
     int i;
     int iarg = 0;
+    char *option_target_address = NULL;
+    char *option_target_port = NULL;
     unsigned int action_get_manufacturer = 0;
     unsigned int action_get_model = 0;
     unsigned int action_get_software_revision = 0;
@@ -850,7 +859,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhfdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DbA", longopts, &i);
+        iarg = getopt_long (argc, argv, "vhy:Y:fdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DbA", longopts, &i);
 
         switch (iarg) {
         case 'h':
@@ -859,6 +868,12 @@ main (int argc, char **argv)
         case 'v':
             printVersion ();
             return 0;
+        case 'y':
+            enable_arg_str (option_target_address, optarg, iarg);
+            break;
+        case 'Y':
+            enable_arg_str (option_target_port, optarg, iarg);
+            break;
         case 'f':
             enable_arg_int (action_get_manufacturer, iarg);
             break;
@@ -942,6 +957,15 @@ main (int argc, char **argv)
             break;
         }
     }
+
+    if ((option_target_address && !option_target_port) ||
+        (!option_target_address && option_target_port)) {
+        std::cerr << "error: remote target address requires both IP and port" << std::endl;
+        return -1;
+    }
+
+    if (option_target_address && option_target_port)
+        Modem::SetTargetRemote (option_target_address, atoi (option_target_port));
 
     n_actions = (
         action_get_manufacturer +

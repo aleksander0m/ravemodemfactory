@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2015 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2016 Zodiac Inflight Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -49,10 +49,20 @@ static GMainLoop *loop;
 RmfdManager *manager;
 
 /* Context */
+static gchar    *address;
+static gint      port;
 static gboolean  verbose_flag;
 static gboolean  version_flag;
 
 static GOptionEntry main_entries[] = {
+    { "address", 'y', 0, G_OPTION_ARG_STRING, &address,
+      "IP address where to enable the TCP listener",
+      "[IP]"
+    },
+    { "port", 'Y', 0, G_OPTION_ARG_INT, &port,
+      "Port where to enable the TCP listener",
+      "[PORT]"
+    },
     { "verbose", 'v', 0, G_OPTION_ARG_NONE, &verbose_flag,
       "Run action with verbose logs",
       NULL
@@ -116,7 +126,7 @@ print_version_and_exit (void)
 {
     g_print ("\n"
              PROGRAM_NAME " " PROGRAM_VERSION "\n"
-             "Copyright (2013-2015) Zodiac Inflight Innovations\n"
+             "Copyright (2013-2016) Zodiac Inflight Innovations\n"
              "License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl-3.0.html>\n"
              "This is free software: you are free to change and redistribute it.\n"
              "There is NO WARRANTY, to the extent permitted by law.\n"
@@ -142,6 +152,11 @@ main (int argc, char *argv[])
     if (version_flag)
         print_version_and_exit ();
 
+    if ((address && !port) || (!address && port)) {
+        g_printerr ("error: TCP listener requires both address and port\n");
+        return -1;
+    }
+
     /* Setup logging if running in verbose mode */
     if (verbose_flag) {
         g_log_set_handler (G_LOG_DOMAIN, G_LOG_LEVEL_MASK, log_handler, NULL);
@@ -158,7 +173,10 @@ main (int argc, char *argv[])
     g_unix_signal_add (SIGINT, quit_cb, NULL);
 
     /* Create manager */
-    manager = rmfd_manager_new ();
+    if (address && port)
+        manager = rmfd_manager_new_tcp (address, port);
+    else
+        manager = rmfd_manager_new_unix ();
 
     /* Go into the main loop */
     loop = g_main_loop_new (NULL, FALSE);

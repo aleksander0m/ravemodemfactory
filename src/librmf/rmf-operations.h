@@ -304,6 +304,27 @@ namespace Modem {
      * Gets whether a modem is available.
      */
     bool IsModemAvailable (void);
+
+    /**
+     * SetTargetRemote:
+     *
+     * Specifies the IP address and TCP port where the target rmfd daemon is
+     * listening. All operations executed after this call will be performed with
+     * the rmfd daemon listening in the remote address.
+     */
+    bool SetTargetRemote (const std::string address,
+                          uint16_t          port);
+
+    /**
+     * SetTargetLocal:
+     *
+     * All operations executed after this call will be performed with the rmfd
+     * daemon listening in the local unix socket.
+     *
+     * This is the default mode of operation if SetTargetRemote() has never been
+     * called before.
+     */
+    bool SetTargetLocal (void);
 }
 
 #endif /* _RMF_OPERATIONS_H_ */

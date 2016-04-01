@@ -29,6 +29,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <poll.h>
 #include <assert.h>
 #include <malloc.h>
@@ -172,6 +174,29 @@ static const char *qmi_response_status_str[] = {
 
 /*****************************************************************************/
 
+static bool     target_remote;
+static string   target_address;
+static uint16_t target_port;
+
+bool
+Modem::SetTargetRemote (const string address,
+                        uint16_t     port)
+{
+    target_remote  = true;
+    target_address = address;
+    target_port    = port;
+}
+
+bool
+Modem::SetTargetLocal (void)
+{
+    target_remote  = false;
+    target_address = "";
+    target_port    = 0;
+}
+
+/*****************************************************************************/
+
 enum {
     ERROR_NONE,
     ERROR_SOCKET_FAILED,
@@ -208,28 +233,59 @@ send_and_receive (const uint8_t  *request,
     ssize_t current;
     size_t left;
     size_t total;
-    struct sockaddr_un address;
     struct pollfd fds[1];
     int fd = -1;
 
     assert (request != NULL);
     assert (response != NULL);
-    assert (strlen (RMFD_SOCKET_PATH) < sizeof (address.sun_path));
 
-    /* Setup address */
-    address.sun_family = AF_UNIX;
-    strcpy (address.sun_path, RMFD_SOCKET_PATH);
+    /* Operation on local unix socket */
+    if (!target_remote) {
+        struct sockaddr_un address;
 
-    /* 1st step: socket(). Create communication endpoint. */
-    if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        ret = ERROR_SOCKET_FAILED;
-        goto failed;
+        assert (strlen (RMFD_SOCKET_PATH) < sizeof (address.sun_path));
+
+        /* Setup address */
+        memset (&address, 0, sizeof (address));
+        address.sun_family = AF_UNIX;
+        strcpy (address.sun_path, RMFD_SOCKET_PATH);
+
+        /* 1st step: socket(). Create communication endpoint. */
+        if ((fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0) {
+            ret = ERROR_SOCKET_FAILED;
+            goto failed;
+        }
+
+        /* 2nd step: connect(). Give address to the endpoint. */
+        if (connect (fd, (const sockaddr*)&address, sizeof (address)) < 0) {
+            ret = ERROR_CONNECT_FAILED;
+            goto failed;
+        }
     }
+    /* Operation on remote TCP socket */
+    else {
+        struct sockaddr_in address;
 
-    /* 2nd step: connect(). Give address to the endpoint. */
-    if (connect (fd, (const sockaddr*)&address, sizeof (address)) < 0) {
-        ret = ERROR_CONNECT_FAILED;
-        goto failed;
+        /* Setup address */
+        memset (&address, 0, sizeof (address));
+        address.sin_family = AF_INET;
+        if (inet_aton (target_address.c_str(), &address.sin_addr) == 0) {
+            ret = ERROR_SOCKET_FAILED;
+            goto failed;
+        }
+        address.sin_port = htons (target_port);
+
+        /* 1st step: socket(). Create communication endpoint. */
+        if ((fd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
+            ret = ERROR_SOCKET_FAILED;
+            goto failed;
+        }
+
+        /* 2nd step: connect(). Give address to the endpoint. */
+        if (connect (fd, (const sockaddr*)&address, sizeof (address)) < 0) {
+            ret = ERROR_CONNECT_FAILED;
+            goto failed;
+        }
     }
 
     /* 3rd step: write(). Send data. */

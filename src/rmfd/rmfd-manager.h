@@ -51,6 +51,8 @@ struct _RmfdManagerClass {
 
 GType rmfd_manager_get_type (void);
 
-RmfdManager *rmfd_manager_new (void);
+RmfdManager *rmfd_manager_new_unix (void);
+RmfdManager *rmfd_manager_new_tcp  (const gchar *address,
+                                    guint16      port);
 
 #endif /* RMFD_MANAGER_H */
