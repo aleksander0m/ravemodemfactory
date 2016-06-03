@@ -31,7 +31,7 @@ print_usage ()
 if [ $# -ne 2 ]; then
     echoerr "error: missing arguments" 1>&2
     print_usage
-    exit 255
+    exit 1
 fi
 
 DEVICE=$1
@@ -70,7 +70,7 @@ start_network ()
     IFUP_STATUS=$?
     if [ $IFUP_STATUS -ne 0 ]; then
        echoerr "error: couldn't bring up WWAN interface $DEVICE: UP command returned $IFUP_STATUS"
-       exit -1
+       exit 2
     fi
 
     if [ -f $RESOLV_CONF_BACKUP ]; then
@@ -87,7 +87,7 @@ start_network ()
     if [ $DHCLIENT_STATUS -ne 0 ]; then
        echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
        eval `$IFDOWN_CMD` >/dev/null 2>&1
-       exit -2
+       exit 3
     fi
 
     echodbg "validating IP address in WWAN interface '$DEVICE'..."
@@ -95,7 +95,7 @@ start_network ()
     if [ -z "$IPCHECK_RESULT" ] || [ "$IPCHECK_RESULT" -lt 1 ]; then
        echoerr "error: IP address not set in WWAN interface '$DEVICE'"
        eval `$IFDOWN_CMD` >/dev/null 2>&1
-       exit -3
+       exit 4
     fi
 
     echodbg "WWAN interface '$DEVICE' started successfully"
@@ -112,7 +112,7 @@ stop_network ()
     DHCLIENT_STATUS=$?
     if [ $DHCLIENT_STATUS -ne 0 ]; then
        echoerr "error: couldn't release DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
-       ERR=-1
+       ERR=5
     fi
 
     echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
@@ -120,7 +120,7 @@ stop_network ()
     IFDOWN_STATUS=$?
     if [ $IFDOWN_STATUS -ne 0 ]; then
        echoerr "error: couldn't bring down WWAN interface $DEVICE: DOWN command returned $IFDOWN_STATUS"
-       ERR=-2
+       ERR=6
     fi
 
     if [ $ERR -eq 0 ]; then
@@ -145,8 +145,9 @@ case $COMMAND in
     *)
         echoerr "error: unexpected command '$COMMAND'" 1>&2
         print_usage
-        exit 255
+        exit 1
         ;;
 esac
 
-exit 0
+# Never reached
+exit 100
