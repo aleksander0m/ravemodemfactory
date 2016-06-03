@@ -44,18 +44,22 @@ DHCLIENT_PATH=dhclient
 # Check if ifconfig or iproute2 is available...
 IFUP_CMD=""
 IFDOWN_CMD=""
+IPCHECK_CMD=""
+
 which ifconfig >/dev/null 2>&1
 if [ $? -eq 0 ]; then
     IFUP_CMD="ifconfig $DEVICE up"
     IFDOWN_CMD="ifconfig $DEVICE down"
+    IPCHECK_CMD="ifconfig $DEVICE | grep inet | wc -l"
 else
     which ip >/dev/null 2>&1
     if [ $? -eq 0 ]; then
         IFUP_CMD="ip link set $DEVICE up"
         IFDOWN_CMD="ip link set $DEVICE down"
+        IPCHECK_CMD="ip addr show dev $DEVICE | grep inet | wc -l"
     fi
 fi
-if test "x$IFUP_CMD" = "x" -a "x$IFDOWN_CMD" = "x"; then
+if [ -z "$IFUP_CMD" ] || [ -z "$IFDOWN_CMD" ] || [ -z "$IPCHECK_CMD" ]; then
     echoerr "error: neither ifconfig nor iproute2 tools are available"
 fi
 
@@ -84,6 +88,14 @@ start_network ()
        echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
        eval `$IFDOWN_CMD` >/dev/null 2>&1
        exit -2
+    fi
+
+    echodbg "validating IP address in WWAN interface '$DEVICE'..."
+    IPCHECK_RESULT=`eval $IPCHECK_CMD`
+    if [ -z "$IPCHECK_RESULT" ] || [ "$IPCHECK_RESULT" -lt 1 ]; then
+       echoerr "error: IP address not set in WWAN interface '$DEVICE'"
+       eval `$IFDOWN_CMD` >/dev/null 2>&1
+       exit -3
     fi
 
     echodbg "WWAN interface '$DEVICE' started successfully"
