@@ -50,13 +50,13 @@ which ifconfig >/dev/null 2>&1
 if [ $? -eq 0 ]; then
     IFUP_CMD="ifconfig $DEVICE up"
     IFDOWN_CMD="ifconfig $DEVICE down"
-    IPCHECK_CMD="ifconfig $DEVICE | grep inet | wc -l"
+    IPCHECK_CMD="ifconfig $DEVICE | grep inet | grep -v inet6 | wc -l"
 else
     which ip >/dev/null 2>&1
     if [ $? -eq 0 ]; then
         IFUP_CMD="ip link set $DEVICE up"
         IFDOWN_CMD="ip link set $DEVICE down"
-        IPCHECK_CMD="ip addr show dev $DEVICE | grep inet | wc -l"
+        IPCHECK_CMD="ip addr show dev $DEVICE | grep inet | grep -v inet6 | wc -l"
     fi
 fi
 if [ -z "$IFUP_CMD" ] || [ -z "$IFDOWN_CMD" ] || [ -z "$IPCHECK_CMD" ]; then
