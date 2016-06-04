@@ -99,11 +99,17 @@ static_network ()
     fi
 
     if [ -n "${GATEWAY_ADDRESS}" ]; then
+        # First try: metric 0
         ip route add default via ${GATEWAY_ADDRESS} dev ${DEVICE} >/dev/null 2>&1
         IPROUTE_STATUS=$?
         if [ $IPROUTE_STATUS -ne 0 ]; then
-            echoerr "error: couldn't set default route in interface: $IPROUTE_STATUS"
-            stop_network 7
+            # Second try: metric 123
+            ip route add default via ${GATEWAY_ADDRESS} dev ${DEVICE} metric 123 >/dev/null 2>&1
+            IPROUTE_STATUS=$?
+            if [ $IPROUTE_STATUS -ne 0 ]; then
+                echoerr "error: couldn't set default route in interface: $IPROUTE_STATUS"
+                stop_network 7
+            fi
         fi
     fi
 
