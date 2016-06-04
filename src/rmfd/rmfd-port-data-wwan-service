@@ -25,7 +25,7 @@ echodbg() { echo "[$PROGRAM] $@"; }
 
 print_usage ()
 {
-    echodbg "usage: $0 [DEVICE] [COMMAND]"
+    echodbg "usage: $0 [DEVICE] [start|stop]"
 }
 
 if [ $# -ne 2 ]; then
@@ -41,32 +41,17 @@ LEASES_FILE=/var/run/rmfd-port-data-wwan-service-$DEVICE.leases
 RESOLV_CONF_BACKUP=/var/run/rmfd-port-data-wwan-service-$DEVICE.resolv.conf.backup
 DHCLIENT_PATH=dhclient
 
-# Check if ifconfig or iproute2 is available...
-IFUP_CMD=""
-IFDOWN_CMD=""
-IPCHECK_CMD=""
-
-which ifconfig >/dev/null 2>&1
-if [ $? -eq 0 ]; then
-    IFUP_CMD="ifconfig $DEVICE up"
-    IFDOWN_CMD="ifconfig $DEVICE down"
-    IPCHECK_CMD="ifconfig $DEVICE | grep inet | grep -v inet6 | wc -l"
-else
-    which ip >/dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        IFUP_CMD="ip link set $DEVICE up"
-        IFDOWN_CMD="ip link set $DEVICE down"
-        IPCHECK_CMD="ip addr show dev $DEVICE | grep inet | grep -v inet6 | wc -l"
-    fi
-fi
-if [ -z "$IFUP_CMD" ] || [ -z "$IFDOWN_CMD" ] || [ -z "$IPCHECK_CMD" ]; then
-    echoerr "error: neither ifconfig nor iproute2 tools are available"
+# Check if iproute2 is available...
+which ip >/dev/null 2>&1
+if [ $? -ne 0 ]; then
+    echoerr "error: iproute2 tools not available"
+    exit 127
 fi
 
 start_network ()
 {
-    echodbg "bringing up WWAN interface '$DEVICE': $IFUP_CMD"
-    eval `$IFUP_CMD` >/dev/null 2>&1
+    echodbg "bringing up WWAN interface '$DEVICE'"
+    ip link set $DEVICE up >/dev/null 2>&1
     IFUP_STATUS=$?
     if [ $IFUP_STATUS -ne 0 ]; then
        echoerr "error: couldn't bring up WWAN interface $DEVICE: UP command returned $IFUP_STATUS"
@@ -90,7 +75,7 @@ start_network ()
     fi
 
     echodbg "validating IP address in WWAN interface '$DEVICE'..."
-    IPCHECK_RESULT=`eval $IPCHECK_CMD`
+    IPCHECK_RESULT=`ip addr show dev $DEVICE | grep inet | grep -v inet6 | wc -l`
     if [ -z "$IPCHECK_RESULT" ] || [ "$IPCHECK_RESULT" -lt 1 ]; then
         echoerr "error: IP address not set in WWAN interface '$DEVICE'"
         stop_network 4
@@ -122,8 +107,8 @@ stop_network ()
 
     # Don't bring down interface if not available
     if [ `grep $DEVICE /proc/net/dev | wc -l` -ne 0 ]; then
-        echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
-        eval `$IFDOWN_CMD` >/dev/null 2>&1
+        echodbg "bringing down WWAN interface '$DEVICE'"
+        ip link set $DEVICE down >/dev/null 2>&1
         IFDOWN_STATUS=$?
         if [ $IFDOWN_STATUS -ne 0 ]; then
            echoerr "error: couldn't bring down WWAN interface $DEVICE: DOWN command returned $IFDOWN_STATUS"
