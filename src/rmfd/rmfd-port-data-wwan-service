@@ -70,7 +70,7 @@ start_network ()
     IFUP_STATUS=$?
     if [ $IFUP_STATUS -ne 0 ]; then
        echoerr "error: couldn't bring up WWAN interface $DEVICE: UP command returned $IFUP_STATUS"
-       exit 2
+       stop_network 2
     fi
 
     if [ -f $RESOLV_CONF_BACKUP ]; then
@@ -85,17 +85,15 @@ start_network ()
     eval `$DHCLIENT_CMD` >/dev/null 2>&1
     DHCLIENT_STATUS=$?
     if [ $DHCLIENT_STATUS -ne 0 ]; then
-       echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
-       eval `$IFDOWN_CMD` >/dev/null 2>&1
-       exit 3
+        echoerr "error: couldn't request DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
+        stop_network 3
     fi
 
     echodbg "validating IP address in WWAN interface '$DEVICE'..."
     IPCHECK_RESULT=`eval $IPCHECK_CMD`
     if [ -z "$IPCHECK_RESULT" ] || [ "$IPCHECK_RESULT" -lt 1 ]; then
-       echoerr "error: IP address not set in WWAN interface '$DEVICE'"
-       eval `$IFDOWN_CMD` >/dev/null 2>&1
-       exit 4
+        echoerr "error: IP address not set in WWAN interface '$DEVICE'"
+        stop_network 4
     fi
 
     echodbg "WWAN interface '$DEVICE' started successfully"
@@ -104,23 +102,33 @@ start_network ()
 
 stop_network ()
 {
-    ERR=0
+    ERR=$1
 
-    DHCLIENT_CMD="$DHCLIENT_PATH -x -pf $PID_FILE -lf $LEASES_FILE $DEVICE"
-    echodbg "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
-    eval `$DHCLIENT_CMD` >/dev/null 2>&1
-    DHCLIENT_STATUS=$?
-    if [ $DHCLIENT_STATUS -ne 0 ]; then
-       echoerr "error: couldn't release DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
-       ERR=5
+    if [ $ERR -ne 0 ]; then
+        echodbg "Bringing down WWAN interface '$DEVICE' after failed connection attempt..."
     fi
 
-    echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
-    eval `$IFDOWN_CMD` >/dev/null 2>&1
-    IFDOWN_STATUS=$?
-    if [ $IFDOWN_STATUS -ne 0 ]; then
-       echoerr "error: couldn't bring down WWAN interface $DEVICE: DOWN command returned $IFDOWN_STATUS"
-       ERR=6
+    # Don't kill dhclient if PID file not around
+    if [ -f $PID_FILE ]; then
+        DHCLIENT_CMD="$DHCLIENT_PATH -x -pf $PID_FILE -lf $LEASES_FILE $DEVICE"
+        echodbg "releasing DHCP in WWAN interface '$DEVICE': $DHCLIENT_CMD"
+        eval `$DHCLIENT_CMD` >/dev/null 2>&1
+        DHCLIENT_STATUS=$?
+        if [ $DHCLIENT_STATUS -ne 0 ]; then
+           echoerr "error: couldn't release DHCP in WWAN interface '$DEVICE': dhclient returned $DHCLIENT_STATUS"
+           ERR=5
+        fi
+    fi
+
+    # Don't bring down interface if not available
+    if [ `grep $DEVICE /proc/net/dev | wc -l` -ne 0 ]; then
+        echodbg "bringing down WWAN interface '$DEVICE': $IFDOWN_CMD"
+        eval `$IFDOWN_CMD` >/dev/null 2>&1
+        IFDOWN_STATUS=$?
+        if [ $IFDOWN_STATUS -ne 0 ]; then
+           echoerr "error: couldn't bring down WWAN interface $DEVICE: DOWN command returned $IFDOWN_STATUS"
+           ERR=6
+        fi
     fi
 
     if [ $ERR -eq 0 ]; then
@@ -131,6 +139,7 @@ stop_network ()
             rm $RESOLV_CONF_BACKUP
         fi
     fi
+
     exit $ERR
 }
 
@@ -140,7 +149,7 @@ case $COMMAND in
         start_network
         ;;
     "stop")
-        stop_network
+        stop_network 0
         ;;
     *)
         echoerr "error: unexpected command '$COMMAND'" 1>&2
