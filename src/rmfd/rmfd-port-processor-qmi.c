@@ -55,6 +55,8 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 
 #define DEFAULT_STATS_TIMEOUT_SECS 10
 
+#define MAX_CONNECT_ITERATIONS 3
+
 #define STATS_FILE_PATH "/var/log/rmfd.stats"
 
 typedef enum {
@@ -2900,6 +2902,76 @@ schedule_stats (RmfdPortProcessorQmi *self)
 /**********************/
 /* Connect */
 
+typedef enum {
+    CONNECT_STEP_FIRST,
+    CONNECT_STEP_IP_FAMILY,
+    CONNECT_STEP_START_NETWORK,
+    CONNECT_STEP_WWAN_SETUP,
+    CONNECT_STEP_STATS,
+    CONNECT_STEP_LAST,
+} ConnectStep;
+
+typedef struct {
+    ConnectStep  step;
+    guint        iteration;
+    gboolean     default_ip_family_set;
+    GError      *error;
+} ConnectContext;
+
+static void
+connect_context_free (ConnectContext *ctx)
+{
+    if (ctx->error)
+        g_error_free (ctx->error);
+    g_slice_free (ConnectContext, ctx);
+}
+
+static void connect_step (RunContext *ctx);
+
+static gboolean
+connect_step_scheduled (RunContext *ctx)
+{
+    connect_step (ctx);
+    return G_SOURCE_REMOVE;
+}
+
+static void
+connect_step_schedule (RunContext *ctx,
+                       guint       n_seconds)
+{
+    g_timeout_add_seconds (n_seconds, (GSourceFunc) connect_step_scheduled, ctx);
+}
+
+static void
+connect_step_restart_iteration (RunContext *ctx)
+{
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+
+    g_assert (connect_ctx->error);
+    connect_ctx->iteration++;
+
+    if (connect_ctx->iteration > MAX_CONNECT_ITERATIONS) {
+        GByteArray *error_message;
+
+        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+
+        g_warning ("error: no more connection attempts left");
+
+        error_message = rmfd_error_message_new_from_gerror (ctx->request, connect_ctx->error);
+        g_simple_async_result_set_op_res_gpointer (ctx->result, error_message,
+                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* From the very beginning */
+    g_clear_error (&connect_ctx->error);
+    connect_ctx->step = CONNECT_STEP_FIRST;
+    connect_ctx->default_ip_family_set = FALSE;
+
+    connect_step_schedule (ctx, 5);
+}
+
 static void
 wds_stop_network_after_start_ready (QmiClientWds *client,
                                     GAsyncResult *res,
@@ -2914,13 +2986,8 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
 
     /* Clear packet data handle */
     ctx->self->priv->packet_data_handle = 0;
-    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
-    g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                               rmfd_error_message_new_from_gerror (
-                                                   ctx->request,
-                                                   (GError *)ctx->additional_context),
-                                               (GDestroyNotify)g_byte_array_unref);
-    run_context_complete_and_free (ctx);
+
+    connect_step_restart_iteration (ctx);
 }
 
 static void
@@ -2928,8 +2995,8 @@ write_connection_stats_start_ready (RmfdPortProcessorQmi *self,
                                     GAsyncResult         *res,
                                     RunContext           *ctx)
 {
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
     GError *error = NULL;
-    guint8 *response;
 
     if (!write_connection_stats_finish (self, res, &error)) {
         g_debug ("couldn't write initial connection stats: %s", error->message);
@@ -2939,13 +3006,19 @@ write_connection_stats_start_ready (RmfdPortProcessorQmi *self,
     self->priv->stats_enabled = TRUE;
     schedule_stats (self);
 
-    /* Ok! */
-    ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
-    response = rmf_message_connect_response_new ();
-    g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                               (GDestroyNotify)g_byte_array_unref);
-    run_context_complete_and_free (ctx);
+    /* Go on to next step */
+    connect_ctx->step++;
+    connect_step (ctx);
+}
+
+static void
+connect_step_stats (RunContext *ctx)
+{
+    /* Report start of stats */
+    write_connection_stats (ctx->self,
+                            RMFD_STATS_RECORD_TYPE_START,
+                            (GAsyncReadyCallback) write_connection_stats_start_ready,
+                            ctx);
 }
 
 static void
@@ -2953,14 +3026,15 @@ data_setup_start_ready (RmfdPortData *data,
                         GAsyncResult *res,
                         RunContext   *ctx)
 {
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
     GError *error = NULL;
 
     if (!rmfd_port_data_setup_finish (data, res, &error)) {
         QmiMessageWdsStopNetworkInput *input;
 
-        /* Abort */
-        run_context_set_additional_context (ctx, error, (GDestroyNotify)g_error_free);
-        g_warning ("error: couldn't start interface: %s", error->message);
+        g_assert (!connect_ctx->error);
+        connect_ctx->error = error;
+
         input = qmi_message_wds_stop_network_input_new ();
         qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
         qmi_client_wds_stop_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
@@ -2973,11 +3047,18 @@ data_setup_start_ready (RmfdPortData *data,
         return;
     }
 
-    /* Report start of stats */
-    write_connection_stats (ctx->self,
-                            RMFD_STATS_RECORD_TYPE_START,
-                            (GAsyncReadyCallback) write_connection_stats_start_ready,
-                            ctx);
+    /* Go on to next step */
+    connect_ctx->step++;
+    connect_step (ctx);
+}
+
+static void
+connect_step_wwan_setup (RunContext *ctx)
+{
+    rmfd_port_data_setup (ctx->data,
+                          TRUE,
+                          (GAsyncReadyCallback)data_setup_start_ready,
+                          ctx);
 }
 
 static void
@@ -2985,9 +3066,12 @@ wds_start_network_ready (QmiClientWds *client,
                          GAsyncResult *res,
                          RunContext   *ctx)
 {
-    GByteArray *error_message = NULL;
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
     GError *error = NULL;
     QmiMessageWdsStartNetworkOutput *output;
+    GString *error_str = NULL;
+
+    g_assert (!connect_ctx->error);
 
     output = qmi_client_wds_start_network_finish (client, res, &error);
     if (output &&
@@ -3013,7 +3097,6 @@ wds_start_network_ready (QmiClientWds *client,
                 QmiWdsCallEndReason cer;
                 QmiWdsVerboseCallEndReasonType verbose_cer_type;
                 gint16 verbose_cer_reason;
-                GString *error_str;
 
                 error_str = g_string_new ("");
                 if (qmi_message_wds_start_network_output_get_call_end_reason (
@@ -3057,12 +3140,6 @@ wds_start_network_ready (QmiClientWds *client,
                                                 str ? str : "unknown error",
                                                 verbose_cer_reason);
                 }
-
-                error_message = rmfd_error_message_new_from_error (ctx->request,
-                                                                   error->domain,
-                                                                   error->code,
-                                                                   error_str->len > 0 ? error_str->str : "unknown error");
-                g_string_free (error_str, TRUE);
             }
         }
     }
@@ -3074,43 +3151,31 @@ wds_start_network_ready (QmiClientWds *client,
     }
 
     if (error) {
-        if (!error_message)
-            error_message = rmfd_error_message_new_from_gerror (ctx->request, error);
-
-        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
-        g_simple_async_result_set_op_res_gpointer (ctx->result, error_message,
-                                                   (GDestroyNotify)g_byte_array_unref);
-        g_error_free (error);
-        run_context_complete_and_free (ctx);
+        if (error_str) {
+            connect_ctx->error = g_error_new (error->domain,
+                                              error->code,
+                                              "%s", error_str->len > 0 ? error_str->str : "unknown error");
+            g_error_free (error);
+            g_string_free (error_str, TRUE);
+        } else
+            connect_ctx->error = error;
+        connect_step_restart_iteration (ctx);
         return;
     }
 
-    rmfd_port_data_setup (ctx->data,
-                          TRUE,
-                          (GAsyncReadyCallback)data_setup_start_ready,
-                          ctx);
+    /* Go on to next step */
+    connect_ctx->step++;
+    connect_step_schedule (ctx, 1);
 }
 
 static void
-wds_set_ip_family_ready (QmiClientWds *client,
-                         GAsyncResult *res,
-                         RunContext   *ctx)
+connect_step_start_network (RunContext *ctx)
 {
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
     QmiMessageWdsStartNetworkInput *input;
-    QmiMessageWdsSetIpFamilyOutput *output;
-    gboolean default_ip_family_set = FALSE;
     const gchar *apn;
     const gchar *user;
     const gchar *password;
-
-    /* If there is an error setting default IP family, explicitly add it when
-     * starting network */
-    output = qmi_client_wds_set_ip_family_finish (client, res, NULL);
-    if (output && qmi_message_wds_set_ip_family_output_get_result (output, NULL))
-        default_ip_family_set = TRUE;
-
-    if (output)
-        qmi_message_wds_set_ip_family_output_unref (output);
 
     /* Setup start network command */
     rmf_message_connect_request_parse (ctx->request->data, &apn, &user, &password);
@@ -3135,7 +3200,7 @@ wds_set_ip_family_ready (QmiClientWds *client,
      * we'll just allow the case where none is specified. Also, don't add this
      * TLV if we already set a default IP family preference with "WDS Set IP
      * Family" */
-    if (!default_ip_family_set)
+    if (!connect_ctx->default_ip_family_set)
         qmi_message_wds_start_network_input_set_ip_family_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
 
     qmi_client_wds_start_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
@@ -3148,9 +3213,89 @@ wds_set_ip_family_ready (QmiClientWds *client,
 }
 
 static void
-connect (RunContext *ctx)
+wds_set_ip_family_ready (QmiClientWds *client,
+                         GAsyncResult *res,
+                         RunContext   *ctx)
+{
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+    QmiMessageWdsSetIpFamilyOutput *output;
+
+    /* If there is an error setting default IP family, explicitly add it when
+     * starting network */
+    output = qmi_client_wds_set_ip_family_finish (client, res, NULL);
+    if (output && qmi_message_wds_set_ip_family_output_get_result (output, NULL))
+        connect_ctx->default_ip_family_set = TRUE;
+
+    if (output)
+        qmi_message_wds_set_ip_family_output_unref (output);
+
+    /* Go on to next step */
+    connect_ctx->step++;
+    connect_step (ctx);
+}
+
+static void
+connect_step_ip_family (RunContext *ctx)
 {
     QmiMessageWdsSetIpFamilyInput *input;
+
+    /* Start by setting IPv4 family */
+    input = qmi_message_wds_set_ip_family_input_new ();
+    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
+    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
+                                  input,
+                                  10,
+                                  NULL,
+                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
+                                  ctx);
+    qmi_message_wds_set_ip_family_input_unref (input);
+}
+
+static void
+connect_step (RunContext *ctx)
+{
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+    guint8 *response;
+
+    switch (connect_ctx->step) {
+    case CONNECT_STEP_FIRST:
+        /* Fall down */
+        g_warning ("trying connection attempt (attempt %u/%u)...", connect_ctx->iteration, MAX_CONNECT_ITERATIONS);
+        connect_ctx->step++;
+
+    case CONNECT_STEP_IP_FAMILY:
+        connect_step_ip_family (ctx);
+        return;
+
+    case CONNECT_STEP_START_NETWORK:
+        connect_step_start_network (ctx);
+        return;
+
+    case CONNECT_STEP_WWAN_SETUP:
+        connect_step_wwan_setup (ctx);
+        return;
+
+    case CONNECT_STEP_STATS:
+        connect_step_stats (ctx);
+        return;
+
+    case CONNECT_STEP_LAST:
+        /* Ok! */
+        ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
+
+        response = rmf_message_connect_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+}
+
+static void
+connect (RunContext *ctx)
+{
+    ConnectContext *connect_ctx;
 
     if (ctx->self->priv->connection_status != RMF_CONNECTION_STATUS_DISCONNECTED) {
         switch (ctx->self->priv->connection_status) {
@@ -3191,16 +3336,12 @@ connect (RunContext *ctx)
     /* Now connecting */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTING;
 
-    /* Start by setting IPv4 family */
-    input = qmi_message_wds_set_ip_family_input_new ();
-    qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
-    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
-                                  input,
-                                  10,
-                                  NULL,
-                                  (GAsyncReadyCallback)wds_set_ip_family_ready,
-                                  ctx);
-    qmi_message_wds_set_ip_family_input_unref (input);
+    /* Setup connect context */
+    connect_ctx = g_slice_new0 (ConnectContext);
+    connect_ctx->step = CONNECT_STEP_FIRST;
+    connect_ctx->iteration = 1;
+    run_context_set_additional_context (ctx, connect_ctx, (GDestroyNotify)connect_context_free);
+    connect_step (ctx);
 }
 
 /**********************/
