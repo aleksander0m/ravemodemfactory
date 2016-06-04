@@ -1176,7 +1176,7 @@ Modem::Connect (const string apn,
     request = rmf_message_connect_request_new (apn.c_str(),
                                                user.c_str(),
                                                password.c_str());
-    ret = send_and_receive (request, 120, &response);
+    ret = send_and_receive (request, 200, &response);
     free (request);
 
     if (ret != ERROR_NONE)
