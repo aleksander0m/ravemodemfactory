@@ -4550,6 +4550,7 @@ device_new_ready (GObject      *source,
                   InitContext  *ctx)
 {
     GError *error = NULL;
+    QmiDeviceOpenFlags flags;
 
     ctx->self->priv->qmi_device = qmi_device_new_finish (res, &error);
     if (!ctx->self->priv->qmi_device) {
@@ -4560,12 +4561,17 @@ device_new_ready (GObject      *source,
 
     g_debug ("QMI device created: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
+    flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
+             QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
+             QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
+             QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
+
+    if (g_getenv ("RMFD_QMI_PROXY"))
+        flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
+
     /* Open the QMI port */
     qmi_device_open (ctx->self->priv->qmi_device,
-                     (QMI_DEVICE_OPEN_FLAGS_SYNC |
-                      QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
-                      QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
-                      QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER),
+                     flags,
                      10,
                      NULL, /* cancellable */
                      (GAsyncReadyCallback) device_open_ready,
