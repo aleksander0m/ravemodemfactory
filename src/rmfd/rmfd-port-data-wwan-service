@@ -26,9 +26,10 @@ echodbg() { echo "[$PROGRAM] $@"; }
 print_usage ()
 {
     echodbg "usage: $0 [DEVICE] [start|stop]"
+    echodbg "usage: $0 [DEVICE] [static] [IPv4] [Netmask] [Gateway] [DNS1] [DNS2] [MTU]"
 }
 
-if [ $# -ne 2 ]; then
+if [ $# -lt 2 ]; then
     echoerr "error: missing arguments" 1>&2
     print_usage
     exit 1
@@ -47,6 +48,88 @@ if [ $? -ne 0 ]; then
     echoerr "error: iproute2 tools not available"
     exit 127
 fi
+
+mask2cdr ()
+{
+   # Assumes there's no "255." after a non-255 byte in the mask
+   local x=${1##*255.}
+   set -- 0^^^128^192^224^240^248^252^254^ $(( (${#1} - ${#x})*2 )) ${x%%.*}
+   x=${1%%$3*}
+   echo $(( $2 + (${#x}/4) ))
+}
+
+static_network ()
+{
+    echodbg "bringing up WWAN interface '$DEVICE'"
+    ip link set $DEVICE up >/dev/null 2>&1
+    IFUP_STATUS=$?
+    if [ $IFUP_STATUS -ne 0 ]; then
+       echoerr "error: couldn't bring up WWAN interface $DEVICE: UP command returned $IFUP_STATUS"
+       stop_network 2
+    fi
+
+    if [ -f $RESOLV_CONF_BACKUP ]; then
+        rm -f $RESOLV_CONF_BACKUP
+    fi
+
+    echodbg "backing up resolv.conf file"
+    cp /etc/resolv.conf $RESOLV_CONF_BACKUP
+
+    if [ -z "${IP_ADDRESS}" ]; then
+        echoerr "error: IP address not given"
+        stop_network 3
+    fi
+
+    if [ -z "${NETMASK_ADDRESS}" ]; then
+        echoerr "error: netmask address not given"
+        stop_network 4
+    fi
+
+    CDR=$(mask2cdr $NETMASK_ADDRESS)
+    if [ -z "${CDR}" ]; then
+        echoerr "error: netmask address not converted to cdr"
+        stop_network 5
+    fi
+
+    ip addr add ${IP_ADDRESS}/${CDR} dev ${DEVICE} >/dev/null 2>&1
+    IPADDR_STATUS=$?
+    if [ $IPADDR_STATUS -ne 0 ]; then
+        echoerr "error: couldn't set IP address in interface: $IPADDR_STATUS"
+        stop_network 6
+    fi
+
+    if [ -n "${GATEWAY_ADDRESS}" ]; then
+        ip route add default via ${GATEWAY_ADDRESS} dev ${DEVICE} >/dev/null 2>&1
+        IPROUTE_STATUS=$?
+        if [ $IPROUTE_STATUS -ne 0 ]; then
+            echoerr "error: couldn't set default route in interface: $IPROUTE_STATUS"
+            stop_network 7
+        fi
+    fi
+
+    if [ -n ${DNS1_ADRESS} ] || [ -n ${DNS2_ADRESS} ]; then
+        echo "" > /etc/resolv.conf
+        if [ $? -eq 0 ]; then
+            if [ -n ${DNS1_ADRESS} ]; then
+                echo "nameserver ${DNS1_ADRESS}" >> /etc/resolv.conf
+            fi
+            if [ -n ${DNS2_ADRESS} ]; then
+                echo "nameserver ${DNS2_ADRESS}" >> /etc/resolv.conf
+            fi
+        fi
+    fi
+
+    if [ -n ${MTU} ]; then
+        ip link set dev ${DEVICE} mtu ${MTU}
+        IPLINK_STATUS=$?
+        if [ $IPLINK_STATUS -ne 0 ]; then
+            echoerr "error: couldn't set mtu in interface: $IPLINK_STATUS"
+        fi
+    fi
+
+    echodbg "WWAN interface '$DEVICE' started successfully"
+    exit 0
+}
 
 start_network ()
 {
@@ -108,6 +191,8 @@ stop_network ()
     # Don't bring down interface if not available
     if [ `grep $DEVICE /proc/net/dev | wc -l` -ne 0 ]; then
         echodbg "bringing down WWAN interface '$DEVICE'"
+        ip route flush dev ${DEVICE} >/dev/null 2>&1
+        ip addr flush dev ${DEVICE} >/dev/null 2>&1
         ip link set $DEVICE down >/dev/null 2>&1
         IFDOWN_STATUS=$?
         if [ $IFDOWN_STATUS -ne 0 ]; then
@@ -132,6 +217,33 @@ stop_network ()
 case $COMMAND in
     "start")
         start_network
+        ;;
+    "static")
+        IP_ADDRESS=$3
+        if [ "${IP_ADDRESS}" == "-" ]; then
+            IP_ADDRESS=""
+        fi
+        NETMASK_ADDRESS=$4
+        if [ "${NETMASK_ADDRESS}" == "-" ]; then
+            NETMASK_ADDRESS=""
+        fi
+        GATEWAY_ADDRESS=$5
+        if [ "${GATEWAY_ADDRESS}" == "-" ]; then
+            GATEWAY_ADDRESS=""
+        fi
+        DNS1_ADDRESS=$6
+        if [ "${DNS1_ADDRESS}" == "-" ]; then
+            DNS1_ADDRESS=""
+        fi
+        DNS2_ADDRESS=$7
+        if [ "${DNS2_ADDRESS}" == "-" ]; then
+            DNS2_ADDRESS=""
+        fi
+        MTU=$8
+        if [ "${MTU}" == "-" ]; then
+            MTU=""
+        fi
+        static_network
         ;;
     "stop")
         stop_network 0

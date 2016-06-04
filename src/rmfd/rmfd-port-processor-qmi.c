@@ -3068,8 +3068,26 @@ data_setup_start_ready (RmfdPortData *data,
 static void
 connect_step_wwan_setup (RunContext *ctx)
 {
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+
+    if (connect_ctx->ip_str && connect_ctx->subnet_str) {
+        rmfd_port_data_setup (ctx->data,
+                              TRUE,
+                              connect_ctx->ip_str,
+                              connect_ctx->subnet_str,
+                              connect_ctx->gw_str,
+                              connect_ctx->dns1_str,
+                              connect_ctx->dns2_str,
+                              connect_ctx->mtu,
+                              (GAsyncReadyCallback)data_setup_start_ready,
+                              ctx);
+        return;
+    }
+
+    /* Default to dhcp otherwise */
     rmfd_port_data_setup (ctx->data,
                           TRUE,
+                          NULL, NULL, NULL, NULL, NULL, 0,
                           (GAsyncReadyCallback)data_setup_start_ready,
                           ctx);
 }
@@ -3530,6 +3548,7 @@ write_connection_stats_stop_ready (RmfdPortProcessorQmi *self,
 
     rmfd_port_data_setup (ctx->data,
                           FALSE,
+                          NULL, NULL, NULL, NULL, NULL, 0,
                           (GAsyncReadyCallback)data_setup_stop_ready,
                           ctx);
 }
