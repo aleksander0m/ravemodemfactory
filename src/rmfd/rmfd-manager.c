@@ -584,10 +584,13 @@ setup_socket_service (RmfdManager *self)
     GError          *error = NULL;
 
     if (self->priv->ip_address && self->priv->tcp_port) {
+        GInetAddress *inet_address;
+
         g_debug ("creating TCP socket service...");
-        socket_address = g_inet_socket_address_new_from_string (self->priv->ip_address,
-                                                                self->priv->tcp_port);
+        inet_address = g_inet_address_new_from_string (self->priv->ip_address);
+        socket_address = g_inet_socket_address_new (inet_address, self->priv->tcp_port);
         socket_protocol = G_SOCKET_PROTOCOL_TCP;
+        g_object_unref (inet_address);
     } else {
         g_debug ("creating UNIX socket service...");
 
