@@ -83,6 +83,7 @@ struct _RmfdPortProcessorQmiPrivate {
     QmiClient *dms;
     QmiClient *nas;
     QmiClient *wds;
+    QmiClient *wda;
     QmiClient *uim;
     QmiClient *wms;
 
@@ -4676,6 +4677,81 @@ allocate_dms_client_ready (QmiDevice    *qmi_device,
 }
 
 static void
+set_data_format_ready (QmiClientWda *client,
+                       GAsyncResult *res,
+                       InitContext  *ctx)
+{
+    QmiMessageWdaSetDataFormatOutput *output;
+    GError *error = NULL;
+    QmiWdaLinkLayerProtocol link_layer_protocol;
+
+    output = qmi_client_wda_set_data_format_finish (client, res, &error);
+    if (!output) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (!qmi_message_wda_set_data_format_output_get_result (output, &error)) {
+        qmi_message_wda_set_data_format_output_unref (output);
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (qmi_message_wda_set_data_format_output_get_link_layer_protocol (
+            output,
+            &link_layer_protocol,
+            NULL) &&
+        link_layer_protocol != QMI_WDA_LINK_LAYER_PROTOCOL_802_3) {
+
+        g_simple_async_result_set_error (ctx->result,
+                                         G_IO_ERROR, G_IO_ERROR_FAILED,
+                                         "Couldn't update link layer protocol");
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                QMI_SERVICE_DMS,
+                                QMI_CID_NONE,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback)allocate_dms_client_ready,
+                                ctx);
+}
+
+static void
+allocate_wda_client_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    QmiMessageWdaSetDataFormatInput *input;
+    GError *error = NULL;
+
+    ctx->self->priv->wda = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!ctx->self->priv->wda) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("QMI WDA client created");
+
+    input = qmi_message_wda_set_data_format_input_new ();
+    qmi_message_wda_set_data_format_input_set_link_layer_protocol (
+        input, QMI_WDA_LINK_LAYER_PROTOCOL_802_3, NULL);
+
+    qmi_client_wda_set_data_format (QMI_CLIENT_WDA (ctx->self->priv->wda),
+                                    input,
+                                    10,
+                                    NULL,
+                                    (GAsyncReadyCallback)set_data_format_ready,
+                                    ctx);
+    qmi_message_wda_set_data_format_input_unref (input);
+}
+
+static void
 device_open_ready (QmiDevice    *qmi_device,
                    GAsyncResult *res,
                    InitContext  *ctx)
@@ -4691,11 +4767,11 @@ device_open_ready (QmiDevice    *qmi_device,
     g_debug ("QMI device opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
     qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_DMS,
+                                QMI_SERVICE_WDA,
                                 QMI_CID_NONE,
                                 10,
                                 NULL,
-                                (GAsyncReadyCallback)allocate_dms_client_ready,
+                                (GAsyncReadyCallback)allocate_wda_client_ready,
                                 ctx);
 }
 
@@ -4843,6 +4919,11 @@ dispose (GObject *object)
                                        self->priv->wds,
                                        QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
                                        3, NULL, NULL, NULL);
+        if (self->priv->wda)
+            qmi_device_release_client (self->priv->qmi_device,
+                                       self->priv->wda,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
         if (self->priv->uim)
             qmi_device_release_client (self->priv->qmi_device,
                                        self->priv->uim,
@@ -4873,6 +4954,7 @@ dispose (GObject *object)
     g_clear_object (&self->priv->dms);
     g_clear_object (&self->priv->nas);
     g_clear_object (&self->priv->wds);
+    g_clear_object (&self->priv->wda);
     g_clear_object (&self->priv->uim);
     g_clear_object (&self->priv->wms);
     g_clear_object (&self->priv->qmi_device);
