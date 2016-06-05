@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/bin/bash
+# NOTE: we DO REQUIRE bash; don't attempt to set sh or some other thing
 
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -58,6 +59,31 @@ mask2cdr ()
    echo $(( $2 + (${#x}/4) ))
 }
 
+ip2int()
+{
+    local a b c d
+    { IFS=. read a b c d; } <<< $1
+    echo $(((((((a << 8) | b) << 8) | c) << 8) | d))
+}
+
+int2ip()
+{
+    local ui32=$1; shift
+    local ip n
+    for n in 1 2 3 4; do
+        ip=$((ui32 & 0xff))${ip:+.}$ip
+        ui32=$((ui32 >> 8))
+    done
+    echo $ip
+}
+
+broadcast()
+{
+    local addr=$(ip2int $1); shift
+    local mask=$((0xffffffff << (32 -$1))); shift
+    int2ip $((addr | ~mask))
+}
+
 static_network ()
 {
     echodbg "bringing up WWAN interface '$DEVICE'"
@@ -91,11 +117,17 @@ static_network ()
         stop_network 5
     fi
 
-    ip addr add ${IP_ADDRESS}/${CDR} dev ${DEVICE} >/dev/null 2>&1
+    BROADCAST=$(broadcast ${IP_ADDRESS} ${CDR})
+    if [ -z "${BROADCAST}" ]; then
+        echoerr "error: broadcast address not computed"
+        stop_network 6
+    fi
+
+    ip addr add ${IP_ADDRESS}/${CDR} broadcast ${BROADCAST} dev ${DEVICE} >/dev/null 2>&1
     IPADDR_STATUS=$?
     if [ $IPADDR_STATUS -ne 0 ]; then
         echoerr "error: couldn't set IP address in interface: $IPADDR_STATUS"
-        stop_network 6
+        stop_network 7
     fi
 
     if [ -n "${GATEWAY_ADDRESS}" ]; then
@@ -108,19 +140,19 @@ static_network ()
             IPROUTE_STATUS=$?
             if [ $IPROUTE_STATUS -ne 0 ]; then
                 echoerr "error: couldn't set default route in interface: $IPROUTE_STATUS"
-                stop_network 7
+                stop_network 8
             fi
         fi
     fi
 
-    if [ -n ${DNS1_ADRESS} ] || [ -n ${DNS2_ADRESS} ]; then
+    if [ -n ${DNS1_ADDRESS} ] || [ -n ${DNS2_ADDRESS} ]; then
         echo "" > /etc/resolv.conf
         if [ $? -eq 0 ]; then
-            if [ -n ${DNS1_ADRESS} ]; then
-                echo "nameserver ${DNS1_ADRESS}" >> /etc/resolv.conf
+            if [ -n ${DNS1_ADDRESS} ]; then
+                echo "nameserver ${DNS1_ADDRESS}" >> /etc/resolv.conf
             fi
-            if [ -n ${DNS2_ADRESS} ]; then
-                echo "nameserver ${DNS2_ADRESS}" >> /etc/resolv.conf
+            if [ -n ${DNS2_ADDRESS} ]; then
+                echo "nameserver ${DNS2_ADDRESS}" >> /etc/resolv.conf
             fi
         fi
     fi
@@ -218,6 +250,10 @@ stop_network ()
 
     exit $ERR
 }
+
+#if [ "$COMMAND" == "static" ]; then
+#    COMMAND=start
+#fi
 
 # Process commands
 case $COMMAND in
