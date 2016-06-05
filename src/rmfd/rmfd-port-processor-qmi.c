@@ -4793,9 +4793,7 @@ device_new_ready (GObject      *source,
     g_debug ("QMI device created: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
     flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
-             QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
-             QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
-             QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
+             QMI_DEVICE_OPEN_FLAGS_VERSION_INFO);
 
     if (g_getenv ("RMFD_QMI_PROXY"))
         flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
