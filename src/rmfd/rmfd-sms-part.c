@@ -34,7 +34,7 @@ rmfd_sms_encoding_get_string (RmfdSmsEncoding encoding)
     static const gchar *encoding_strings [] = {
         "unknown",
         "gsm7",
-        "utf8"
+        "utf8",
         "ucs2"
     };
 
