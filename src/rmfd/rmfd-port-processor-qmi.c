@@ -2966,6 +2966,8 @@ connect_step_restart_iteration (RunContext *ctx)
         return;
     }
 
+    g_warning ("error: restarting connection iteration");
+
     /* From the very beginning */
     g_clear_error (&connect_ctx->error);
     connect_ctx->step = CONNECT_STEP_FIRST;
@@ -3185,7 +3187,6 @@ wds_start_network_ready (QmiClientWds *client,
 
             /* Fall down to a successful connection */
         } else {
-            g_warning ("error: couldn't start network: %s", error->message);
             if (g_error_matches (error,
                                  QMI_PROTOCOL_ERROR,
                                  QMI_PROTOCOL_ERROR_CALL_FAILED)) {
@@ -3246,6 +3247,8 @@ wds_start_network_ready (QmiClientWds *client,
     }
 
     if (error) {
+        g_warning ("error: couldn't start network: %s", error->message);
+
         if (error_str) {
             connect_ctx->error = g_error_new (error->domain,
                                               error->code,
@@ -3355,31 +3358,43 @@ connect_step (RunContext *ctx)
     switch (connect_ctx->step) {
     case CONNECT_STEP_FIRST:
         /* Fall down */
-        g_warning ("trying connection attempt (attempt %u/%u)...", connect_ctx->iteration, MAX_CONNECT_ITERATIONS);
+        g_warning ("connection: new connection attempt (%u/%u)...", connect_ctx->iteration, MAX_CONNECT_ITERATIONS);
         connect_ctx->step++;
 
     case CONNECT_STEP_IP_FAMILY:
+        g_message ("connection %u/%u step %u/%u: setting IPv4 family...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         connect_step_ip_family (ctx);
         return;
 
     case CONNECT_STEP_START_NETWORK:
+        g_message ("connection %u/%u step %u/%u: starting network...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         connect_step_start_network (ctx);
         return;
 
     case CONNECT_STEP_IP_SETTINGS:
+        g_message ("connection %u/%u step %u/%u: retrieving IPv4 settings...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         connect_step_ip_settings (ctx);
         return;
 
     case CONNECT_STEP_WWAN_SETUP:
+        g_message ("connection %u/%u step %u/%u: wwan interface setup...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         connect_step_wwan_setup (ctx);
         return;
 
     case CONNECT_STEP_STATS:
+        g_message ("connection %u/%u step %u/%u: reseting stats...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         connect_step_stats (ctx);
         return;
 
     case CONNECT_STEP_LAST:
         /* Ok! */
+        g_message ("connection %u/%u step %u/%u: successfully connected",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTED;
 
         response = rmf_message_connect_response_new ();
