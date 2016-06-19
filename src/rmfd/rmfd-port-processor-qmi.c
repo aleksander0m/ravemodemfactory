@@ -3279,10 +3279,10 @@ connect_step_start_network (RunContext *ctx)
     rmf_message_connect_request_parse (ctx->request->data, &apn, &user, &password);
 
     input = qmi_message_wds_start_network_input_new ();
-    if (apn)
+    if (apn && apn[0])
         qmi_message_wds_start_network_input_set_apn (input, apn, NULL);
 
-    if (user || password) {
+    if ((user && user[0]) || (password && password[0])) {
         qmi_message_wds_start_network_input_set_authentication_preference (
             input,
             (QMI_WDS_AUTHENTICATION_PAP | QMI_WDS_AUTHENTICATION_CHAP),
