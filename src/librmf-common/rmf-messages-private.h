@@ -28,6 +28,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <endian.h>
 
 /******************************************************************************/
 
@@ -40,9 +41,9 @@ struct RmfMessageHeader {
     uint32_t variable_size;
 }  __attribute__((packed));
 
-#define RMF_MESSAGE_LENGTH(buffer)  ((struct RmfMessageHeader *)buffer)->length
-#define RMF_MESSAGE_TYPE(buffer)    ((struct RmfMessageHeader *)buffer)->type
-#define RMF_MESSAGE_COMMAND(buffer) ((struct RmfMessageHeader *)buffer)->command
+#define RMF_MESSAGE_LENGTH(buffer)  (le32toh (((struct RmfMessageHeader *)buffer)->length))
+#define RMF_MESSAGE_TYPE(buffer)    (le32toh (((struct RmfMessageHeader *)buffer)->type))
+#define RMF_MESSAGE_COMMAND(buffer) (le32toh (((struct RmfMessageHeader *)buffer)->command))
 
 /******************************************************************************/
 /* Message builder */
