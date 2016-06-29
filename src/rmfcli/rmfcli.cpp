@@ -47,7 +47,7 @@ printHelp (void)
     std::cout << "Options:" << std::endl;
     std::cout << "\t-y, --target-address=\"ip\"" << std::endl;
     std::cout << "\t-Y, --target-port=\"port\"" << std::endl;
-    std::cout << "\t-v, --version" << std::endl;
+    std::cout << std::endl;
     std::cout << "Actions:" << std::endl;
     std::cout << "\t-f, --get-manufacturer" << std::endl;
     std::cout << "\t-d, --get-model" << std::endl;
