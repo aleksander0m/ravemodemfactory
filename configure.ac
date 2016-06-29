@@ -41,6 +41,7 @@ AC_SUBST(GLIB_MKENUMS)
 
 AC_CONFIG_FILES([Makefile
                  build-aux/Makefile
+                 doc/Makefile
                  src/Makefile
                  src/librmf-common/Makefile
                  src/librmf-common/test/Makefile
