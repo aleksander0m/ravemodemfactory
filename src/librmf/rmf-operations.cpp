@@ -185,6 +185,7 @@ Modem::SetTargetRemote (const string address,
     target_remote  = true;
     target_address = address;
     target_port    = port;
+    return true;
 }
 
 bool
@@ -193,6 +194,7 @@ Modem::SetTargetLocal (void)
     target_remote  = false;
     target_address = "";
     target_port    = 0;
+    return true;
 }
 
 /*****************************************************************************/
