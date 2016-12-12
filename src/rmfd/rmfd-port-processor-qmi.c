@@ -4794,6 +4794,7 @@ typedef enum {
     INIT_CONTEXT_STEP_DEVICE_NEW,
     INIT_CONTEXT_STEP_DEVICE_OPEN,
     INIT_CONTEXT_STEP_DATA_FORMAT_INIT,
+    INIT_CONTEXT_STEP_DEVICE_REOPEN_802_3,
     INIT_CONTEXT_STEP_CLIENTS,
     INIT_CONTEXT_STEP_MESSAGING_INIT,
     INIT_CONTEXT_STEP_LAST,
@@ -4885,15 +4886,16 @@ data_format_init_ready (RmfdPortProcessorQmi *self,
     GError *error = NULL;
 
     if (!data_format_init_finish (self, res, &error)) {
-        g_simple_async_result_take_error (ctx->result, error);
-        init_context_complete_and_free (ctx);
-        return;
+        g_debug ("Data format not initialized: %s", error->message);
+        g_error_free (error);
+        /* Go on to next step */
+        ctx->step++;
+    } else {
+        g_debug ("Data format initialized");
+        /* Skip next step */
+        ctx->step = INIT_CONTEXT_STEP_CLIENTS;
     }
 
-    g_debug ("Data format initialized");
-
-    /* Go on to next step */
-    ctx->step++;
     init_context_step (ctx);
 }
 
@@ -4964,9 +4966,7 @@ init_context_step (InitContext *ctx)
         QmiDeviceOpenFlags flags;
 
         flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
-                 QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
-                 QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
-                 QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
+                 QMI_DEVICE_OPEN_FLAGS_VERSION_INFO);
 
         if (g_getenv ("RMFD_QMI_PROXY"))
             flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
@@ -4989,6 +4989,35 @@ init_context_step (InitContext *ctx)
                          (GAsyncReadyCallback) data_format_init_ready,
                          ctx);
         return;
+
+    case INIT_CONTEXT_STEP_DEVICE_REOPEN_802_3: {
+        QmiDeviceOpenFlags  flags;
+        GError             *error = NULL;
+
+        flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
+                 QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
+                 QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
+                 QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
+
+        if (g_getenv ("RMFD_QMI_PROXY"))
+            flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
+
+        /* Close the QMI port */
+        if (!qmi_device_close (ctx->self->priv->qmi_device, &error)) {
+            g_warning ("error closing QMI device: %s", error->message);
+            g_error_free (error);
+        }
+
+        /* Open the QMI port */
+        g_debug ("(re)opening QMI device with 802.3 requested...");
+        qmi_device_open (ctx->self->priv->qmi_device,
+                         flags,
+                         10,
+                         ctx->cancellable,
+                         (GAsyncReadyCallback) device_open_ready,
+                         ctx);
+        return;
+    }
 
     case INIT_CONTEXT_STEP_CLIENTS: {
         /* Allocate next client */
