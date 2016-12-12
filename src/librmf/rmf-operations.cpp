@@ -18,10 +18,12 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2015 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2016 Zodiac Inflight Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
+
+#include <config.h>
 
 #include <errno.h>
 #include <string.h>
@@ -212,6 +214,10 @@ enum {
     ERROR_CHANNEL_HUP,
     ERROR_RECV_FAILED,
     ERROR_NO_MATCH,
+    ERROR_NO_MEMORY,
+    ERROR_RECV_NOT_FULL,
+    ERROR_INVALID_MSG_LENGTH,
+    ERROR_N
 };
 
 static const char *error_strings[] = {
@@ -224,11 +230,21 @@ static const char *error_strings[] = {
     "Error detected in channel",
     "Remote closed channel",
     "Recv failed",
-    "Request and response didn't match"
+    "Request and response didn't match",
+    "No memory",
+    "Full message not received",
+    "Invalid message length",
 };
+
+#if defined HAVE_STATIC_ASSERT
+static_assert ((sizeof (error_strings) / sizeof (error_strings[0])) == ERROR_N, "missing error strings");
+#endif
 
 /* We'll wait up to 1s for the connection to be established */
 #define DEFAULT_CONNECT_TIMEOUT_SEC 1
+
+/* We'll wait up to 1s for the full response once the start has been received */
+#define DEFAULT_RECV_TIMEOUT_SEC 1
 
 /* Up to 1000 retries if EINTR is received in send() */
 #define MAX_EINTR_RETRIES 1000
@@ -355,29 +371,51 @@ send_and_receive (const uint8_t  *request,
     }
 
     if (fds[0].revents & POLLIN || fds[0].revents & POLLPRI) {
+        struct timeval recv_timeout_tv;
+        uint32_t message_size;
+
         /* Setup buffer to receive the response; we'll assume it has a max
          * size for now */
         buffer = (uint8_t *) malloc (RMF_MESSAGE_MAX_SIZE);
+        if (!buffer) {
+            ret = ERROR_NO_MEMORY;
+            goto failed;
+        }
 
-        /* 5th step: recv(). We try to read up to RMF_MESSAGE_MAX_SIZE, even if
-         * the final message will be much smaller. The read is blocking, but we
-         * won't really block much time because the peer will close the channel
-         * as soon as the whole message is written. If the peer didn't close the
-         * channel, we would probably need to the initial 4 bytes first (to get
-         * the expected message length) and only then block reading for the exact
-         * amount of data to read (as we do in the server side) */
-        total = 0;
-        left = RMF_MESSAGE_MAX_SIZE;
-        do {
-            if ((current = recv (fd, &buffer[total], left, 0)) < 0) {
-                ret = ERROR_RECV_FAILED;
-                goto failed;
-            }
+        /* 5th step: recv(). We first try to read 4 bytes, as that includes the
+         * full expected message length; then we read the remaining bytes.
+         *
+         * This step will finish in any of these actions:
+         *  - The full message has been received.
+         *  - The server closes socket.
+         *  - The recv timeout happens.
+         */
 
-            assert (((ssize_t) left) >= current);
-            left -= current;
-            total += current;
-        } while (total < 4 || total < rmf_message_get_length (buffer));
+        /* Set default recv() timeout, so that we don't block forever waiting
+         * for the server response */
+        recv_timeout_tv.tv_sec = DEFAULT_RECV_TIMEOUT_SEC;
+        recv_timeout_tv.tv_usec = 0;
+        setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &recv_timeout_tv, sizeof (struct timeval));
+
+        /* Peek 4 bytes for the message length */
+        if ((current = recv (fd, buffer, sizeof (uint32_t), MSG_PEEK)) != sizeof (uint32_t)) {
+            ret = ERROR_RECV_FAILED;
+            goto failed;
+        }
+
+        /* Build expected message length and error out if unexpected */
+        message_size = rmf_message_get_length (buffer);
+        if (message_size > RMF_MESSAGE_MAX_SIZE) {
+            ret = ERROR_INVALID_MSG_LENGTH;
+            goto failed;
+        }
+
+        /* Try to read the full message length. Operation is blocking but with
+         * a timeout. */
+        if ((current = recv (fd, buffer, message_size, 0)) != message_size) {
+            ret = ERROR_RECV_NOT_FULL;
+            goto failed;
+        }
 
         if (!rmf_message_request_and_response_match (request, buffer)) {
             ret = ERROR_NO_MATCH;
