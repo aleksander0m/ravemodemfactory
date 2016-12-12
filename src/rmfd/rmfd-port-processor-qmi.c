@@ -76,15 +76,9 @@ typedef struct {
 } MessagingListContext;
 
 struct _RmfdPortProcessorQmiPrivate {
-    /* QMI device */
+    /* QMI device and clients */
     QmiDevice *qmi_device;
-
-    /* QMI clients */
-    QmiClient *dms;
-    QmiClient *nas;
-    QmiClient *wds;
-    QmiClient *uim;
-    QmiClient *wms;
+    GList     *services; /* ServiceInfo */
 
     /* Connection related info */
     RmfConnectionStatus connection_status;
@@ -114,6 +108,99 @@ struct _RmfdPortProcessorQmiPrivate {
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
 static void messaging_list        (RmfdPortProcessorQmi *self);
+
+/*****************************************************************************/
+/* QMI services */
+
+typedef struct {
+    QmiService service;
+    gboolean   mandatory;
+} QmiServiceItem;
+
+static const QmiServiceItem service_items[] = {
+    { QMI_SERVICE_DMS, TRUE },
+    { QMI_SERVICE_NAS, TRUE },
+    { QMI_SERVICE_WDS, TRUE },
+    { QMI_SERVICE_UIM, TRUE },
+    { QMI_SERVICE_WMS, TRUE },
+};
+
+typedef struct {
+    QmiService service;
+    QmiClient *client;
+} ServiceInfo;
+
+static ServiceInfo *
+find_qmi_service (RmfdPortProcessorQmi *self,
+                  QmiService            service)
+{
+    GList *l;
+
+    for (l = self->priv->services; l; l = g_list_next (l)) {
+        ServiceInfo *info = l->data;
+
+        if (info->service == service)
+            return info;
+    }
+
+    return NULL;
+}
+
+static void
+untrack_qmi_service (RmfdPortProcessorQmi *self,
+                     QmiService            service)
+{
+    ServiceInfo *info;
+
+    info = find_qmi_service (self, service);
+    if (!info)
+        return;
+
+    /* Remove from services list */
+    self->priv->services = g_list_remove (self->priv->services, info);
+
+    /* Cleanup client */
+    if (info->client) {
+        /* If device open, release client id */
+        if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device))
+            qmi_device_release_client (self->priv->qmi_device,
+                                       info->client,
+                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                       3, NULL, NULL, NULL);
+        g_object_unref (info->client);
+    }
+    g_slice_free (ServiceInfo, info);
+}
+
+static void
+track_qmi_service (RmfdPortProcessorQmi *self,
+                   QmiService            service,
+                   QmiClient            *client)
+{
+    ServiceInfo *info;
+
+    info = g_slice_new0 (ServiceInfo);
+    info->service = service;
+    info->client  = g_object_ref (client);
+
+    self->priv->services = g_list_prepend (self->priv->services, info);
+}
+
+static QmiClient *
+peek_qmi_client (RmfdPortProcessorQmi *self,
+                 QmiService            service)
+{
+    GList *l;
+
+    for (l = self->priv->services; l; l = g_list_next (l)) {
+        ServiceInfo *info = l->data;
+
+        if (info->service == service)
+            return info->client;
+    }
+
+    return NULL;
+}
 
 /*****************************************************************************/
 /* Registration timeout handling */
@@ -230,7 +317,7 @@ registration_context_step (RmfdPortProcessorQmi *self)
 
     g_assert (ctx->scanning == NULL);
     ctx->scanning = g_cancellable_new ();
-    qmi_client_nas_network_scan (QMI_CLIENT_NAS (self->priv->nas),
+    qmi_client_nas_network_scan (QMI_CLIENT_NAS (peek_qmi_client (self, QMI_SERVICE_NAS)),
                                  NULL,
                                  120,
                                  ctx->scanning,
@@ -267,7 +354,7 @@ initiate_registration_idle_cb (RmfdPortProcessorQmi *self)
         QMI_NAS_NETWORK_REGISTER_TYPE_AUTOMATIC,
         NULL);
     qmi_client_nas_initiate_network_register (
-        QMI_CLIENT_NAS (self->priv->nas),
+        QMI_CLIENT_NAS (peek_qmi_client (self, QMI_SERVICE_NAS)),
         input,
         10,
         NULL,
@@ -413,16 +500,20 @@ static void
 unregister_nas_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
+    QmiClientNas                          *nas;
 
     if (self->priv->serving_system_indication_id == 0)
         return;
 
-    g_signal_handler_disconnect (self->priv->nas, self->priv->serving_system_indication_id);
+    nas = QMI_CLIENT_NAS (peek_qmi_client (self, QMI_SERVICE_NAS));
+    g_assert (QMI_IS_CLIENT_NAS (nas));
+
+    g_signal_handler_disconnect (nas, self->priv->serving_system_indication_id);
     self->priv->serving_system_indication_id = 0;
 
     input = qmi_message_nas_register_indications_input_new ();
     qmi_message_nas_register_indications_input_set_serving_system_events (input, FALSE, NULL);
-    qmi_client_nas_register_indications (QMI_CLIENT_NAS (self->priv->nas), input, 5, NULL, NULL, NULL);
+    qmi_client_nas_register_indications (nas, input, 5, NULL, NULL, NULL);
     qmi_message_nas_register_indications_input_unref (input);
 }
 
@@ -430,22 +521,25 @@ static void
 register_nas_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageNasRegisterIndicationsInput *input;
+    QmiClientNas                          *nas;
 
-    g_assert (self->priv->nas != NULL);
     g_assert (self->priv->serving_system_indication_id == 0);
 
+    nas = QMI_CLIENT_NAS (peek_qmi_client (self, QMI_SERVICE_NAS));
+    g_assert (QMI_IS_CLIENT_NAS (nas));
+
     self->priv->serving_system_indication_id =
-        g_signal_connect (self->priv->nas,
+        g_signal_connect (nas,
                           "serving-system",
                           G_CALLBACK (serving_system_indication_cb),
                           self);
 
     input = qmi_message_nas_register_indications_input_new ();
     qmi_message_nas_register_indications_input_set_serving_system_events (input, TRUE, NULL);
-    qmi_client_nas_register_indications (QMI_CLIENT_NAS (self->priv->nas), input, 5, NULL, NULL, NULL);
+    qmi_client_nas_register_indications (nas, input, 5, NULL, NULL, NULL);
     qmi_message_nas_register_indications_input_unref (input);
 
-    qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (self->priv->nas),
+    qmi_client_nas_get_serving_system (nas,
                                        NULL,
                                        10,
                                        NULL,
@@ -538,7 +632,7 @@ dms_get_manufacturer_ready (QmiClientDms *client,
 static void
 get_manufacturer (RunContext *ctx)
 {
-    qmi_client_dms_get_manufacturer (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_manufacturer (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                      NULL,
                                      5,
                                      NULL,
@@ -585,7 +679,7 @@ dms_get_model_ready (QmiClientDms *client,
 static void
 get_model (RunContext *ctx)
 {
-    qmi_client_dms_get_model (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_model (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                               NULL,
                               5,
                               NULL,
@@ -632,7 +726,7 @@ dms_get_revision_ready (QmiClientDms *client,
 static void
 get_revision (RunContext *ctx)
 {
-    qmi_client_dms_get_revision (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_revision (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                  NULL,
                                  5,
                                  NULL,
@@ -679,7 +773,7 @@ dms_get_hardware_revision_ready (QmiClientDms *client,
 static void
 get_hardware_revision (RunContext *ctx)
 {
-    qmi_client_dms_get_hardware_revision (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_hardware_revision (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                           NULL,
                                           5,
                                           NULL,
@@ -726,7 +820,7 @@ dms_get_ids_ready (QmiClientDms *client,
 static void
 get_imei (RunContext *ctx)
 {
-    qmi_client_dms_get_ids (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_ids (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                             NULL,
                             5,
                             NULL,
@@ -773,7 +867,7 @@ dms_uim_get_imsi_ready (QmiClientDms *client,
 static void
 get_imsi (RunContext *ctx)
 {
-    qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                  NULL,
                                  5,
                                  NULL,
@@ -820,7 +914,7 @@ dms_uim_get_iccid_ready (QmiClientDms *client,
 static void
 get_iccid (RunContext *ctx)
 {
-    qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                   NULL,
                                   5,
                                   NULL,
@@ -1128,7 +1222,7 @@ get_sim_info_step (RunContext *ctx)
         get_sim_info_ctx->step++;
 
     case GET_SIM_INFO_STEP_IMSI:
-        qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (ctx->self->priv->dms),
+        qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                      NULL,
                                      5,
                                      NULL,
@@ -1157,7 +1251,7 @@ get_sim_info_step (RunContext *ctx)
         qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
         g_array_unref (file_path);
 
-        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (ctx->self->priv->uim),
+        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                          input,
                                          10,
                                          NULL,
@@ -1188,7 +1282,7 @@ get_sim_info_step (RunContext *ctx)
         qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
         g_array_unref (file_path);
 
-        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (ctx->self->priv->uim),
+        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                          input,
                                          10,
                                          NULL,
@@ -1514,7 +1608,7 @@ common_unlock_check_context_step (CommonUnlockCheckContext *ctx)
 
     case COMMON_UNLOCK_CHECK_STEP_LOCK_STATUS:
         g_debug ("Checking SIM lock status...");
-        qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (ctx->self->priv->dms),
+        qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                            NULL,
                                            5,
                                            NULL,
@@ -1524,7 +1618,7 @@ common_unlock_check_context_step (CommonUnlockCheckContext *ctx)
 
     case COMMON_UNLOCK_CHECK_STEP_SIM_READY_STATUS:
         g_debug ("Checking SIM readiness status...");
-        qmi_client_uim_get_card_status (QMI_CLIENT_UIM (ctx->self->priv->uim),
+        qmi_client_uim_get_card_status (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                         NULL,
                                         5,
                                         NULL,
@@ -1732,7 +1826,7 @@ before_unlock_check_ready (RmfdPortProcessorQmi *self,
         QMI_DMS_UIM_PIN_ID_PIN,
         pin,
         NULL);
-    qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_uim_verify_pin (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                    input,
                                    5,
                                    NULL,
@@ -1815,7 +1909,7 @@ enable_pin (RunContext *ctx)
         !!enable,
         pin,
         NULL);
-    qmi_client_dms_uim_set_pin_protection (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_uim_set_pin_protection (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                            input,
                                            5,
                                            NULL,
@@ -1889,7 +1983,7 @@ change_pin (RunContext *ctx)
         old_pin,
         new_pin,
         NULL);
-    qmi_client_dms_uim_change_pin (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_uim_change_pin (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                    input,
                                    5,
                                    NULL,
@@ -1957,7 +2051,7 @@ dms_get_operating_mode_ready (QmiClientDms *client,
 static void
 get_power_status (RunContext *ctx)
 {
-    qmi_client_dms_get_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_get_operating_mode (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                        NULL,
                                        5,
                                        NULL,
@@ -2041,7 +2135,7 @@ set_power_status (RunContext *ctx)
 
     input = qmi_message_dms_set_operating_mode_input_new ();
     qmi_message_dms_set_operating_mode_input_set_mode (input, mode, NULL);
-    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                        input,
                                        20,
                                        NULL,
@@ -2113,7 +2207,7 @@ dms_power_cycle_set_operating_mode_offline_ready (QmiClientDms *client,
     /* Then, reset */
     input = qmi_message_dms_set_operating_mode_input_new ();
     qmi_message_dms_set_operating_mode_input_set_mode (input, QMI_DMS_OPERATING_MODE_RESET, NULL);
-    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                        input,
                                        20,
                                        NULL,
@@ -2130,7 +2224,7 @@ power_cycle (RunContext *ctx)
     /* First, offline */
     input = qmi_message_dms_set_operating_mode_input_new ();
     qmi_message_dms_set_operating_mode_input_set_mode (input, QMI_DMS_OPERATING_MODE_OFFLINE, NULL);
-    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (ctx->self->priv->dms),
+    qmi_client_dms_set_operating_mode (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                        input,
                                        20,
                                        NULL,
@@ -2304,7 +2398,7 @@ get_next_power_info (RunContext *ctx)
 
         input = qmi_message_nas_get_tx_rx_info_input_new ();
         qmi_message_nas_get_tx_rx_info_input_set_radio_interface (input, interface, NULL);
-        qmi_client_nas_get_tx_rx_info (QMI_CLIENT_NAS (ctx->self->priv->nas),
+        qmi_client_nas_get_tx_rx_info (QMI_CLIENT_NAS (peek_qmi_client (ctx->self, QMI_SERVICE_NAS)),
                                        input,
                                        10,
                                        NULL,
@@ -2417,7 +2511,7 @@ nas_get_signal_info_ready (QmiClientNas *client,
 static void
 get_signal_info (RunContext *ctx)
 {
-    qmi_client_nas_get_signal_info (QMI_CLIENT_NAS (ctx->self->priv->nas),
+    qmi_client_nas_get_signal_info (QMI_CLIENT_NAS (peek_qmi_client (ctx->self, QMI_SERVICE_NAS)),
                                     NULL,
                                     10,
                                     NULL,
@@ -2582,7 +2676,7 @@ get_connection_stats (RunContext *ctx)
         NULL);
 
     g_debug ("Asynchronously getting packet statistics...");
-    qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
+    qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                           input,
                                           10,
                                           NULL,
@@ -2772,7 +2866,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
         /* Fall down */
 
     case WRITE_CONNECTION_STATS_STEP_TIMESTAMP:
-        qmi_client_dms_get_time (QMI_CLIENT_DMS (ctx->self->priv->dms),
+        qmi_client_dms_get_time (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
                                  NULL,
                                  5,
                                  NULL,
@@ -2790,7 +2884,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                                                                   (QMI_WDS_PACKET_STATISTICS_MASK_FLAG_TX_BYTES_OK |
                                                                    QMI_WDS_PACKET_STATISTICS_MASK_FLAG_RX_BYTES_OK),
                                                                   NULL);
-            qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (ctx->self->priv->wds),
+            qmi_client_wds_get_packet_statistics (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                                   input,
                                                   5,
                                                   NULL,
@@ -2803,7 +2897,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
         /* Fall down */
 
     case WRITE_CONNECTION_STATS_STEP_SIGNAL_STRENGTH:
-        qmi_client_nas_get_signal_strength (QMI_CLIENT_NAS (ctx->self->priv->nas),
+        qmi_client_nas_get_signal_strength (QMI_CLIENT_NAS (peek_qmi_client (ctx->self, QMI_SERVICE_NAS)),
                                             NULL,
                                             5,
                                             NULL,
@@ -2812,7 +2906,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
         return;
 
     case WRITE_CONNECTION_STATS_STEP_SERVING_SYSTEM:
-        qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (ctx->self->priv->nas),
+        qmi_client_nas_get_serving_system (QMI_CLIENT_NAS (peek_qmi_client (ctx->self, QMI_SERVICE_NAS)),
                                            NULL,
                                            5,
                                            NULL,
@@ -3041,7 +3135,7 @@ data_setup_start_ready (RmfdPortData *data,
 
         input = qmi_message_wds_stop_network_input_new ();
         qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
-        qmi_client_wds_stop_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
+        qmi_client_wds_stop_network (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                      input,
                                      30,
                                      NULL,
@@ -3149,7 +3243,7 @@ connect_step_ip_settings (RunContext *ctx)
         NULL);
 
     g_debug ("Asynchronously getting current settings...");
-    qmi_client_wds_get_current_settings (QMI_CLIENT_WDS (ctx->self->priv->wds),
+    qmi_client_wds_get_current_settings (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                          input,
                                          10,
                                          NULL,
@@ -3301,7 +3395,7 @@ connect_step_start_network (RunContext *ctx)
     if (!connect_ctx->default_ip_family_set)
         qmi_message_wds_start_network_input_set_ip_family_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
 
-    qmi_client_wds_start_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
+    qmi_client_wds_start_network (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                   input,
                                   45,
                                   NULL,
@@ -3340,7 +3434,7 @@ connect_step_ip_family (RunContext *ctx)
     /* Start by setting IPv4 family */
     input = qmi_message_wds_set_ip_family_input_new ();
     qmi_message_wds_set_ip_family_input_set_preference (input, QMI_WDS_IP_FAMILY_IPV4, NULL);
-    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (ctx->self->priv->wds),
+    qmi_client_wds_set_ip_family (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                   input,
                                   10,
                                   NULL,
@@ -3602,7 +3696,7 @@ disconnect (RunContext *ctx)
 
     input = qmi_message_wds_stop_network_input_new ();
     qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
-    qmi_client_wds_stop_network (QMI_CLIENT_WDS (ctx->self->priv->wds),
+    qmi_client_wds_stop_network (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
                                  input,
                                  30,
                                  NULL,
@@ -3764,6 +3858,9 @@ sms_added_cb (RmfdSmsList          *sms_list,
     GString *text;
     GList *l;
     gboolean no_delete = FALSE;
+    QmiClientWms *wms;
+
+    wms = QMI_CLIENT_WMS (peek_qmi_client (self, QMI_SERVICE_WMS));
 
     text = rmfd_sms_get_text (sms);
     if (text)
@@ -3793,7 +3890,7 @@ sms_added_cb (RmfdSmsList          *sms_list,
             qmi_message_wms_delete_input_set_memory_storage (input, rmfd_sms_get_storage (sms), NULL);
             qmi_message_wms_delete_input_set_memory_index   (input, (guint32) rmfd_sms_part_get_index ((RmfdSmsPart *)l->data), NULL);
             qmi_message_wms_delete_input_set_message_mode   (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
-            qmi_client_wms_delete (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
+            qmi_client_wms_delete (wms, input, 5, NULL, NULL, NULL);
             qmi_message_wms_delete_input_unref (input);
         }
     }
@@ -3929,16 +4026,19 @@ static void
 unregister_wms_indications (RmfdPortProcessorQmi *self)
 {
     QmiMessageWmsSetEventReportInput *input;
+    QmiClientWms                     *wms;
 
     if (self->priv->messaging_event_report_indication_id == 0)
         return;
 
-    g_signal_handler_disconnect (self->priv->wms, self->priv->messaging_event_report_indication_id);
+    wms = QMI_CLIENT_WMS (peek_qmi_client (self, QMI_SERVICE_WMS));
+
+    g_signal_handler_disconnect (wms, self->priv->messaging_event_report_indication_id);
     self->priv->messaging_event_report_indication_id = 0;
 
     input = qmi_message_wms_set_event_report_input_new ();
     qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, FALSE, NULL);
-    qmi_client_wms_set_event_report (QMI_CLIENT_WMS (self->priv->wms), input, 5, NULL, NULL, NULL);
+    qmi_client_wms_set_event_report (wms, input, 5, NULL, NULL, NULL);
     qmi_message_wms_set_event_report_input_unref (input);
 }
 
@@ -4037,7 +4137,7 @@ read_next_sms_part (MessagingListPartsContext *ctx)
     /* set message mode */
     qmi_message_wms_raw_read_input_set_message_mode (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
 
-    qmi_client_wms_raw_read (QMI_CLIENT_WMS (ctx->self->priv->wms),
+    qmi_client_wms_raw_read (QMI_CLIENT_WMS (peek_qmi_client (ctx->self, QMI_SERVICE_WMS)),
                              input,
                              3,
                              NULL,
@@ -4100,7 +4200,7 @@ messaging_list_parts_context_list (MessagingListPartsContext *ctx)
     qmi_message_wms_list_messages_input_set_message_mode (input, QMI_WMS_MESSAGE_MODE_GSM_WCDMA, NULL);
     qmi_message_wms_list_messages_input_set_message_tag (input, ctx->tag, NULL);
 
-    qmi_client_wms_list_messages (QMI_CLIENT_WMS (ctx->self->priv->wms),
+    qmi_client_wms_list_messages (QMI_CLIENT_WMS (peek_qmi_client (ctx->self, QMI_SERVICE_WMS)),
                                   input,
                                   5,
                                   NULL,
@@ -4305,9 +4405,10 @@ typedef enum {
 } MessagingInitContextStep;
 
 typedef struct {
-    RmfdPortProcessorQmi *self;
-    GSimpleAsyncResult *result;
-    MessagingInitContextStep step;
+    RmfdPortProcessorQmi     *self;
+    QmiClientWms             *wms;
+    GSimpleAsyncResult       *result;
+    MessagingInitContextStep  step;
 } MessagingInitContext;
 
 static void
@@ -4401,7 +4502,7 @@ messaging_init_context_step (MessagingInitContext *ctx)
         qmi_message_wms_set_routes_input_set_route_list (input, routes_array, NULL);
 
         g_debug ("[messaging] setting default routes...");
-        qmi_client_wms_set_routes (QMI_CLIENT_WMS (ctx->self->priv->wms),
+        qmi_client_wms_set_routes (ctx->wms,
                                    input,
                                    5,
                                    NULL,
@@ -4418,14 +4519,14 @@ messaging_init_context_step (MessagingInitContext *ctx)
         g_assert (ctx->self->priv->messaging_event_report_indication_id == 0);
 
         ctx->self->priv->messaging_event_report_indication_id =
-            g_signal_connect (ctx->self->priv->wms,
+            g_signal_connect (ctx->wms,
                               "event-report",
                               G_CALLBACK (messaging_event_report_indication_cb),
                               ctx->self);
 
         input = qmi_message_wms_set_event_report_input_new ();
         qmi_message_wms_set_event_report_input_set_new_mt_message_indicator (input, TRUE, NULL);
-        qmi_client_wms_set_event_report (QMI_CLIENT_WMS (ctx->self->priv->wms),
+        qmi_client_wms_set_event_report (ctx->wms,
                                          input,
                                          5,
                                          NULL,
@@ -4451,8 +4552,6 @@ messaging_init (RmfdPortProcessorQmi *self,
 {
     MessagingInitContext *ctx;
 
-    g_assert (self->priv->wms != NULL);
-
     ctx = g_slice_new (MessagingInitContext);
     ctx->self = g_object_ref (self);
     ctx->result = g_simple_async_result_new (G_OBJECT (self),
@@ -4460,6 +4559,8 @@ messaging_init (RmfdPortProcessorQmi *self,
                                              user_data,
                                              messaging_init);
     ctx->step = MESSAGING_INIT_CONTEXT_STEP_FIRST;
+    ctx->wms = QMI_CLIENT_WMS (peek_qmi_client (ctx->self, QMI_SERVICE_WMS));
+    g_assert (QMI_IS_CLIENT_WMS (ctx->wms));
 
     messaging_init_context_step (ctx);
 }
@@ -4467,15 +4568,29 @@ messaging_init (RmfdPortProcessorQmi *self,
 /*****************************************************************************/
 /* Processor init */
 
+typedef enum {
+    INIT_CONTEXT_STEP_FIRST,
+    INIT_CONTEXT_STEP_DEVICE_NEW,
+    INIT_CONTEXT_STEP_DEVICE_OPEN,
+    INIT_CONTEXT_STEP_CLIENTS,
+    INIT_CONTEXT_STEP_MESSAGING_INIT,
+    INIT_CONTEXT_STEP_LAST,
+} InitContextStep;
+
 typedef struct {
     RmfdPortProcessorQmi *self;
-    GSimpleAsyncResult *result;
+    GSimpleAsyncResult   *result;
+    GCancellable         *cancellable;
+    InitContextStep       step;
+    guint                 clients_i;
 } InitContext;
 
 static void
 init_context_complete_and_free (InitContext *ctx)
 {
     g_simple_async_result_complete (ctx->result);
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
     g_object_unref (ctx->result);
     g_object_unref (ctx->self);
     g_slice_free (InitContext, ctx);
@@ -4488,6 +4603,8 @@ initable_init_finish (GAsyncInitable  *initable,
 {
     return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (result), error);
 }
+
+static void init_context_step (InitContext *ctx);
 
 static void
 messaging_init_ready (RmfdPortProcessorQmi *self,
@@ -4504,134 +4621,38 @@ messaging_init_ready (RmfdPortProcessorQmi *self,
 
     g_debug ("SMS messaging support initialized");
 
-    /* Last step, launch automatic network registration explicitly */
-    initiate_registration (ctx->self, TRUE);
-
-    /* And launch SMS listing, which will succeed here only if PIN unlocked or disabled */
-    messaging_list (ctx->self);
-
-    g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
-    init_context_complete_and_free (ctx);
+    /* Go on to next step */
+    ctx->step++;
+    init_context_step (ctx);
 }
 
 static void
-allocate_wms_client_ready (QmiDevice    *qmi_device,
-                           GAsyncResult *res,
-                           InitContext  *ctx)
+allocate_client_ready (QmiDevice    *qmi_device,
+                       GAsyncResult *res,
+                       InitContext  *ctx)
 {
-    GError *error = NULL;
+    GError    *error = NULL;
+    QmiClient *client;
 
-
-    ctx->self->priv->wms = qmi_device_allocate_client_finish (qmi_device, res, &error);
-    if (!ctx->self->priv->wms) {
+    client = qmi_device_allocate_client_finish (qmi_device, res, &error);
+    if (!client) {
+        g_prefix_error (&error, "couldn't allocate client for service '%s': ",
+                        qmi_service_get_string (service_items[ctx->clients_i].service));
         g_simple_async_result_take_error (ctx->result, error);
         init_context_complete_and_free (ctx);
         return;
     }
 
-    g_debug ("QMI WMS client created");
-    messaging_init (ctx->self,
-                    (GAsyncReadyCallback) messaging_init_ready,
-                    ctx);
-}
+    g_debug ("QMI client for service '%s' created",
+             qmi_service_get_string (service_items[ctx->clients_i].service));
+    track_qmi_service (ctx->self,
+                       service_items[ctx->clients_i].service,
+                       client);
+    g_object_unref (client);
 
-static void
-allocate_uim_client_ready (QmiDevice    *qmi_device,
-                           GAsyncResult *res,
-                           InitContext  *ctx)
-{
-    GError *error = NULL;
-
-    ctx->self->priv->uim = qmi_device_allocate_client_finish (qmi_device, res, &error);
-    if (!ctx->self->priv->uim) {
-        g_simple_async_result_take_error (ctx->result, error);
-        init_context_complete_and_free (ctx);
-        return;
-    }
-
-    g_debug ("QMI UIM client created");
-    qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_WMS,
-                                QMI_CID_NONE,
-                                10,
-                                NULL,
-                                (GAsyncReadyCallback)allocate_wms_client_ready,
-                                ctx);
-}
-
-static void
-allocate_wds_client_ready (QmiDevice    *qmi_device,
-                           GAsyncResult *res,
-                           InitContext  *ctx)
-{
-    GError *error = NULL;
-
-    ctx->self->priv->wds = qmi_device_allocate_client_finish (qmi_device, res, &error);
-    if (!ctx->self->priv->wds) {
-        g_simple_async_result_take_error (ctx->result, error);
-        init_context_complete_and_free (ctx);
-        return;
-    }
-
-    g_debug ("QMI WDS client created");
-    qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_UIM,
-                                QMI_CID_NONE,
-                                10,
-                                NULL,
-                                (GAsyncReadyCallback)allocate_uim_client_ready,
-                                ctx);
-}
-
-static void
-allocate_nas_client_ready (QmiDevice    *qmi_device,
-                           GAsyncResult *res,
-                           InitContext  *ctx)
-{
-    GError *error = NULL;
-
-    ctx->self->priv->nas = qmi_device_allocate_client_finish (qmi_device, res, &error);
-    if (!ctx->self->priv->nas) {
-        g_simple_async_result_take_error (ctx->result, error);
-        init_context_complete_and_free (ctx);
-        return;
-    }
-
-    g_debug ("QMI NAS client created");
-    register_nas_indications (ctx->self);
-
-    qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_WDS,
-                                QMI_CID_NONE,
-                                10,
-                                NULL,
-                                (GAsyncReadyCallback)allocate_wds_client_ready,
-                                ctx);
-}
-
-static void
-allocate_dms_client_ready (QmiDevice    *qmi_device,
-                           GAsyncResult *res,
-                           InitContext  *ctx)
-{
-    GError *error = NULL;
-
-    ctx->self->priv->dms = qmi_device_allocate_client_finish (qmi_device, res, &error);
-    if (!ctx->self->priv->dms) {
-        g_simple_async_result_take_error (ctx->result, error);
-        init_context_complete_and_free (ctx);
-        return;
-    }
-
-    g_debug ("QMI DMS client created");
-
-    qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_NAS,
-                                QMI_CID_NONE,
-                                10,
-                                NULL,
-                                (GAsyncReadyCallback)allocate_nas_client_ready,
-                                ctx);
+    /* Update client index and re-run the same step */
+    ctx->clients_i++;
+    init_context_step (ctx);
 }
 
 static void
@@ -4649,13 +4670,9 @@ device_open_ready (QmiDevice    *qmi_device,
 
     g_debug ("QMI device opened: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
-    qmi_device_allocate_client (ctx->self->priv->qmi_device,
-                                QMI_SERVICE_DMS,
-                                QMI_CID_NONE,
-                                10,
-                                NULL,
-                                (GAsyncReadyCallback)allocate_dms_client_ready,
-                                ctx);
+    /* Go on to next step */
+    ctx->step++;
+    init_context_step (ctx);
 }
 
 static void
@@ -4664,7 +4681,6 @@ device_new_ready (GObject      *source,
                   InitContext  *ctx)
 {
     GError *error = NULL;
-    QmiDeviceOpenFlags flags;
 
     ctx->self->priv->qmi_device = qmi_device_new_finish (res, &error);
     if (!ctx->self->priv->qmi_device) {
@@ -4675,46 +4691,119 @@ device_new_ready (GObject      *source,
 
     g_debug ("QMI device created: %s", qmi_device_get_path (ctx->self->priv->qmi_device));
 
-    flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
-             QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
-             QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
-             QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
-
-    if (g_getenv ("RMFD_QMI_PROXY"))
-        flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
-
-    /* Open the QMI port */
-    qmi_device_open (ctx->self->priv->qmi_device,
-                     flags,
-                     10,
-                     NULL, /* cancellable */
-                     (GAsyncReadyCallback) device_open_ready,
-                     ctx);
+    /* Go on to next step */
+    ctx->step++;
+    init_context_step (ctx);
 }
 
 static void
-initable_init_async (GAsyncInitable *initable,
-                     int io_priority,
-                     GCancellable *cancellable,
-                     GAsyncReadyCallback callback,
-                     gpointer user_data)
+init_context_step (InitContext *ctx)
+{
+    switch (ctx->step) {
+
+    case INIT_CONTEXT_STEP_FIRST:
+        /* Fall down to next step */
+        ctx->step++;
+
+    case INIT_CONTEXT_STEP_DEVICE_NEW: {
+        GFile *file;
+
+        /* Launch device creation */
+        g_debug ("creating QMI device...");
+        file = g_file_new_for_path (rmfd_port_get_interface (RMFD_PORT (ctx->self)));
+        qmi_device_new (file,
+                        ctx->cancellable,
+                        (GAsyncReadyCallback) device_new_ready,
+                        ctx);
+        g_object_unref (file);
+        return;
+    }
+
+    case INIT_CONTEXT_STEP_DEVICE_OPEN: {
+        QmiDeviceOpenFlags flags;
+
+        flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
+                 QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
+                 QMI_DEVICE_OPEN_FLAGS_NET_802_3 |
+                 QMI_DEVICE_OPEN_FLAGS_NET_NO_QOS_HEADER);
+
+        if (g_getenv ("RMFD_QMI_PROXY"))
+            flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
+
+        /* Open the QMI port */
+        g_debug ("opening QMI device...");
+        qmi_device_open (ctx->self->priv->qmi_device,
+                         flags,
+                         10,
+                         ctx->cancellable,
+                         (GAsyncReadyCallback) device_open_ready,
+                         ctx);
+        return;
+    }
+
+    case INIT_CONTEXT_STEP_CLIENTS: {
+        /* Allocate next client */
+        if (ctx->clients_i < G_N_ELEMENTS (service_items)) {
+            g_debug ("allocating QMI client for service '%s'", qmi_service_get_string (service_items[ctx->clients_i].service));
+            qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                        service_items[ctx->clients_i].service,
+                                        QMI_CID_NONE,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback) allocate_client_ready,
+                                        ctx);
+            return;
+        }
+
+        g_debug ("All QMI clients created");
+
+        /* Fall down to next step */
+        ctx->step++;
+    }
+
+    case INIT_CONTEXT_STEP_MESSAGING_INIT:
+        g_debug ("initializing messaging support...");
+        messaging_init (ctx->self,
+                        (GAsyncReadyCallback) messaging_init_ready,
+                        ctx);
+        return;
+
+    case INIT_CONTEXT_STEP_LAST:
+        /* Register NAS indications */
+        register_nas_indications (ctx->self);
+        /* Launch automatic network registration explicitly */
+        initiate_registration (ctx->self, TRUE);
+        /* And launch SMS listing, which will succeed here only if PIN unlocked or disabled */
+        messaging_list (ctx->self);
+
+        /* And complete with success */
+        g_debug ("processor successfully initialized");
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+}
+
+static void
+initable_init_async (GAsyncInitable      *initable,
+                     int                  io_priority,
+                     GCancellable        *cancellable,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
 {
     InitContext *ctx;
-    GFile *file;
 
-    ctx = g_slice_new (InitContext);
+    ctx = g_slice_new0 (InitContext);
     ctx->self = g_object_ref (initable);
     ctx->result = g_simple_async_result_new (G_OBJECT (initable),
                                              callback,
                                              user_data,
                                              initable_init_async);
-    /* Launch device creation */
-    file = g_file_new_for_path (rmfd_port_get_interface (RMFD_PORT (ctx->self)));
-    qmi_device_new (file,
-                    NULL, /* cancellable */
-                    (GAsyncReadyCallback) device_new_ready,
-                    ctx);
-    g_object_unref (file);
+    ctx->cancellable = (cancellable ? g_object_ref (cancellable) : NULL);
+    ctx->step = INIT_CONTEXT_STEP_FIRST;
+    ctx->clients_i = 0;
+
+    init_context_step (ctx);
 }
 
 /*****************************************************************************/
@@ -4773,6 +4862,7 @@ static void
 dispose (GObject *object)
 {
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
+    guint                 i;
 
     if (self->priv->stats) {
         rmfd_stats_teardown (self->priv->stats);
@@ -4784,42 +4874,6 @@ dispose (GObject *object)
     unregister_nas_indications (self);
     unregister_wms_indications (self);
 
-    if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device)) {
-        GError *error = NULL;
-
-        if (self->priv->dms)
-            qmi_device_release_client (self->priv->qmi_device,
-                                       self->priv->dms,
-                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
-                                       3, NULL, NULL, NULL);
-        if (self->priv->nas)
-            qmi_device_release_client (self->priv->qmi_device,
-                                       self->priv->nas,
-                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
-                                       3, NULL, NULL, NULL);
-        if (self->priv->wds)
-            qmi_device_release_client (self->priv->qmi_device,
-                                       self->priv->wds,
-                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
-                                       3, NULL, NULL, NULL);
-        if (self->priv->uim)
-            qmi_device_release_client (self->priv->qmi_device,
-                                       self->priv->uim,
-                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
-                                       3, NULL, NULL, NULL);
-        if (self->priv->wms)
-            qmi_device_release_client (self->priv->qmi_device,
-                                       self->priv->wms,
-                                       QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
-                                       3, NULL, NULL, NULL);
-
-        if (!qmi_device_close (self->priv->qmi_device, &error)) {
-            g_warning ("error closing QMI device: %s", error->message);
-            g_error_free (error);
-        } else
-            g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
-    }
-
     if (self->priv->messaging_sms_list)
         g_signal_handlers_disconnect_by_func (self->priv->messaging_sms_list, sms_added_cb, self);
     g_clear_object (&self->priv->messaging_sms_list);
@@ -4829,11 +4883,18 @@ dispose (GObject *object)
         self->priv->stats_timeout_id = 0;
     }
 
-    g_clear_object (&self->priv->dms);
-    g_clear_object (&self->priv->nas);
-    g_clear_object (&self->priv->wds);
-    g_clear_object (&self->priv->uim);
-    g_clear_object (&self->priv->wms);
+    for (i = 0; i < G_N_ELEMENTS (service_items); i++)
+        untrack_qmi_service (self, service_items[i].service);
+
+    if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device)) {
+        GError *error = NULL;
+
+        if (!qmi_device_close (self->priv->qmi_device, &error)) {
+            g_warning ("error closing QMI device: %s", error->message);
+            g_error_free (error);
+        } else
+            g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
+    }
     g_clear_object (&self->priv->qmi_device);
 
     G_OBJECT_CLASS (rmfd_port_processor_qmi_parent_class)->dispose (object);
