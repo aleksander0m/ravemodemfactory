@@ -34,6 +34,7 @@
 #include <poll.h>
 #include <assert.h>
 #include <malloc.h>
+#include <fcntl.h>
 
 #include <stdexcept>
 
@@ -226,6 +227,9 @@ static const char *error_strings[] = {
     "Request and response didn't match"
 };
 
+/* We'll wait up to 1s for the connection to be established */
+#define DEFAULT_CONNECT_TIMEOUT_SEC 1
+
 /* Up to 1000 retries if EINTR is received in send() */
 #define MAX_EINTR_RETRIES 1000
 
@@ -272,6 +276,7 @@ send_and_receive (const uint8_t  *request,
     /* Operation on remote TCP socket */
     else {
         struct sockaddr_in address;
+        int so_error = -1;
 
         /* Setup address */
         memset (&address, 0, sizeof (address));
@@ -288,11 +293,30 @@ send_and_receive (const uint8_t  *request,
             goto failed;
         }
 
-        /* 2nd step: connect(). Give address to the endpoint. */
-        if (connect (fd, (const sockaddr*)&address, sizeof (address)) < 0) {
+        /* 2nd step: connect(). Give address to the endpoint.
+         * We set the socket in non-blocking mode during the connect operation
+         * so that we can poll for readiness ourselves, providing a maximum
+         * timeout. */
+        fcntl (fd, F_SETFL, O_NONBLOCK);
+        connect (fd, (const struct sockaddr *)&address, sizeof (address));
+
+        /* Connection is completed when socket is ready for writing */
+        fds[0].fd = fd;
+        fds[0].events = POLLOUT;
+        if (poll (fds, 1, 1000 * DEFAULT_CONNECT_TIMEOUT_SEC) > 0) {
+            socklen_t len;
+
+            /* Read socket status */
+            len = sizeof (so_error);
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+        }
+        /* If timed out, or socket actually not connected, fail miserably */
+        if (so_error != 0) {
             ret = ERROR_CONNECT_FAILED;
             goto failed;
         }
+        /* back to blocking mode */
+        fcntl (fd, F_SETFL, 0);
     }
 
     /* 3rd step: write(). Send data. */
