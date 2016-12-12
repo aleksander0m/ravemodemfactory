@@ -226,6 +226,9 @@ static const char *error_strings[] = {
     "Request and response didn't match"
 };
 
+/* Up to 1000 retries if EINTR is received in send() */
+#define MAX_EINTR_RETRIES 1000
+
 static int
 send_and_receive (const uint8_t  *request,
                   uint32_t        timeout_s,
@@ -238,6 +241,7 @@ send_and_receive (const uint8_t  *request,
     size_t total;
     struct pollfd fds[1];
     int fd = -1;
+    uint32_t max_eintr_retries = MAX_EINTR_RETRIES;
 
     assert (request != NULL);
     assert (response != NULL);
@@ -297,10 +301,11 @@ send_and_receive (const uint8_t  *request,
     do {
         if ((current = send (fd, &request[total], left, 0)) < 0) {
             /* We'll just retry on EINTR, not a real error */
-            if (errno != EINTR) {
+            if (errno != EINTR || max_eintr_retries == 0) {
                 ret =  ERROR_SEND_FAILED;
                 goto failed;
             }
+            max_eintr_retries--;
             current = 0;
         }
 
