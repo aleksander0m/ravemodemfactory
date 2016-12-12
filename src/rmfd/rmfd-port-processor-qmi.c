@@ -104,6 +104,9 @@ struct _RmfdPortProcessorQmiPrivate {
 
     /* Stats */
     RmfdStatsContext *stats;
+
+    /* WWAN settings */
+    gboolean llp_is_raw_ip;
 };
 
 static void initiate_registration (RmfdPortProcessorQmi *self, gboolean with_timeout);
@@ -4566,23 +4569,242 @@ messaging_init (RmfdPortProcessorQmi *self,
 }
 
 /*****************************************************************************/
+/* Data format init */
+
+typedef enum {
+    DATA_FORMAT_INIT_CONTEXT_STEP_FIRST,
+    DATA_FORMAT_INIT_CONTEXT_STEP_KERNEL_DATA_FORMAT,
+    DATA_FORMAT_INIT_CONTEXT_STEP_CLIENT_WDA,
+    DATA_FORMAT_INIT_CONTEXT_STEP_CLIENT_DATA_FORMAT,
+    DATA_FORMAT_INIT_CONTEXT_STEP_CHECK,
+    DATA_FORMAT_INIT_CONTEXT_STEP_SET_KERNEL_DATA_FORMAT,
+    DATA_FORMAT_INIT_CONTEXT_STEP_LAST,
+} DataFormatInitContextStep;
+
+typedef struct {
+    RmfdPortProcessorQmi        *self;
+    GSimpleAsyncResult          *result;
+    GCancellable                *cancellable;
+    DataFormatInitContextStep    step;
+    QmiDeviceExpectedDataFormat  kernel_data_format;
+    QmiWdaLinkLayerProtocol      llp;
+    QmiClientWda                *wda;
+} DataFormatInitContext;
+
+static void
+data_format_init_context_complete_and_free (DataFormatInitContext *ctx)
+{
+    g_simple_async_result_complete_in_idle (ctx->result);
+    if (ctx->wda) {
+        qmi_device_release_client (ctx->self->priv->qmi_device,
+                                   QMI_CLIENT (ctx->wda),
+                                   QMI_DEVICE_RELEASE_CLIENT_FLAGS_RELEASE_CID,
+                                   3, NULL, NULL, NULL);
+        g_object_unref (ctx->wda);
+    }
+    if (ctx->cancellable)
+        g_object_unref (ctx->cancellable);
+    g_object_unref (ctx->result);
+    g_object_unref (ctx->self);
+    g_slice_free (DataFormatInitContext, ctx);
+}
+
+static gboolean
+data_format_init_finish (RmfdPortProcessorQmi  *self,
+                         GAsyncResult          *res,
+                         GError               **error)
+{
+    return !g_simple_async_result_propagate_error (G_SIMPLE_ASYNC_RESULT (res), error);
+}
+
+static void data_format_init_context_step (DataFormatInitContext *ctx);
+
+static void
+get_data_format_ready (QmiClientWda          *client,
+                       GAsyncResult          *res,
+                       DataFormatInitContext *ctx)
+{
+    QmiMessageWdaGetDataFormatOutput *output;
+    GError                           *error = NULL;
+
+    output = qmi_client_wda_get_data_format_finish (client, res, &error);
+    if (!output ||
+        !qmi_message_wda_get_data_format_output_get_result (output, &error) ||
+        !qmi_message_wda_get_data_format_output_get_link_layer_protocol (output, &ctx->llp, &error)) {
+        g_prefix_error (&error, "error retrieving data format with WDA client: ");
+        g_simple_async_result_take_error (ctx->result, error);
+        data_format_init_context_complete_and_free (ctx);
+        goto out;
+    }
+
+    /* Go on to next step */
+    ctx->step++;
+    data_format_init_context_step (ctx);
+
+out:
+    if (output)
+        qmi_message_wda_get_data_format_output_unref (output);
+}
+
+static void
+wda_allocate_client_ready (QmiDevice             *qmi_device,
+                           GAsyncResult          *res,
+                           DataFormatInitContext *ctx)
+{
+    GError *error = NULL;
+
+    ctx->wda = QMI_CLIENT_WDA (qmi_device_allocate_client_finish (qmi_device, res, &error));
+    if (!ctx->wda) {
+        g_prefix_error (&error, "device doesn't support WDA service: ");
+        g_simple_async_result_take_error (ctx->result, error);
+        data_format_init_context_complete_and_free (ctx);
+        return;
+    }
+
+    /* Go on to next step */
+    ctx->step++;
+    data_format_init_context_step (ctx);
+}
+
+static void
+data_format_init_context_step (DataFormatInitContext *ctx)
+{
+    switch (ctx->step) {
+    case DATA_FORMAT_INIT_CONTEXT_STEP_FIRST:
+        /* Fall down to next step */
+        ctx->step++;
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_KERNEL_DATA_FORMAT:
+        /* Try to gather expected data format from the sysfs file */
+        ctx->kernel_data_format = qmi_device_get_expected_data_format (ctx->self->priv->qmi_device, NULL);
+        if (ctx->kernel_data_format == QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN) {
+            g_simple_async_result_set_error (ctx->result,
+                                             RMFD_ERROR,
+                                             RMFD_ERROR_NOT_SUPPORTED,
+                                             "kernel doesn't support data format setting");
+            data_format_init_context_complete_and_free (ctx);
+            return;
+        }
+        /* Fall down to next step */
+        ctx->step++;
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_CLIENT_WDA:
+        qmi_device_allocate_client (ctx->self->priv->qmi_device,
+                                    QMI_SERVICE_WDA,
+                                    QMI_CID_NONE,
+                                    10,
+                                    ctx->cancellable,
+                                    (GAsyncReadyCallback) wda_allocate_client_ready,
+                                    ctx);
+        return;
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_CLIENT_DATA_FORMAT:
+        qmi_client_wda_get_data_format (ctx->wda,
+                                        NULL,
+                                        10,
+                                        ctx->cancellable,
+                                        (GAsyncReadyCallback) get_data_format_ready,
+                                        ctx);
+        return;
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_CHECK:
+        g_debug ("Checking data format: kernel %s, device %s",
+                 qmi_device_expected_data_format_get_string (ctx->kernel_data_format),
+                 qmi_wda_link_layer_protocol_get_string (ctx->llp));
+
+        if (ctx->kernel_data_format == QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3 &&
+            ctx->llp == QMI_WDA_LINK_LAYER_PROTOCOL_802_3) {
+            ctx->self->priv->llp_is_raw_ip = FALSE;
+            ctx->step = DATA_FORMAT_INIT_CONTEXT_STEP_LAST;
+            data_format_init_context_complete_and_free (ctx);
+            return;
+        }
+
+        if (ctx->kernel_data_format == QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP &&
+            ctx->llp == QMI_WDA_LINK_LAYER_PROTOCOL_RAW_IP) {
+            ctx->self->priv->llp_is_raw_ip = TRUE;
+            ctx->step = DATA_FORMAT_INIT_CONTEXT_STEP_LAST;
+            data_format_init_context_complete_and_free (ctx);
+            return;
+        }
+
+        ctx->step++;
+        /* Fall down to next step */
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_SET_KERNEL_DATA_FORMAT: {
+        GError *error = NULL;
+
+        /* Update the data format to be expected by the kernel */
+        g_debug ("Updating kernel data format: %s", qmi_wda_link_layer_protocol_get_string (ctx->llp));
+        if (ctx->llp == QMI_WDA_LINK_LAYER_PROTOCOL_802_3) {
+            ctx->kernel_data_format = QMI_DEVICE_EXPECTED_DATA_FORMAT_802_3;
+            ctx->self->priv->llp_is_raw_ip = FALSE;
+        } else if (ctx->llp == QMI_WDA_LINK_LAYER_PROTOCOL_RAW_IP) {
+            ctx->kernel_data_format = QMI_DEVICE_EXPECTED_DATA_FORMAT_RAW_IP;
+            ctx->self->priv->llp_is_raw_ip = TRUE;
+        } else
+            g_assert_not_reached ();
+
+        /* Regardless of the output, we're done after this action */
+        if (!qmi_device_set_expected_data_format (ctx->self->priv->qmi_device,
+                                                  ctx->kernel_data_format,
+                                                  &error)) {
+            g_simple_async_result_take_error (ctx->result, error);
+            data_format_init_context_complete_and_free (ctx);
+            return;
+        }
+
+        ctx->step++;
+        /* Fall down to next step */
+    }
+
+    case DATA_FORMAT_INIT_CONTEXT_STEP_LAST:
+        g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
+        data_format_init_context_complete_and_free (ctx);
+        return;
+    }
+}
+
+static void
+data_format_init (RmfdPortProcessorQmi *self,
+                  GCancellable         *cancellable,
+                  GAsyncReadyCallback   callback,
+                  gpointer              user_data)
+{
+    DataFormatInitContext *ctx;
+
+    ctx = g_slice_new0 (DataFormatInitContext);
+    ctx->self   = g_object_ref (self);
+    ctx->result = g_simple_async_result_new (G_OBJECT (self),
+                                             callback,
+                                             user_data,
+                                             data_format_init);
+    ctx->step = DATA_FORMAT_INIT_CONTEXT_STEP_FIRST;
+    ctx->kernel_data_format = QMI_DEVICE_EXPECTED_DATA_FORMAT_UNKNOWN;
+    ctx->llp = QMI_WDA_LINK_LAYER_PROTOCOL_UNKNOWN;
+
+    data_format_init_context_step (ctx);
+}
+
+/*****************************************************************************/
 /* Processor init */
 
 typedef enum {
     INIT_CONTEXT_STEP_FIRST,
     INIT_CONTEXT_STEP_DEVICE_NEW,
     INIT_CONTEXT_STEP_DEVICE_OPEN,
+    INIT_CONTEXT_STEP_DATA_FORMAT_INIT,
     INIT_CONTEXT_STEP_CLIENTS,
     INIT_CONTEXT_STEP_MESSAGING_INIT,
     INIT_CONTEXT_STEP_LAST,
 } InitContextStep;
 
 typedef struct {
-    RmfdPortProcessorQmi *self;
-    GSimpleAsyncResult   *result;
-    GCancellable         *cancellable;
-    InitContextStep       step;
-    guint                 clients_i;
+    RmfdPortProcessorQmi        *self;
+    GSimpleAsyncResult          *result;
+    GCancellable                *cancellable;
+    InitContextStep              step;
+    guint                        clients_i;
 } InitContext;
 
 static void
@@ -4656,6 +4878,26 @@ allocate_client_ready (QmiDevice    *qmi_device,
 }
 
 static void
+data_format_init_ready (RmfdPortProcessorQmi *self,
+                        GAsyncResult         *res,
+                        InitContext          *ctx)
+{
+    GError *error = NULL;
+
+    if (!data_format_init_finish (self, res, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        init_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_debug ("Data format initialized");
+
+    /* Go on to next step */
+    ctx->step++;
+    init_context_step (ctx);
+}
+
+static void
 device_open_ready (QmiDevice    *qmi_device,
                    GAsyncResult *res,
                    InitContext  *ctx)
@@ -4700,7 +4942,6 @@ static void
 init_context_step (InitContext *ctx)
 {
     switch (ctx->step) {
-
     case INIT_CONTEXT_STEP_FIRST:
         /* Fall down to next step */
         ctx->step++;
@@ -4740,6 +4981,14 @@ init_context_step (InitContext *ctx)
                          ctx);
         return;
     }
+
+    case INIT_CONTEXT_STEP_DATA_FORMAT_INIT:
+        g_debug ("running data format initialization...");
+        data_format_init (ctx->self,
+                          ctx->cancellable,
+                         (GAsyncReadyCallback) data_format_init_ready,
+                         ctx);
+        return;
 
     case INIT_CONTEXT_STEP_CLIENTS: {
         /* Allocate next client */
