@@ -60,21 +60,6 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 
 #define STATS_FILE_PATH "/var/log/rmfd.stats"
 
-typedef enum {
-    MESSAGING_LIST_STATUS_NONE,
-    MESSAGING_LIST_STATUS_ONGOING,
-    MESSAGING_LIST_STATUS_DONE,
-    MESSAGING_LIST_STATUS_ABORTED,
-} MessagingListStatus;
-
-typedef struct {
-    RmfdPortProcessorQmi *self; /* not full ref */
-    QmiWmsStorageType     storage;
-    MessagingListStatus   status;
-    guint                 id;
-    guint                 retries;
-} MessagingListContext;
-
 struct _RmfdPortProcessorQmiPrivate {
     /* QMI device and clients */
     QmiDevice *qmi_device;
@@ -4267,6 +4252,21 @@ messaging_list_parts (RmfdPortProcessorQmi *self,
 }
 
 /*****************************************************************************/
+
+typedef enum {
+    MESSAGING_LIST_STATUS_NONE,
+    MESSAGING_LIST_STATUS_ONGOING,
+    MESSAGING_LIST_STATUS_DONE,
+    MESSAGING_LIST_STATUS_ABORTED,
+} MessagingListStatus;
+
+typedef struct {
+    RmfdPortProcessorQmi *self; /* not full ref */
+    QmiWmsStorageType     storage;
+    MessagingListStatus   status;
+    guint                 id;
+    guint                 retries;
+} MessagingListContext;
 
 static void
 messaging_list_context_clear (MessagingListContext *ctx)
