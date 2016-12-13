@@ -1319,18 +1319,9 @@ get_sim_info (RunContext *ctx)
 /**********************/
 /* Common unlock + ready check */
 
-typedef enum {
-    COMMON_UNLOCK_CHECK_STEP_FIRST,
-    COMMON_UNLOCK_CHECK_STEP_LOCK_STATUS,
-    COMMON_UNLOCK_CHECK_STEP_SIM_READY_STATUS,
-    COMMON_UNLOCK_CHECK_STEP_LAST,
-} CommonUnlockCheckStep;
-
 typedef struct {
     RmfdPortProcessorQmi *self;
     GSimpleAsyncResult *simple;
-    CommonUnlockCheckStep step;
-    gboolean unlocked;
 } CommonUnlockCheckContext;
 
 static void
@@ -1357,51 +1348,48 @@ common_unlock_check_finish (RmfdPortProcessorQmi  *self,
     return TRUE;
 }
 
-static void common_unlock_check_context_step (CommonUnlockCheckContext *ctx);
-
 static void
 get_card_status_ready (QmiClientUim *client,
                        GAsyncResult *res,
                        CommonUnlockCheckContext *ctx)
 {
+    QmiMessageUimGetCardStatusOutputCardStatusCardsElement                    *card;
+    QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement *app;
     QmiMessageUimGetCardStatusOutput *output;
-    GError *error = NULL;
-    GArray *cards;
-    guint i;
+    GError   *error = NULL;
+    GArray   *cards;
+    gint      card_i = -1;
+    gint      application_j = -1;
+    guint     n_absent = 0;
+    guint     n_error = 0;
+    guint     n_invalid = 0;
+    guint     i;
+    gboolean  unlocked = FALSE;
 
     output = qmi_client_uim_get_card_status_finish (client, res, &error);
     if (!output) {
         g_prefix_error (&error, "QMI operation failed: ");
-        g_simple_async_result_take_error (ctx->simple, error);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
+        goto out;
     }
 
     if (!qmi_message_uim_get_card_status_output_get_result (output, &error)) {
         g_prefix_error (&error, "couldn't get card status: ");
-        g_simple_async_result_take_error (ctx->simple, error);
-        qmi_message_uim_get_card_status_output_unref (output);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
+        goto out;
     }
 
-    qmi_message_uim_get_card_status_output_get_card_status (
-        output,
-        NULL, /* index_gw_primary */
-        NULL, /* index_1x_primary */
-        NULL, /* index_gw_secondary */
-        NULL, /* index_1x_secondary */
-        &cards,
-        NULL);
+    if (!qmi_message_uim_get_card_status_output_get_card_status (
+            output,
+            NULL, /* index_gw_primary */
+            NULL, /* index_1x_primary */
+            NULL, /* index_gw_secondary */
+            NULL, /* index_1x_secondary */
+            &cards,
+            &error))
+        goto out;
 
     if (cards->len == 0) {
-        g_simple_async_result_set_error (ctx->simple,
-                                         RMFD_ERROR,
-                                         RMFD_ERROR_UNKNOWN,
-                                         "No cards reported");
-        qmi_message_uim_get_card_status_output_unref (output);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_UNKNOWN, "No cards reported");
+        goto out;
     }
 
     if (cards->len > 1)
@@ -1410,217 +1398,138 @@ get_card_status_ready (QmiClientUim *client,
     /* All KNOWN applications in all cards will need to be in READY state for us
      * to consider UNLOCKED */
     for (i = 0; i < cards->len; i++) {
-        QmiMessageUimGetCardStatusOutputCardStatusCardsElement *card;
-
         card = &g_array_index (cards, QmiMessageUimGetCardStatusOutputCardStatusCardsElement, i);
-
         switch (card->card_state) {
         case QMI_UIM_CARD_STATE_PRESENT: {
             guint j;
-            guint sim_or_usim_ready = 0;
+            gboolean sim_usim_found = FALSE;
 
             if (card->applications->len == 0) {
-                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
-                                                 "No applications reported in card [%u]", i);
-                qmi_message_uim_get_card_status_output_unref (output);
-                common_unlock_check_context_complete_and_free (ctx);
-                return;
+                g_debug ("[card %u] no applications in card", i);
+                n_invalid++;
+                break;
             }
 
             if (card->applications->len > 1)
-                g_debug ("Multiple applications reported in card [%u]: %u", i, card->applications->len);
+                g_debug ("[card %u] multiple applications in card: %u", i, card->applications->len);
 
             for (j = 0; j < card->applications->len; j++) {
-                QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement *app;
-
                 app = &g_array_index (card->applications, QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement, j);
-
                 if (app->type == QMI_UIM_CARD_APPLICATION_TYPE_UNKNOWN) {
-                    g_debug ("Unknown application [%u] found in card [%u]: %s. Ignored.",
-                             j, i, qmi_uim_card_application_state_get_string (app->state));
+                    g_debug ("[card %u, application %u] type: 'unknown', state '%s' (ignored)",
+                             i, j, qmi_uim_card_application_state_get_string (app->state));
                     continue;
                 }
 
-                g_debug ("Application '%s' [%u] in card [%u]: %s",
-                         qmi_uim_card_application_type_get_string (app->type), j, i, qmi_uim_card_application_state_get_string (app->state));
+                g_debug ("[card %u, application %u] type '%s', state '%s'",
+                         i, j, qmi_uim_card_application_type_get_string (app->type), qmi_uim_card_application_state_get_string (app->state));
 
-                if ((app->type == QMI_UIM_CARD_APPLICATION_TYPE_SIM || app->type == QMI_UIM_CARD_APPLICATION_TYPE_USIM) &&
-                    (app->state == QMI_UIM_CARD_APPLICATION_STATE_READY))
-                    sim_or_usim_ready++;
+                if (app->type == QMI_UIM_CARD_APPLICATION_TYPE_SIM || app->type == QMI_UIM_CARD_APPLICATION_TYPE_USIM) {
+                    /* We found the card/app pair to use! Only keep the first found,
+                     * but still, keep on looping to log about the remaining ones */
+                    if (card_i < 0 && application_j < 0) {
+                        card_i = i;
+                        application_j = j;
+                    }
+
+                    sim_usim_found = TRUE;
+                }
             }
 
-            if (!sim_or_usim_ready) {
-                g_debug ("Neither SIM nor USIM are ready");
-                ctx->unlocked = FALSE;
-                ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
-                qmi_message_uim_get_card_status_output_unref (output);
-                common_unlock_check_context_step (ctx);
-                return;
+            if (!sim_usim_found) {
+                g_debug ("[card %u] no SIM/USIM application found in card", i);
+                n_invalid++;
             }
 
             break;
         }
 
         case QMI_UIM_CARD_STATE_ABSENT:
-            g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
-                                             "Card '%u' is absent", i);
-            qmi_message_uim_get_card_status_output_unref (output);
-            common_unlock_check_context_complete_and_free (ctx);
-            return;
+            g_debug ("[card %u] card is absent", i);
+            n_absent++;
+            break;
 
         case QMI_UIM_CARD_STATE_ERROR:
         default:
+            n_error++;
             if (qmi_uim_card_error_get_string (card->error_code) != NULL)
-                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
-                                                 "Card '%u' is unusable: %s",
-                                                 i, qmi_uim_card_error_get_string (card->error_code));
+                g_warning ("[card %u] card is unusable: %s",
+                           i, qmi_uim_card_error_get_string (card->error_code));
             else
-                g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
-                                                 "Card '%u' is unusable: unknown error (%u)",
-                                                 i, card->error_code);
-
-            qmi_message_uim_get_card_status_output_unref (output);
-            common_unlock_check_context_complete_and_free (ctx);
-            return;
+                g_warning ("[card %u] is unusable: unknown error (%u)",
+                           i, card->error_code);
+            break;
         }
 
         /* go on to next card */
     }
 
-    qmi_message_uim_get_card_status_output_unref (output);
-
-    /* We're done */
-    ctx->unlocked = TRUE;
-    ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
-    common_unlock_check_context_step (ctx);
-}
-
-static void
-get_pin_status_ready (QmiClientDms             *client,
-                      GAsyncResult             *res,
-                      CommonUnlockCheckContext *ctx)
-{
-    QmiMessageDmsUimGetPinStatusOutput *output = NULL;
-    GError *error = NULL;
-    QmiDmsUimPinStatus current_status;
-
-    output = qmi_client_dms_uim_get_pin_status_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
-        g_simple_async_result_take_error (ctx->simple, error);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
+    /* If we found no card/app to use, we need to report an error */
+    if (card_i < 0 || application_j < 0) {
+        /* If not a single card found, report SIM not inserted */
+        if (n_absent > 0 && !n_error && !n_invalid)
+            error = g_error_new (RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                                 "No card found");
+        else
+            error = g_error_new (RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                                 "Card failure: %u absent, %u errors, %u invalid",
+                                 n_absent, n_error, n_invalid);
+        goto out;
     }
 
-    if (!qmi_message_dms_uim_get_pin_status_output_get_result (output, &error)) {
-        /* QMI error internal when checking PIN status likely means NO SIM */
-        if (g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_INTERNAL)) {
-            g_error_free (error);
-            error = g_error_new (QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_NO_SIM, "missing SIM");
-        }
-        g_prefix_error (&error, "couldn't get PIN status: ");
-        g_simple_async_result_take_error (ctx->simple, error);
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
+    /* Get card/app to use */
+    card = &g_array_index (cards, QmiMessageUimGetCardStatusOutputCardStatusCardsElement, card_i);
+    app  = &g_array_index (card->applications, QmiMessageUimGetCardStatusOutputCardStatusCardsElementApplicationsElement, application_j);
+
+    /* If card not ready yet, return error.
+     * If the application state reports needing PIN/PUK, consider that ready as
+     * well, and let the logic fall down to check PIN1/PIN2. */
+    if (app->state != QMI_UIM_CARD_APPLICATION_STATE_READY &&
+        app->state != QMI_UIM_CARD_APPLICATION_STATE_PIN1_OR_UPIN_PIN_REQUIRED &&
+        app->state != QMI_UIM_CARD_APPLICATION_STATE_PUK1_OR_UPIN_PUK_REQUIRED &&
+        app->state != QMI_UIM_CARD_APPLICATION_STATE_PIN1_BLOCKED) {
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_UNKNOWN, "UIM not ready");
+        goto out;
     }
 
-    if (!qmi_message_dms_uim_get_pin_status_output_get_pin1_status (
-            output,
-            &current_status,
-            NULL, /* verify_retries_left */
-            NULL, /* unblock_retries_left */
-            &error)) {
-        g_prefix_error (&error, "couldn't get PIN1 status: ");
-        g_simple_async_result_take_error (ctx->simple, error);
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
-    }
+    /* Card is ready, what's the lock status? */
 
-    g_debug ("Current PIN1 status retrieved: '%s'", qmi_dms_uim_pin_status_get_string (current_status));
-
-    switch (current_status) {
-    case QMI_DMS_UIM_PIN_STATUS_NOT_INITIALIZED:
-        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
-                                         "SIM is not initialized, cannot check lock status");
+    /* PIN1 */
+    switch (app->pin1_state) {
+    case QMI_UIM_PIN_STATE_PERMANENTLY_BLOCKED:
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                             "UIM permanently blocked");
         break;
 
-    case QMI_DMS_UIM_PIN_STATUS_CHANGED:
-        /* This is a temporary state given after an ChangePin() operation has been performed. */
-    case QMI_DMS_UIM_PIN_STATUS_UNBLOCKED:
-        /* This is a temporary state given after an Unblock() operation has been performed. */
-    case QMI_DMS_UIM_PIN_STATUS_DISABLED:
-    case QMI_DMS_UIM_PIN_STATUS_ENABLED_VERIFIED:
-        /* PIN is now either unlocked or disabled, we can go on */
-        ctx->step++;
-        common_unlock_check_context_step (ctx);
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
-        return;
-
-    case QMI_DMS_UIM_PIN_STATUS_BLOCKED:
-        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
-                                         "SIM is blocked, needs PUK");
+    case QMI_UIM_PIN_STATE_ENABLED_NOT_VERIFIED:
+        g_message ("UIM is PIN locked: %u retries left", app->pin1_retries);
         break;
 
-    case QMI_DMS_UIM_PIN_STATUS_PERMANENTLY_BLOCKED:
-        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
-                                         "SIM is permanently blocked");
+    case QMI_UIM_PIN_STATE_BLOCKED:
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                             "UIM is PUK locked: %u retries left", app->puk1_retries);
         break;
 
-    case QMI_DMS_UIM_PIN_STATUS_ENABLED_NOT_VERIFIED:
-        /* PIN is enabled and locked */
-        ctx->unlocked = FALSE;
-        ctx->step = COMMON_UNLOCK_CHECK_STEP_LAST;
-        common_unlock_check_context_step (ctx);
-        qmi_message_dms_uim_get_pin_status_output_unref (output);
-        return;
+    case QMI_UIM_PIN_STATE_DISABLED:
+    case QMI_UIM_PIN_STATE_ENABLED_VERIFIED:
+        g_message ("UIM is ready");
+        unlocked = TRUE;
+        break;
 
     default:
-        g_simple_async_result_set_error (ctx->simple, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
-                                         "Unknown lock status");
+        error = g_error_new (RMFD_ERROR, RMFD_ERROR_INVALID_STATE,
+                             "Unknown UIM PIN/PUK status");
         break;
     }
 
-    qmi_message_dms_uim_get_pin_status_output_unref (output);
+out:
+    if (error)
+        g_simple_async_result_take_error (ctx->simple, error);
+    else
+        g_simple_async_result_set_op_res_gboolean (ctx->simple, unlocked);
+    if (output)
+        qmi_message_uim_get_card_status_output_unref (output);
     common_unlock_check_context_complete_and_free (ctx);
-}
-
-static void
-common_unlock_check_context_step (CommonUnlockCheckContext *ctx)
-{
-    switch (ctx->step) {
-    case COMMON_UNLOCK_CHECK_STEP_FIRST:
-        ctx->step++;
-        /* Fall down */
-
-    case COMMON_UNLOCK_CHECK_STEP_LOCK_STATUS:
-        g_debug ("Checking SIM lock status...");
-        qmi_client_dms_uim_get_pin_status (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
-                                           NULL,
-                                           5,
-                                           NULL,
-                                           (GAsyncReadyCallback)get_pin_status_ready,
-                                           ctx);
-        return;
-
-    case COMMON_UNLOCK_CHECK_STEP_SIM_READY_STATUS:
-        g_debug ("Checking SIM readiness status...");
-        qmi_client_uim_get_card_status (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
-                                        NULL,
-                                        5,
-                                        NULL,
-                                        (GAsyncReadyCallback)get_card_status_ready,
-                                        ctx);
-        return;
-
-    case COMMON_UNLOCK_CHECK_STEP_LAST:
-        g_simple_async_result_set_op_res_gboolean (ctx->simple, ctx->unlocked);
-        common_unlock_check_context_complete_and_free (ctx);
-        return;
-    }
-
-    g_assert_not_reached ();
 }
 
 static void
@@ -1632,14 +1541,13 @@ common_unlock_check (RmfdPortProcessorQmi *self,
 
     ctx = g_slice_new0 (CommonUnlockCheckContext);
     ctx->self = g_object_ref (self);
-    ctx->simple = g_simple_async_result_new (G_OBJECT (self),
-                                             callback,
-                                             user_data,
-                                             common_unlock_check);
-    ctx->step = COMMON_UNLOCK_CHECK_STEP_FIRST;
-    ctx->unlocked = FALSE;
-
-    common_unlock_check_context_step (ctx);
+    ctx->simple = g_simple_async_result_new (G_OBJECT (self), callback, user_data, common_unlock_check);
+    qmi_client_uim_get_card_status (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
+                                    NULL,
+                                    5,
+                                    NULL,
+                                    (GAsyncReadyCallback) get_card_status_ready,
+                                    ctx);
 }
 
 /**********************/
