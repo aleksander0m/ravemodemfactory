@@ -54,6 +54,7 @@ rmfd_error_message_new_from_error (const GByteArray *request,
             break;
         case RMFD_ERROR_INVALID_STATE:
             status = RMF_RESPONSE_STATUS_ERROR_INVALID_STATE;
+            break;
         case RMFD_ERROR_INVALID_INPUT:
             status = RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT;
             break;
