@@ -55,6 +55,7 @@ static const char *response_status_str[] = {
     "Unknown command", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
     "No modem",        /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
     "Invalid state",   /* RMF_RESPONSE_STATUS_ERROR_INVALID_STATE */
+    "Invalid input",   /* RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT */
 };
 
 static const char *qmi_response_status_str[] = {
