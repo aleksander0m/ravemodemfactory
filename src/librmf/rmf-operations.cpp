@@ -378,10 +378,10 @@ failed:
     return ret;
 }
 
-#define response_error_string(status) \
-    ((status < 100) ?                                   \
-    response_status_str[status] :                       \
-    qmi_response_status_str[status - 100])
+#define response_error_string(status)                                   \
+    ((status < 100) ?                                                   \
+     ((status < (sizeof (response_status_str) / sizeof (response_status_str[0]))) ? response_status_str[status] : "<invalid>") : \
+     qmi_response_status_str[status - 100])
 
 #define throw_response_error(status) do {                       \
     throw std::runtime_error (response_error_string (status));  \
