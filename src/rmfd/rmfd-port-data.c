@@ -42,11 +42,26 @@ rmfd_port_data_setup_finish (RmfdPortData  *self,
 void
 rmfd_port_data_setup (RmfdPortData        *self,
                       gboolean             start,
+                      const gchar         *ip_address,
+                      const gchar         *netmask_address,
+                      const gchar         *gateway_address,
+                      const gchar         *dns1_address,
+                      const gchar         *dns2_address,
+                      guint32              mtu,
                       GAsyncReadyCallback  callback,
                       gpointer             user_port_data)
 {
     g_assert (RMFD_PORT_DATA_GET_CLASS (self)->setup != NULL);
-    RMFD_PORT_DATA_GET_CLASS (self)->setup (self, start, callback, user_port_data);
+    RMFD_PORT_DATA_GET_CLASS (self)->setup (self,
+                                            start,
+                                            ip_address,
+                                            netmask_address,
+                                            gateway_address,
+                                            dns1_address,
+                                            dns2_address,
+                                            mtu,
+                                            callback,
+                                            user_port_data);
 }
 
 /*****************************************************************************/

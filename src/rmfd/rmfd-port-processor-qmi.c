@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2015 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2016 Zodiac Inflight Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -3000,11 +3000,22 @@ typedef struct {
     guint        iteration;
     gboolean     default_ip_family_set;
     GError      *error;
+    gchar       *ip_str;
+    gchar       *subnet_str;
+    gchar       *gw_str;
+    gchar       *dns1_str;
+    gchar       *dns2_str;
+    guint32      mtu;
 } ConnectContext;
 
 static void
 connect_context_free (ConnectContext *ctx)
 {
+    g_free (ctx->ip_str);
+    g_free (ctx->subnet_str);
+    g_free (ctx->gw_str);
+    g_free (ctx->dns1_str);
+    g_free (ctx->dns2_str);
     if (ctx->error)
         g_error_free (ctx->error);
     g_slice_free (ConnectContext, ctx);
@@ -3141,10 +3152,39 @@ data_setup_start_ready (RmfdPortData *data,
 static void
 connect_step_wwan_setup (RunContext *ctx)
 {
-    rmfd_port_data_setup (ctx->data,
-                          TRUE,
-                          (GAsyncReadyCallback)data_setup_start_ready,
-                          ctx);
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+
+    /* If we have a device running in 802.3 mode, we must run DHCP because some
+     * devices require that to actually initialize the data flow in the WWAN.
+     */
+    if (!ctx->self->priv->llp_is_raw_ip) {
+        rmfd_port_data_setup (ctx->data,
+                              TRUE,
+                              NULL, NULL, NULL, NULL, NULL, 0,
+                              (GAsyncReadyCallback)data_setup_start_ready,
+                              ctx);
+        return;
+    }
+
+    /* If we have a device running in raw-ip mode, run with static IP
+     * configuration because not all DHCP clients know how to handle the raw-ip
+     * network interface. But we do require IP and subnet at least!
+     */
+    if (connect_ctx->ip_str && connect_ctx->subnet_str) {
+        rmfd_port_data_setup (ctx->data,
+                              TRUE,
+                              connect_ctx->ip_str,
+                              connect_ctx->subnet_str,
+                              connect_ctx->gw_str,
+                              connect_ctx->dns1_str,
+                              connect_ctx->dns2_str,
+                              connect_ctx->mtu,
+                              (GAsyncReadyCallback)data_setup_start_ready,
+                              ctx);
+        return;
+    }
+
+
 }
 
 static void
@@ -3158,57 +3198,69 @@ get_current_settings_ready (QmiClientWds *client,
     guint32 addr = 0;
     struct in_addr in_addr_val;
     gchar buf4[INET_ADDRSTRLEN];
-    guint32 mtu;
+
+    g_assert (!connect_ctx->ip_str);
+    g_assert (!connect_ctx->subnet_str);
+    g_assert (!connect_ctx->gw_str);
+    g_assert (!connect_ctx->dns1_str);
+    g_assert (!connect_ctx->dns2_str);
+    g_assert (!connect_ctx->mtu);
 
     output = qmi_client_wds_get_current_settings_finish (client, res, &error);
     if (output && qmi_message_wds_get_current_settings_output_get_result (output, &error)) {
-        g_message ("WWAN IP settings retrieved:");
+        g_debug ("Current IP settings retrieved:");
 
         if (qmi_message_wds_get_current_settings_output_get_ipv4_address (output, &addr, NULL)) {
             in_addr_val.s_addr = GUINT32_TO_BE (addr);
             memset (buf4, 0, sizeof (buf4));
             inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
-            g_message ("  IPv4 address: %s", buf4);
+            g_debug ("  IPv4 address: %s", buf4);
+            connect_ctx->ip_str = g_strdup (buf4);
         }
 
         if (qmi_message_wds_get_current_settings_output_get_ipv4_gateway_subnet_mask (output, &addr, NULL)) {
             in_addr_val.s_addr = GUINT32_TO_BE (addr);
             memset (buf4, 0, sizeof (buf4));
             inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
-            g_message ("  IPv4 subnet mask: %s", buf4);
+            g_debug ("  IPv4 subnet mask: %s", buf4);
+            connect_ctx->subnet_str = g_strdup (buf4);
         }
 
         if (qmi_message_wds_get_current_settings_output_get_ipv4_gateway_address (output, &addr, NULL)) {
             in_addr_val.s_addr = GUINT32_TO_BE (addr);
             memset (buf4, 0, sizeof (buf4));
             inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
-            g_message ("  IPv4 gateway address: %s", buf4);
+            g_debug ("  IPv4 gateway address: %s", buf4);
+            connect_ctx->gw_str = g_strdup (buf4);
         }
 
         if (qmi_message_wds_get_current_settings_output_get_primary_ipv4_dns_address (output, &addr, NULL)) {
             in_addr_val.s_addr = GUINT32_TO_BE (addr);
             memset (buf4, 0, sizeof (buf4));
             inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
-            g_message ("  IPv4 primary DNS: %s", buf4);
+            g_debug ("  IPv4 primary DNS: %s", buf4);
+            connect_ctx->dns1_str = g_strdup (buf4);
         }
 
         if (qmi_message_wds_get_current_settings_output_get_secondary_ipv4_dns_address (output, &addr, NULL)) {
             in_addr_val.s_addr = GUINT32_TO_BE (addr);
             memset (buf4, 0, sizeof (buf4));
             inet_ntop (AF_INET, &in_addr_val, buf4, sizeof (buf4));
-            g_message ("  IPv4 secondary DNS: %s", buf4);
+            g_debug ("  IPv4 secondary DNS: %s", buf4);
+            connect_ctx->dns2_str = g_strdup (buf4);
         }
 
-        if (qmi_message_wds_get_current_settings_output_get_mtu (output, &mtu, NULL))
-            g_message ("  MTU: %u", mtu);
+        if (qmi_message_wds_get_current_settings_output_get_mtu (output, &connect_ctx->mtu, NULL))
+            g_debug ("  MTU: %u", connect_ctx->mtu);
     }
 
     if (output)
         qmi_message_wds_get_current_settings_output_unref (output);
 
     if (error) {
-        g_warning ("error: couldn't retrieve IP settings: %s", error->message);
-        g_error_free (error);
+        connect_ctx->error = error;
+        connect_step_restart_iteration (ctx);
+        return;
     }
 
     /* Go on to next step */
@@ -3220,6 +3272,7 @@ static void
 connect_step_ip_settings (RunContext *ctx)
 {
     QmiMessageWdsGetCurrentSettingsInput *input;
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
 
     input = qmi_message_wds_get_current_settings_input_new ();
     qmi_message_wds_get_current_settings_input_set_requested_settings (
@@ -3229,6 +3282,19 @@ connect_step_ip_settings (RunContext *ctx)
          QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_GATEWAY_INFO |
          QMI_WDS_GET_CURRENT_SETTINGS_REQUESTED_SETTINGS_MTU),
         NULL);
+
+    g_free (connect_ctx->ip_str);
+    g_free (connect_ctx->subnet_str);
+    g_free (connect_ctx->gw_str);
+    g_free (connect_ctx->dns1_str);
+    g_free (connect_ctx->dns2_str);
+
+    connect_ctx->ip_str = NULL;
+    connect_ctx->subnet_str = NULL;
+    connect_ctx->gw_str = NULL;
+    connect_ctx->dns1_str = NULL;
+    connect_ctx->dns2_str = NULL;
+    connect_ctx->mtu = 0;
 
     g_debug ("Asynchronously getting current settings...");
     qmi_client_wds_get_current_settings (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
@@ -3269,6 +3335,7 @@ wds_start_network_ready (QmiClientWds *client,
 
             /* Fall down to a successful connection */
         } else {
+            g_warning ("error: couldn't start network: %s", error->message);
             if (g_error_matches (error,
                                  QMI_PROTOCOL_ERROR,
                                  QMI_PROTOCOL_ERROR_CALL_FAILED)) {
@@ -3329,8 +3396,6 @@ wds_start_network_ready (QmiClientWds *client,
     }
 
     if (error) {
-        g_warning ("error: couldn't start network: %s", error->message);
-
         if (error_str) {
             connect_ctx->error = g_error_new (error->domain,
                                               error->code,
@@ -3590,6 +3655,7 @@ write_connection_stats_stop_ready (RmfdPortProcessorQmi *self,
 
     rmfd_port_data_setup (ctx->data,
                           FALSE,
+                          NULL, NULL, NULL, NULL, NULL, 0,
                           (GAsyncReadyCallback)data_setup_stop_ready,
                           ctx);
 }

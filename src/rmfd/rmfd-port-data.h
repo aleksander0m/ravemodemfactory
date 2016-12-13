@@ -50,6 +50,12 @@ struct _RmfdPortDataClass {
 
     void     (* setup)        (RmfdPortData         *self,
                                gboolean              start,
+                               const gchar          *ip_address,
+                               const gchar          *netmask_address,
+                               const gchar          *gateway_address,
+                               const gchar          *dns1_address,
+                               const gchar          *dns2_address,
+                               guint32               mtu,
                                GAsyncReadyCallback   callback,
                                gpointer              user_port_data);
     gboolean (* setup_finish) (RmfdPortData         *self,
@@ -60,6 +66,12 @@ struct _RmfdPortDataClass {
 GType        rmfd_port_data_get_type      (void);
 void         rmfd_port_data_setup         (RmfdPortData         *self,
                                            gboolean              start,
+                                           const gchar          *ip_address,
+                                           const gchar          *netmask_address,
+                                           const gchar          *gateway_address,
+                                           const gchar          *dns1_address,
+                                           const gchar          *dns2_address,
+                                           guint32               mtu,
                                            GAsyncReadyCallback   callback,
                                            gpointer              user_port_data);
 gboolean     rmfd_port_data_setup_finish  (RmfdPortData         *self,

@@ -90,7 +90,9 @@ cleanup_current_device (RmfdManager *self)
     if (self->priv->data) {
         g_debug ("    removing data port at '%s'",
                  rmfd_port_get_interface (RMFD_PORT (self->priv->data)));
-        rmfd_port_data_setup (self->priv->data, FALSE, NULL, NULL);
+        rmfd_port_data_setup (self->priv->data, FALSE,
+                              NULL, NULL, NULL, NULL, NULL, 0,
+                              NULL, NULL);
         g_clear_object (&self->priv->data);
     }
 

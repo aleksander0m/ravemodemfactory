@@ -23,6 +23,8 @@
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 
+#include <string.h>
+
 #include "rmfd-port-data-wwan.h"
 #include "rmfd-error.h"
 #include "rmfd-error-types.h"
@@ -84,12 +86,19 @@ command_ready (GPid          pid,
 static void
 setup (RmfdPortData        *self,
        gboolean             start,
+       const gchar         *ip_address,
+       const gchar         *netmask_address,
+       const gchar         *gateway_address,
+       const gchar         *dns1_address,
+       const gchar         *dns2_address,
+       guint32              mtu,
        GAsyncReadyCallback  callback,
        gpointer             user_port_data)
 {
+#define MAX_ARGS 10 /* 0-8 + 1 last NULL */
+
     SetupContext *ctx;
-    gchar *command;
-    gchar **command_split;
+    gchar *command_split[MAX_ARGS];
     GError *error = NULL;
     GPid pid;
 
@@ -99,14 +108,34 @@ setup (RmfdPortData        *self,
     ctx->start = start;
 
     /* Build command */
-    command = g_strdup_printf ("rmfd-port-data-wwan-service %s %s",
-                               rmfd_port_get_interface (RMFD_PORT (ctx->self)),
-                               ctx->start ? "start" : "stop");
-    command_split = g_strsplit (command, " ", -1);
-    g_debug ("%s WWAN interface '%s': %s",
-             ctx->start ? "starting" : "stopping",
-             rmfd_port_get_interface (RMFD_PORT (ctx->self)),
-             command);
+    memset (command_split, 0, sizeof (command_split));
+    command_split[0] = "rmfd-port-data-wwan-service";
+    command_split[1] = (gchar *) rmfd_port_get_interface (RMFD_PORT (ctx->self));
+    if (!ip_address) {
+        command_split[2] = ctx->start ? "start-dynamic" : "stop";
+        g_debug ("%s WWAN interface '%s'",
+                 ctx->start ? "starting" : "stopping",
+                 rmfd_port_get_interface (RMFD_PORT (ctx->self)));
+    } else {
+        g_assert (start);
+        command_split[2] = "start-static";
+        command_split[3] = (gchar *) (ip_address);
+        command_split[4] = (gchar *) (netmask_address ? netmask_address : "-");
+        command_split[5] = (gchar *) (gateway_address ? gateway_address : "-");
+        command_split[6] = (gchar *) (dns1_address ? dns1_address : "-");
+        command_split[7] = (gchar *) (dns2_address ? dns2_address : "-");
+        command_split[8] = mtu ? g_strdup_printf ("%u", mtu) : g_strdup ("-");
+
+        g_debug ("starting WWAN interface '%s': (static) [%s, %s, %s, %s, %s, %s]",
+                 rmfd_port_get_interface (RMFD_PORT (ctx->self)),
+                 command_split[3],
+                 command_split[4],
+                 command_split[5],
+                 command_split[6],
+                 command_split[7],
+                 command_split[8]);
+    }
+
     g_spawn_async (NULL, /* working directory */
                    command_split, /* argv */
                    NULL, /* envp */
@@ -115,14 +144,15 @@ setup (RmfdPortData        *self,
                    NULL, /* user_port_data */
                    &pid,
                    &error);
-    g_strfreev (command_split);
-    g_free (command);
+
+    g_free (command_split[8]);
 
     if (error) {
         g_prefix_error (&error,
                         "couldn't %s WWAN interface '%s': ",
                         ctx->start ? "start" : "stop",
                         rmfd_port_get_interface (RMFD_PORT (ctx->self)));
+        g_debug ("error: %s", error->message);
         g_simple_async_result_take_error (ctx->result, error);
         setup_context_complete_and_free (ctx);
         return;
