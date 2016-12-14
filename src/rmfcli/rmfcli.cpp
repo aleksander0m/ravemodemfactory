@@ -859,7 +859,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhy:Y:fdjkeiozLU:E:G:C:pP:ZasrtT:cxC:DbA", longopts, &i);
+        iarg = getopt_long (argc, argv, "vhy:Y:fdjkeiozLU:E:G:F:C:pP:ZasrtT:cxC:DbA", longopts, &i);
 
         switch (iarg) {
         case 'h':
