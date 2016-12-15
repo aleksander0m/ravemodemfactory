@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
@@ -24,7 +24,12 @@ echoerr() { echo "[$PROGRAM] $@" 1>&2; }
 
 print_usage ()
 {
-    echodbg "usage: $0 PIN APN [--with-valgrind]"
+    echo "usage: $0 \"PIN\" \"APN [username [password]]\""
+    echo "additionally recognized envvars:"
+    echo "    RMF_WITH_VALGRIND=yes   : runs all commands with valgrind"
+    echo "    RMF_TARGET_ADDRESS=[IP] : rmfd running in remote IP address"
+    echo "    RMF_TARGET_PORT=[PORT]  : rmfd running in remote TCP port"
+    echo ""
 }
 
 if [ $# -lt 2 ]; then
@@ -35,24 +40,29 @@ fi
 
 PIN=$1
 APN=$2
-WITH_VALGRIND=no
-if [ $# -gt 2 ]; then
-    if [ $3 = '--with-valgrind' ]; then
-        WITH_VALGRIND=yes
-    fi
+USER=$3
+PASS=$4
+
+EXTRA_ARGS=""
+if [ -n "${RMF_TARGET_ADDRESS}" ]; then
+    EXTRA_ARGS+=" --target-address=${RMF_TARGET_ADDRESS}"
+fi
+if [ -n "${RMF_TARGET_PORT}" ]; then
+    EXTRA_ARGS+=" --target-port=${RMF_TARGET_PORT}"
 fi
 
 VALGRIND_FILE_INDEX=0
 
-command ()
+run_rmfcli ()
 {
     echo ======================================
-    if [ x$WITH_VALGRIND = xyes ]; then
-        COMMAND="valgrind --leak-check=full --log-file=valgrind-${VALGRIND_FILE_INDEX}.out $@"
-        VALGRIND_FILE_INDEX=`expr $VALGRIND_FILE_INDEX + 1`
+    if [ "$RMF_WITH_VALGRIND" = "yes" ]; then
+        COMMAND="valgrind --leak-check=full --log-file=valgrind-${VALGRIND_FILE_INDEX}.out rmfcli ${EXTRA_ARGS} $@"
+        VALGRIND_FILE_INDEX=$(expr $VALGRIND_FILE_INDEX + 1)
     else
-        COMMAND=$@
+        COMMAND="rmfcli ${EXTRA_ARGS} $@"
     fi
+
     echo $COMMAND
     eval $COMMAND
     if [ $? -ne 0 ]; then
@@ -61,39 +71,39 @@ command ()
     fi
 }
 
-command rmfcli --is-available
-command rmfcli --get-manufacturer
-command rmfcli --get-model
-command rmfcli --get-software-revision
-command rmfcli --get-hardware-revision
-command rmfcli --get-imei
-command rmfcli --get-iccid
-command rmfcli --is-locked
-command rmfcli --unlock=$PIN
-command rmfcli --is-locked
+run_rmfcli --is-available
+run_rmfcli --get-manufacturer
+run_rmfcli --get-model
+run_rmfcli --get-software-revision
+run_rmfcli --get-hardware-revision
+run_rmfcli --get-imei
+run_rmfcli --get-iccid
+run_rmfcli --is-locked
+run_rmfcli --unlock=$PIN
+run_rmfcli --is-locked
 # IMSI readable only after PIN unlocked
-command rmfcli --get-imsi
-command rmfcli --get-sim-info
-command rmfcli --disable-pin=$PIN
-command rmfcli --enable-pin=$PIN
-command rmfcli --change-pin=\"$PIN 0000\"
-command rmfcli --change-pin=\"0000 $PIN\"
-command rmfcli --get-signal-info
-command rmfcli --get-registration-status
-command rmfcli --get-connection-status
-command rmfcli --connect=$APN
-command rmfcli --get-data-port
+run_rmfcli --get-imsi
+run_rmfcli --get-sim-info
+run_rmfcli --disable-pin=$PIN
+run_rmfcli --enable-pin=$PIN
+run_rmfcli --change-pin=\"$PIN 0000\"
+run_rmfcli --change-pin=\"0000 $PIN\"
+run_rmfcli --get-signal-info
+run_rmfcli --get-registration-status
+run_rmfcli --get-connection-status
+run_rmfcli --connect=\"$APN\"
+run_rmfcli --get-data-port
 # Wait some time after connecting
 sleep 5
-command rmfcli --get-connection-status
-command rmfcli --get-power-info
-command rmfcli --get-connection-stats
-command rmfcli --disconnect
+run_rmfcli --get-connection-status
+run_rmfcli --get-power-info
+run_rmfcli --get-connection-stats
+run_rmfcli --disconnect
 # Test power status commands only at the very end, so that powering off the
 # radio isn't done just before the connection attempt
-command rmfcli --get-power-status
-command rmfcli --set-power-status=Low
-command rmfcli --set-power-status=Full
+run_rmfcli --get-power-status
+run_rmfcli --set-power-status=Low
+run_rmfcli --set-power-status=Full
 # Last test, requesting modem reboot
-command rmfcli --power-cycle
+run_rmfcli --power-cycle
 exit 0

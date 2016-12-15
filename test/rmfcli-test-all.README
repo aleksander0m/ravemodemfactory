@@ -1,104 +1,104 @@
 This tester runs all available commands one after the other.
 
-
-$ sudo ./test/rmfcli-test-all 7423 ac.vodafone.es
+$ RMF_TARGET_ADDRESS=192.168.0.205 RMF_TARGET_PORT=5000 ./rmfcli-test-all 7423 "ac.vodafone.es vodafone vodafone"
 ======================================
-rmfcli --is-available
+rmfcli --target-address=192.168.0.205 --target-port=5000 --is-available
 Modem is available
 ======================================
-rmfcli --get-manufacturer
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-manufacturer
 Manufacturer: Sierra Wireless, Incorporated
 ======================================
-rmfcli --get-model
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-model
 Model: MC7710
 ======================================
-rmfcli --get-software-revision
-Software Revision: SWI9200X_03.05.19.04ap r5475 carmd-en-10527 2012/09/17 17:57:14
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-software-revision
+Software Revision: SWI9200X_03.05.29.03ap r6485 CNSHZ-ED-XP0031 2014/12/02 17:53:15
 ======================================
-rmfcli --get-hardware-revision
-Hardware Revision: 10
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-hardware-revision
+Hardware Revision: 1.0
 ======================================
-rmfcli --get-imei
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-imei
 IMEI: 358178040668164
 ======================================
-rmfcli --get-iccid
-ICCID: 8934565521300460932
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-iccid
+ICCID: 8934567021400688902
 ======================================
-rmfcli --is-locked
-PIN is unlocked
+rmfcli --target-address=192.168.0.205 --target-port=5000 --is-locked
+PIN is locked
 ======================================
-rmfcli --unlock=7423
+rmfcli --target-address=192.168.0.205 --target-port=5000 --unlock=7423
 PIN successfully unlocked
 ======================================
-rmfcli --is-locked
+rmfcli --target-address=192.168.0.205 --target-port=5000 --is-locked
 PIN is unlocked
 ======================================
-rmfcli --get-imsi
-IMSI: 214015515415848
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-imsi
+IMSI: 214017002063825
 ======================================
-rmfcli --get-sim-info
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-sim-info
 MCC: 214
 MNC: 1
 No additional PLMN info available
 ======================================
-rmfcli --disable-pin=7423
+rmfcli --target-address=192.168.0.205 --target-port=5000 --disable-pin=7423
 PIN successfully disabled
 ======================================
-rmfcli --enable-pin=7423
+rmfcli --target-address=192.168.0.205 --target-port=5000 --enable-pin=7423
 PIN successfully enabled
 ======================================
-rmfcli --change-pin="7423 0000"
+rmfcli --target-address=192.168.0.205 --target-port=5000 --change-pin="7423 0000"
 PIN successfully changed
 ======================================
-rmfcli --change-pin="0000 7423"
+rmfcli --target-address=192.168.0.205 --target-port=5000 --change-pin="0000 7423"
 PIN successfully changed
 ======================================
-rmfcli --get-power-status
-Power status: Full
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-signal-info
+LTE:
+	RSSI: -125 dBm
+	Quality: 0%
 ======================================
-rmfcli --set-power-status=Low
-Power status successfully changed
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-registration-status
+Registration status: Searching
 ======================================
-rmfcli --set-power-status=Full
-Power status successfully changed
-======================================
-rmfcli --get-signal-info
-UMTS:
-	RSSI: -81 dBm
-	Quality: 52%
-======================================
-rmfcli --get-registration-status
-Registration status: Home
-MCC: 214
-MNC: 1
-Operator: vodafone ES
-Location Area code: 12741
-Cell ID: 8648653
-======================================
-rmfcli --get-connection-status
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-connection-status
 Connection status: Disconnected
 ======================================
-rmfcli --connect=ac.vodafone.es
+rmfcli --target-address=192.168.0.205 --target-port=5000 --connect="ac.vodafone.es vodafone vodafone"
 Modem successfully connected
 ======================================
-rmfcli --get-connection-status
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-data-port
+Data port: wwan0
+======================================
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-connection-status
 Connection status: Connected
 ======================================
-rmfcli --get-power-info
-UMTS:
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-power-info
+LTE:
 	In traffic: yes
-	TX power: -0.1 dBm
+	TX power: -3276.8 dBm
 	RX 0 tuned: yes
-	RX 0 power: -79.2 dBm
+	RX 0 power: -60.1 dBm
 	RX 1 tuned: yes
-	RX 1 power: -106 dBm
+	RX 1 power: -90.3 dBm
 ======================================
-rmfcli --get-connection-stats
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-connection-stats
 Connection stats:
-	TX Packets Ok: 19
-	RX Packets Ok: 4
-	TX Bytes Ok: 6085
-	RX Bytes Ok: 456
+	TX Packets Ok: 21
+	RX Packets Ok: 0
+	TX Bytes Ok: 4191
+	RX Bytes Ok: 0
 ======================================
-rmfcli --disconnect
+rmfcli --target-address=192.168.0.205 --target-port=5000 --disconnect
 Modem successfully disconnected
+======================================
+rmfcli --target-address=192.168.0.205 --target-port=5000 --get-power-status
+Power status: Full
+======================================
+rmfcli --target-address=192.168.0.205 --target-port=5000 --set-power-status=Low
+Power status successfully changed
+======================================
+rmfcli --target-address=192.168.0.205 --target-port=5000 --set-power-status=Full
+Power status successfully changed
+======================================
+rmfcli --target-address=192.168.0.205 --target-port=5000 --power-cycle
+Power cycle successfully requested
