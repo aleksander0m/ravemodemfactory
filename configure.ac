@@ -13,18 +13,15 @@ AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_INSTALL
 
+dnl Optional C++11 features
+AX_CXX_COMPILE_STDCXX_11([noext],[optional])
+
 dnl Initialize libtool
 LT_PREREQ([2.2])
 LT_INIT
 
 dnl Specific warnings to always use
 RMF_COMPILER_WARNINGS
-
-dnl Static assert supported?
-AC_MSG_CHECKING([whether _Static_assert() is supported])
-AC_COMPILE_IFELSE([AC_LANG_SOURCE([[_Static_assert(1, "Test");]])],
-                  [AC_DEFINE([HAVE_STATIC_ASSERT], [1], [Define is _Static_assert() is available]) AC_MSG_RESULT([yes])],
-                  [AC_MSG_RESULT([no])])
 
 dnl Require glib
 PKG_CHECK_MODULES(GLIB, glib-2.0 >= 2.32 gio-2.0 gio-unix-2.0)

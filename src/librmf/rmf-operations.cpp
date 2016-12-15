@@ -236,10 +236,6 @@ static const char *error_strings[] = {
     "Invalid message length",
 };
 
-#if defined HAVE_STATIC_ASSERT
-static_assert ((sizeof (error_strings) / sizeof (error_strings[0])) == ERROR_N, "missing error strings");
-#endif
-
 /* We'll wait up to 1s for the connection to be established */
 #define DEFAULT_CONNECT_TIMEOUT_SEC 1
 
@@ -265,6 +261,10 @@ send_and_receive (const uint8_t  *request,
 
     assert (request != NULL);
     assert (response != NULL);
+
+#if defined HAVE_CXX11
+    static_assert ((sizeof (error_strings) / sizeof (error_strings[0])) == ERROR_N, "missing error strings");
+#endif
 
     /* Operation on local unix socket */
     if (!target_remote) {
