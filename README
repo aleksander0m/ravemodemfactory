@@ -8,6 +8,21 @@ The RaveModemFactory is a simple connection manager for modems which speak the
 Qualcomm MSM Interface (QMI) protocol. This connection manager is suitable for
 embedded systems with simple mobile broadband requirements.
 
+The current version of RaveModemFactory supports a wide range of devices,
+including but not limited to:
+
+  * Sierra Wireless 9200 family (MC7700, MC7710...): These devices will always
+    work with the link layer protocol set to 802.3.
+
+  * Sierra Wireless 9x15 family (MC7304, MC7330, MC7354...): On kernels before
+    4.5, these devices will work with the link layer protocol set to 802.3. On
+    newer kernels (4.5 included) the devices will work with the link layer
+    protocol preconfigured in the device (either 802.3 or raw-ip).
+
+  * Sierra Wireless 9x30 family (MC7430, MC7455...): These devices only allow
+    the link layer protocol set to raw-ip, so they will only be supported since
+    kernel 4.5.
+
 
 -------------------------------------------------------------------------------
 How does it work?
@@ -33,11 +48,12 @@ and responses.
 
 When a 3GPP connection is requested, specifying at least the APN, and the
 connection succeeds, the 'rmfd' daemon will execute the 'rmfd-wwan-service'
-script. This script takes care of bringing up the net interface and running a
-DHCP client on it. The built-in DHCP server in the modem will provide the
-details to setup not only the IP address, but also the DNS servers and routes.
-Upon disconnection, the same script will stop the DHCP client and bring down
-the net interface.
+script. This script takes care of bringing up the net interface and configuring
+it as required (e.g. with DHCP if using 802.3 link layer protocol and with static
+IP addressing if using raw-ip). The script will also take care of setting up the
+reported DNS servers and routes.
+
+Upon disconnection, the same script will bring down the net interface.
 
 
 -------------------------------------------------------------------------------
@@ -80,10 +96,20 @@ The 'rmfd' daemon requires:
  * glib & gio >= 2.32
  * libqmi >= 1.5
  * gudev >= 147 (and therefore, the udev daemon)
- * dhclient
+ * dhclient (only if link layer protocol is 802.3)
 
 The 'librmf' library and the 'rmfcli' utility don't have any external
 dependency.
+
+
+-------------------------------------------------------------------------------
+Notes
+-------------------------------------------------------------------------------
+
+ [1] Since RaveModemFactory v1.28.0, the SIM management commands are based on
+     the complex "UIM" QMI service, instead of the simpler "DMS" QMI service
+     specific "DMS UIM" commands, as these were obsoleted in the new Sierra
+     Wireless MC74xx devices.
 
 
 -------------------------------------------------------------------------------
