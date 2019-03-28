@@ -3709,7 +3709,7 @@ run (RmfdPortProcessor   *self,
     RunContext *ctx;
 
     ctx = g_slice_new0 (RunContext);
-    ctx->self = g_object_ref (self);
+    ctx->self = RMFD_PORT_PROCESSOR_QMI (g_object_ref (self));
     ctx->result = g_simple_async_result_new (G_OBJECT (self),
                                              callback,
                                              user_data,
@@ -3970,7 +3970,7 @@ messaging_event_report_indication_cb (QmiClientNas                      *client,
 
         ctx = g_slice_new (IndicationRawReadContext);
         ctx->self = g_object_ref (self);
-        ctx->client = g_object_ref (client);
+        ctx->client = QMI_CLIENT_WMS (g_object_ref (client));
         ctx->storage = storage;
         ctx->memory_index = memory_index;
 
@@ -5054,7 +5054,7 @@ initable_init_async (GAsyncInitable      *initable,
     InitContext *ctx;
 
     ctx = g_slice_new0 (InitContext);
-    ctx->self = g_object_ref (initable);
+    ctx->self = RMFD_PORT_PROCESSOR_QMI (g_object_ref (initable));
     ctx->result = g_simple_async_result_new (G_OBJECT (initable),
                                              callback,
                                              user_data,

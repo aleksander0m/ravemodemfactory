@@ -103,7 +103,7 @@ setup (RmfdPortData        *self,
     GPid pid;
 
     ctx = g_slice_new (SetupContext);
-    ctx->self = g_object_ref (self);
+    ctx->self = RMFD_PORT_DATA_WWAN (g_object_ref (self));
     ctx->result = g_simple_async_result_new (G_OBJECT (self), callback, user_port_data, setup);
     ctx->start = start;
 
