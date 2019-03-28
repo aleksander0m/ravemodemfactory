@@ -1,6 +1,6 @@
 AC_PREREQ([2.60])
 
-AC_INIT([RaveModemFactory],[1.28.1],[aleksander@aleksander.es],[RaveModemFactory])
+AC_INIT([RaveModemFactory],[1.28.2],[aleksander@aleksander.es],[RaveModemFactory])
 AM_INIT_AUTOMAKE([1.11 foreign subdir-objects tar-ustar no-dist-gzip dist-xz -Wno-portability])
 AM_SILENT_RULES([yes])
 AM_MAINTAINER_MODE([enable])
