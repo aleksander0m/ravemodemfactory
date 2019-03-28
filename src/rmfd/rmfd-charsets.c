@@ -570,7 +570,6 @@ pcdn_is_subset (gunichar c, const char *utf8, gsize ulen, guint *out_clen)
 typedef struct {
     RmfdModemCharset cs;
     gboolean (*func) (gunichar c, const char *utf8, gsize ulen, guint *out_clen);
-    guint charsize;
 } SubsetEntry;
 
 SubsetEntry subset_table[] = {
