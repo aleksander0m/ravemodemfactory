@@ -1206,8 +1206,8 @@ get_sim_info_step (RunContext *ctx)
 
     switch (get_sim_info_ctx->step) {
     case GET_SIM_INFO_STEP_FIRST:
-        /* Fall down */
         get_sim_info_ctx->step++;
+        /* fall through */
 
     case GET_SIM_INFO_STEP_IMSI:
         qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
@@ -2767,7 +2767,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
     switch (ctx->step) {
     case WRITE_CONNECTION_STATS_STEP_FIRST:
         ctx->step++;
-        /* Fall down */
+        /* fall through */
 
     case WRITE_CONNECTION_STATS_STEP_TIMESTAMP:
         qmi_client_dms_get_time (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
@@ -2798,7 +2798,7 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
             return;
         }
         ctx->step++;
-        /* Fall down */
+        /* fall through */
 
     case WRITE_CONNECTION_STATS_STEP_SIGNAL_STRENGTH:
         qmi_client_nas_get_signal_strength (QMI_CLIENT_NAS (peek_qmi_client (ctx->self, QMI_SERVICE_NAS)),
@@ -3420,9 +3420,9 @@ connect_step (RunContext *ctx)
 
     switch (connect_ctx->step) {
     case CONNECT_STEP_FIRST:
-        /* Fall down */
         g_warning ("connection: new connection attempt (%u/%u)...", connect_ctx->iteration, MAX_CONNECT_ITERATIONS);
         connect_ctx->step++;
+        /* fall through */
 
     case CONNECT_STEP_IP_FAMILY:
         g_message ("connection %u/%u step %u/%u: setting IPv4 family...",
@@ -4189,8 +4189,8 @@ messaging_list_parts_context_step (MessagingListPartsContext *ctx)
 {
     switch (ctx->step) {
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_FIRST:
-        /* Fall down to next step */
         ctx->step++;
+        /* fall through */
 
     case MESSAGING_LIST_PARTS_CONTEXT_STEP_LIST_READ:
         ctx->tag = QMI_WMS_MESSAGE_TAG_TYPE_MT_READ;
@@ -4464,9 +4464,9 @@ messaging_init_context_step (MessagingInitContext *ctx)
 {
     switch (ctx->step) {
     case MESSAGING_INIT_CONTEXT_STEP_FIRST:
-        /* Fall down to next step */
         g_debug ("[messaging] initializing...");
         ctx->step++;
+        /* fall through */
 
     case MESSAGING_INIT_CONTEXT_STEP_ROUTES: {
         QmiMessageWmsSetRoutesInputRouteListElement route;
@@ -4653,8 +4653,8 @@ data_format_init_context_step (DataFormatInitContext *ctx)
 {
     switch (ctx->step) {
     case DATA_FORMAT_INIT_CONTEXT_STEP_FIRST:
-        /* Fall down to next step */
         ctx->step++;
+        /* fall through */
 
     case DATA_FORMAT_INIT_CONTEXT_STEP_KERNEL_DATA_FORMAT:
         /* Try to gather expected data format from the sysfs file */
@@ -4667,8 +4667,8 @@ data_format_init_context_step (DataFormatInitContext *ctx)
             data_format_init_context_complete_and_free (ctx);
             return;
         }
-        /* Fall down to next step */
         ctx->step++;
+        /* fall through */
 
     case DATA_FORMAT_INIT_CONTEXT_STEP_CLIENT_WDA:
         qmi_device_allocate_client (ctx->self->priv->qmi_device,
@@ -4711,7 +4711,7 @@ data_format_init_context_step (DataFormatInitContext *ctx)
         }
 
         ctx->step++;
-        /* Fall down to next step */
+        /* fall through */
 
     case DATA_FORMAT_INIT_CONTEXT_STEP_SET_KERNEL_DATA_FORMAT: {
         GError *error = NULL;
@@ -4737,8 +4737,8 @@ data_format_init_context_step (DataFormatInitContext *ctx)
         }
 
         ctx->step++;
-        /* Fall down to next step */
     }
+    /* fall through */
 
     case DATA_FORMAT_INIT_CONTEXT_STEP_LAST:
         g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
@@ -4927,8 +4927,8 @@ init_context_step (InitContext *ctx)
 {
     switch (ctx->step) {
     case INIT_CONTEXT_STEP_FIRST:
-        /* Fall down to next step */
         ctx->step++;
+        /* fall through */
 
     case INIT_CONTEXT_STEP_DEVICE_NEW: {
         GFile *file;
@@ -5001,7 +5001,7 @@ init_context_step (InitContext *ctx)
         return;
     }
 
-    case INIT_CONTEXT_STEP_CLIENTS: {
+    case INIT_CONTEXT_STEP_CLIENTS:
         /* Allocate next client */
         if (ctx->clients_i < G_N_ELEMENTS (service_items)) {
             g_debug ("allocating QMI client for service '%s'", qmi_service_get_string (service_items[ctx->clients_i].service));
@@ -5017,9 +5017,8 @@ init_context_step (InitContext *ctx)
 
         g_debug ("All QMI clients created");
 
-        /* Fall down to next step */
         ctx->step++;
-    }
+        /* fall through */
 
     case INIT_CONTEXT_STEP_MESSAGING_INIT:
         g_debug ("initializing messaging support...");
