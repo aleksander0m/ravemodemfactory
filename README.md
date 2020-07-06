@@ -94,7 +94,7 @@ Dependencies
 
 The 'rmfd' daemon requires:
  * glib & gio >= 2.32
- * libqmi >= 1.5
+ * libqmi >= 1.26
  * gudev >= 147 (and therefore, the udev daemon)
  * dhclient (only if link layer protocol is 802.3)
 
