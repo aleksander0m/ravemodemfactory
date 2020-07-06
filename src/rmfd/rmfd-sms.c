@@ -14,7 +14,8 @@
  *   Copyright (C) 2010 - 2012 Red Hat, Inc.
  *   Copyright (C) 2012 Google, Inc.
  *
- * Copyright (C) 2015 Zodiac Inflight Innovations
+ * Copyright (C) 2015 Safran Passenger Innovations
+ *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 

@@ -14,7 +14,7 @@
  * Charset support based on ModemManager:
  *   Copyright (C) 2010 Red Hat, Inc.
  *
- * Copyright (C) 2015 Zodiac Inflight Innovations
+ * Copyright (C) 2015 Safran Passenger Innovations
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
 

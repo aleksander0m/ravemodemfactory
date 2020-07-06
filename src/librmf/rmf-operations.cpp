@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2016 Zodiac Inflight Innovations
+ * Copyright (C) 2013-2016 Safran Passenger Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
