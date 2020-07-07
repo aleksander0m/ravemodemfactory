@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2016 Safran Passenger Innovations
+ * Copyright (C) 2013-2020 Safran Passenger Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -814,6 +814,81 @@ get_imei (RunContext *ctx)
                             NULL,
                             (GAsyncReadyCallback) dms_get_ids_ready,
                             ctx);
+}
+
+/**********************/
+/* Get SIM slot */
+
+static void
+uim_get_slot_status_ready (QmiClientUim *client,
+                           GAsyncResult *res,
+                           RunContext   *ctx)
+{
+    QmiMessageUimGetSlotStatusOutput *output;
+    GError *error = NULL;
+    GArray *physical_slots = NULL;
+
+    output = qmi_client_uim_get_slot_status_finish (client, res, &error);
+    if (!output) {
+        g_prefix_error (&error, "QMI operation failed: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_uim_get_slot_status_output_get_result (output, &error)) {
+        g_prefix_error (&error, "couldn't get slot status: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else if (!qmi_message_uim_get_slot_status_output_get_physical_slot_status (output, &physical_slots, &error)) {
+        g_prefix_error (&error, "couldn't get physical slot list: ");
+        g_simple_async_result_take_error (ctx->result, error);
+    } else {
+        guint i;
+        guint active_slot = 0;
+
+        for (i = 0; i < physical_slots->len; i++) {
+            QmiPhysicalSlotStatusSlot *slot_status;
+
+            slot_status = &g_array_index (physical_slots, QmiPhysicalSlotStatusSlot, i);
+            if (slot_status->physical_slot_status == QMI_UIM_SLOT_STATE_ACTIVE) {
+                active_slot = i + 1;
+                break;
+            }
+        }
+
+        if (!active_slot) {
+            g_simple_async_result_set_error (ctx->result,
+                                             RMFD_ERROR,
+                                             RMFD_ERROR_UNKNOWN,
+                                             "No active slot found (%u available)",
+                                             physical_slots->len);
+        } else if (active_slot > 2) {
+            g_simple_async_result_set_error (ctx->result,
+                                             RMFD_ERROR,
+                                             RMFD_ERROR_UNKNOWN,
+                                             "Invalid active slot reported (%u not in the [1,2] range)",
+                                             active_slot);
+        } else {
+            guint8 *response;
+
+            response = rmf_message_get_sim_slot_response_new ((uint8_t) active_slot);
+            g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                       (GDestroyNotify)g_byte_array_unref);
+        }
+    }
+
+    if (output)
+        qmi_message_uim_get_slot_status_output_unref (output);
+
+    run_context_complete_and_free (ctx);
+}
+
+static void
+get_sim_slot (RunContext *ctx)
+{
+    qmi_client_uim_get_slot_status (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
+                                    NULL,
+                                    10,
+                                    NULL,
+                                    (GAsyncReadyCallback) uim_get_slot_status_ready,
+                                    ctx);
 }
 
 /**********************/
@@ -3741,6 +3816,9 @@ run (RmfdPortProcessor   *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_IMEI:
         get_imei (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_GET_SIM_SLOT:
+        get_sim_slot (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_IMSI:
         get_imsi (ctx);
