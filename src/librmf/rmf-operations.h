@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2015 Safran Passenger Innovations
+ * Copyright (C) 2013-2029 Safran Passenger Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -85,9 +85,34 @@ namespace Modem {
     std::string GetImei (void);
 
     /**
+     * GetSimSlot:
+     *
+     * Get the slot index of the currently active SIM.
+     *
+     * The setup only expects one or two SIM slots, not more, so the
+     * reported indices will be either 1 or 2.
+     *
+     * If the setup only allows one single SIM, this method will always
+     * report index 1.
+     *
+     * Returns: an integer.
+     */
+    uint8_t GetSimSlot (void);
+
+    /**
+     * SetSimSlot:
+     *
+     * Select which SIM slot index to activate.
+     *
+     * If the requested slot index is already the currently active one,
+     * this method will do nothing.
+     */
+    void SetSimSlot (uint8_t slot);
+
+    /**
      * GetImsi:
      *
-     * Get the SIM IMSI string.
+     * Get the IMSI of the currently active SIM.
      *
      * Returns: a string.
      */
@@ -96,7 +121,7 @@ namespace Modem {
     /**
      * GetIccid:
      *
-     * Get the SIM ICCID string.
+     * Get the ICCID of the currently active SIM.
      *
      * Returns: a string.
      */
@@ -108,7 +133,7 @@ namespace Modem {
      * @operatorMnc:  (out) Mobile Network Code of the operator which issued the SIM, or 0 if unknown.
      * @plmns: (out) List of PLMNs configured by the operator.
      *
-     * Get additional SIM info.
+     * Get additional info from the currently active SIM.
      */
     void GetSimInfo (uint16_t &operatorMcc,
                      uint16_t &operatorMnc,

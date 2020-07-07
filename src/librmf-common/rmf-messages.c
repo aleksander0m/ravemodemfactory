@@ -359,6 +359,110 @@ rmf_message_get_imei_response_parse (const uint8_t  *message,
 }
 
 /******************************************************************************/
+/* Get SIM slot */
+
+uint8_t *
+rmf_message_get_sim_slot_request_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_GET_SIM_SLOT, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+uint8_t *
+rmf_message_get_sim_slot_response_new (uint8_t slot)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_GET_SIM_SLOT, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, (uint32_t)slot);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_get_sim_slot_response_parse (const uint8_t *message,
+                                         uint32_t      *status,
+                                         uint8_t       *slot)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_GET_SIM_SLOT);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+
+    if (rmf_message_get_status (message) != RMF_RESPONSE_STATUS_OK)
+        return;
+
+    if (slot)
+        *slot = (uint8_t) rmf_message_read_uint32 (message, &offset);
+}
+
+/******************************************************************************/
+/* Set SIM slot */
+
+uint8_t *
+rmf_message_set_sim_slot_request_new (uint8_t slot)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_REQUEST, RMF_MESSAGE_COMMAND_SET_SIM_SLOT, RMF_RESPONSE_STATUS_OK);
+    rmf_message_builder_add_uint32 (builder, slot);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_set_sim_slot_request_parse (const uint8_t *message,
+                                        uint8_t       *slot)
+{
+    uint32_t offset = 0;
+
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_REQUEST);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_SIM_SLOT);
+
+    if (slot)
+        *slot = rmf_message_read_uint32 (message, &offset);
+}
+
+uint8_t *
+rmf_message_set_sim_slot_response_new (void)
+{
+    RmfMessageBuilder *builder;
+    uint8_t *message;
+
+    builder = rmf_message_builder_new (RMF_MESSAGE_TYPE_RESPONSE, RMF_MESSAGE_COMMAND_SET_SIM_SLOT, RMF_RESPONSE_STATUS_OK);
+    message = rmf_message_builder_serialize (builder);
+    rmf_message_builder_free (builder);
+
+    return message;
+}
+
+void
+rmf_message_set_sim_slot_response_parse (const uint8_t *message,
+                                         uint32_t      *status)
+{
+    assert (rmf_message_get_type (message) == RMF_MESSAGE_TYPE_RESPONSE);
+    assert (rmf_message_get_command (message) == RMF_MESSAGE_COMMAND_SET_SIM_SLOT);
+
+    if (status)
+        *status = rmf_message_get_status (message);
+}
+
+/******************************************************************************/
 /* Get IMSI */
 
 uint8_t *

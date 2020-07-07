@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2016 Safran Passenger Innovations
+ * Copyright (C) 2013-2020 Safran Passenger Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -615,6 +615,59 @@ Modem::GetImei (void)
     free (response);
 
     return result;
+}
+
+/*****************************************************************************/
+
+uint8_t
+Modem::GetSimSlot (void)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+    uint8_t result;
+
+    request = rmf_message_get_sim_slot_request_new ();
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_get_sim_slot_response_parse (response, &status, &result);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
+
+    free (response);
+    return result;
+}
+
+/*****************************************************************************/
+
+void
+Modem::SetSimSlot (uint8_t slot)
+{
+    uint8_t *request;
+    uint8_t *response;
+    uint32_t status;
+    int ret;
+    uint8_t result;
+
+    request = rmf_message_set_sim_slot_request_new (slot);
+    ret = send_and_receive (request, 10, &response);
+    free (request);
+
+    if (ret != ERROR_NONE)
+        throw std::runtime_error (error_strings[ret]);
+
+    rmf_message_set_sim_slot_response_parse (response, &status);
+    if (status != RMF_RESPONSE_STATUS_OK) {
+        free (response);
+        throw_response_error (status);
+    }
 }
 
 /*****************************************************************************/

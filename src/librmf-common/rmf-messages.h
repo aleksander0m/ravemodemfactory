@@ -190,6 +190,8 @@ enum RmfMessageCommand {
     RMF_MESSAGE_COMMAND_SET_REGISTRATION_TIMEOUT = 24,
     RMF_MESSAGE_COMMAND_POWER_CYCLE              = 25,
     RMF_MESSAGE_COMMAND_GET_DATA_PORT            = 26,
+    RMF_MESSAGE_COMMAND_GET_SIM_SLOT             = 27,
+    RMF_MESSAGE_COMMAND_SET_SIM_SLOT             = 28,
 };
 
 /******************************************************************************/
@@ -275,6 +277,25 @@ uint8_t *rmf_message_get_imei_response_new   (const char     *imei);
 void     rmf_message_get_imei_response_parse (const uint8_t  *message,
                                               uint32_t       *status,
                                               const char    **imei);
+
+/******************************************************************************/
+/* Get SIM slot */
+
+uint8_t *rmf_message_get_sim_slot_request_new    (void);
+uint8_t *rmf_message_get_sim_slot_response_new   (uint8_t         slot);
+void     rmf_message_get_sim_slot_response_parse (const uint8_t  *message,
+                                                  uint32_t       *status,
+                                                  uint8_t        *slot);
+
+/******************************************************************************/
+/* Set SIM slot */
+
+uint8_t *rmf_message_set_sim_slot_request_new    (uint8_t         slot);
+void     rmf_message_set_sim_slot_request_parse  (const uint8_t  *message,
+                                                  uint8_t        *slot);
+uint8_t *rmf_message_set_sim_slot_response_new   (void);
+void     rmf_message_set_sim_slot_response_parse (const uint8_t  *message,
+                                                  uint32_t       *status);
 
 /******************************************************************************/
 /* Get IMSI */
