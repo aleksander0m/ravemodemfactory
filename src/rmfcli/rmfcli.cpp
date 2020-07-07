@@ -18,7 +18,7 @@
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
  *
- * Copyright (C) 2013-2016 Safran Passenger Innovations
+ * Copyright (C) 2013-2020 Safran Passenger Innovations
  *
  * Author: Aleksander Morgado <aleksander@aleksander.es>
  */
@@ -54,6 +54,8 @@ printHelp (void)
     std::cout << "\t-j, --get-software-revision" << std::endl;
     std::cout << "\t-k, --get-hardware-revision" << std::endl;
     std::cout << "\t-e, --get-imei" << std::endl;
+    std::cout << "\t-q, --get-sim-slot" << std::endl;
+    std::cout << "\t-Q, --set-sim-slot=\"[1|2]\"" << std::endl;
     std::cout << "\t-i, --get-imsi" << std::endl;
     std::cout << "\t-o, --get-iccid" << std::endl;
     std::cout << "\t-z, --get-sim-info" << std::endl;
@@ -169,6 +171,44 @@ getImei (void)
     }
 
     std::cout << "IMEI: "  << imei << std::endl;
+    return 0;
+}
+
+static int
+getSimSlot (void)
+{
+    uint8_t slot;
+
+    try {
+        slot = Modem::GetSimSlot ();
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "SIM slot: " << (int)slot << std::endl;
+    return 0;
+}
+
+static int
+setSimSlot (const std::string str)
+{
+    int32_t slot;
+
+    slot = atoi (str.c_str());
+    if (slot != 1 && slot != 2) {
+        std::cout << "Invalid SIM slot value given: " << str << std::endl;
+        return -1;
+    }
+
+    try {
+        Modem::SetSimSlot ((uint8_t)slot);
+    } catch (std::exception const& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
+        return -1;
+    }
+
+    std::cout << "SIM slot successfully changed" << std::endl;
     return 0;
 }
 
@@ -755,6 +795,8 @@ static const struct option longopts[] = {
     { "get-software-revision",    no_argument,       0, 'j' },
     { "get-hardware-revision",    no_argument,       0, 'k' },
     { "get-imei",                 no_argument,       0, 'e' },
+    { "get-sim-slot",             no_argument,       0, 'q' },
+    { "set-sim-slot",             required_argument, 0, 'Q' },
     { "get-imsi",                 no_argument,       0, 'i' },
     { "get-iccid",                no_argument,       0, 'o' },
     { "get-sim-info",             no_argument,       0, 'z' },
@@ -831,6 +873,8 @@ main (int argc, char **argv)
     unsigned int action_get_hardware_revision = 0;
     unsigned int action_get_imei = 0;
     unsigned int action_get_imsi = 0;
+    unsigned int action_get_sim_slot = 0;
+    char *action_set_sim_slot = NULL;
     unsigned int action_get_iccid = 0;
     unsigned int action_get_sim_info = 0;
     unsigned int action_is_sim_locked = 0;
@@ -859,7 +903,7 @@ main (int argc, char **argv)
     opterr = 1;
 
     while (iarg != -1) {
-        iarg = getopt_long (argc, argv, "vhy:Y:fdjkeiozLU:E:G:F:C:pP:ZasrtT:cxC:DbA", longopts, &i);
+        iarg = getopt_long (argc, argv, "vhy:Y:fdjkeiqQ:ozLU:E:G:F:C:pP:ZasrtT:cxC:DbA", longopts, &i);
 
         switch (iarg) {
         case 'h':
@@ -891,6 +935,12 @@ main (int argc, char **argv)
             break;
         case 'i':
             enable_arg_int (action_get_imsi, iarg);
+            break;
+        case 'q':
+            enable_arg_int (action_get_sim_slot, iarg);
+            break;
+        case 'Q':
+            enable_arg_str (action_set_sim_slot, optarg, iarg);
             break;
         case 'o':
             enable_arg_int (action_get_iccid, iarg);
@@ -973,6 +1023,8 @@ main (int argc, char **argv)
         action_get_software_revision +
         action_get_hardware_revision +
         action_get_imei +
+        action_get_sim_slot +
+        !!action_set_sim_slot +
         action_get_imsi +
         action_get_iccid +
         action_get_sim_info +
@@ -1016,6 +1068,10 @@ main (int argc, char **argv)
         result = getHardwareRevision ();
     else if (action_get_imei)
         result = getImei ();
+    else if (action_get_sim_slot)
+        result = getSimSlot ();
+    else if (action_set_sim_slot)
+        result = setSimSlot (action_set_sim_slot);
     else if (action_get_imsi)
         result = getImsi ();
     else if (action_get_iccid)
@@ -1064,6 +1120,7 @@ main (int argc, char **argv)
         assert (0);
 
     /* Clean exit, for a clean memleak report */
+    free (action_set_sim_slot);
     free (action_unlock);
     free (action_enable_pin);
     free (action_disable_pin);
