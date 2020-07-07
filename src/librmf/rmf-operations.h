@@ -103,7 +103,7 @@ namespace Modem {
     std::string GetIccid (void);
 
     /**
-     * GetIccid:
+     * GetSimInfo:
      * @operatorMcc:  (out) Mobile Country Code of the operator which issued the SIM, or 0 if unknown.
      * @operatorMnc:  (out) Mobile Network Code of the operator which issued the SIM, or 0 if unknown.
      * @plmns: (out) List of PLMNs configured by the operator.
