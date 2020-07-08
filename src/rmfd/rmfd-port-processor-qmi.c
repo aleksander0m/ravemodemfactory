@@ -3214,6 +3214,21 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
 }
 
 static void
+wds_stop_network_after_start (RunContext *ctx)
+{
+    g_autoptr(QmiMessageWdsStopNetworkInput) input = NULL;
+
+    input = qmi_message_wds_stop_network_input_new ();
+    qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
+    qmi_client_wds_stop_network (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
+                                 input,
+                                 30,
+                                 NULL,
+                                 (GAsyncReadyCallback)wds_stop_network_after_start_ready,
+                                 ctx);
+}
+
+static void
 write_connection_stats_start_ready (RmfdPortProcessorQmi *self,
                                     GAsyncResult         *res,
                                     RunContext           *ctx)
@@ -3253,20 +3268,9 @@ data_setup_start_ready (RmfdPortData *data,
     GError *error = NULL;
 
     if (!rmfd_port_data_setup_finish (data, res, &error)) {
-        QmiMessageWdsStopNetworkInput *input;
-
         g_assert (!connect_ctx->error);
         connect_ctx->error = error;
-
-        input = qmi_message_wds_stop_network_input_new ();
-        qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
-        qmi_client_wds_stop_network (QMI_CLIENT_WDS (peek_qmi_client (ctx->self, QMI_SERVICE_WDS)),
-                                     input,
-                                     30,
-                                     NULL,
-                                     (GAsyncReadyCallback)wds_stop_network_after_start_ready,
-                                     ctx);
-        qmi_message_wds_stop_network_input_unref (input);
+        wds_stop_network_after_start (ctx);
         return;
     }
 
@@ -3310,7 +3314,11 @@ connect_step_wwan_setup (RunContext *ctx)
         return;
     }
 
-
+    /* Otherwise, trigger stop and error out */
+    g_assert (!connect_ctx->error);
+    connect_ctx->error = g_error_new (RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                      "unexpected connect state: raw-ip setup expected but no IP settings available");
+    wds_stop_network_after_start (ctx);
 }
 
 static void
