@@ -1034,6 +1034,110 @@ set_sim_slot (RunContext *ctx)
                            ctx);
 }
 
+/***************************/
+/* SIM file reading common */
+
+typedef struct {
+    gchar   *name;
+    guint16  path[3];
+} SimFile;
+
+static const SimFile sim_files[] = {
+    { "EFad",        { 0x3F00, 0x7F20, 0x6FAD } },
+    { "EFoplmnwact", { 0x3F00, 0x7F20, 0x6F61 } },
+};
+
+static void
+get_sim_file_id_and_path (const gchar  *file_name,
+                          guint16      *file_id,
+                          GArray      **file_path)
+{
+    guint i;
+    guint8 val;
+
+    for (i = 0; i < G_N_ELEMENTS (sim_files); i++) {
+        if (g_str_equal (sim_files[i].name, file_name))
+            break;
+    }
+
+    g_assert (i != G_N_ELEMENTS (sim_files));
+
+    *file_path = g_array_sized_new (FALSE, FALSE, sizeof (guint8), 4);
+
+    val = sim_files[i].path[0] & 0xFF;
+    g_array_append_val (*file_path, val);
+    val = (sim_files[i].path[0] >> 8) & 0xFF;
+    g_array_append_val (*file_path, val);
+
+    if (sim_files[i].path[2] != 0) {
+        val = sim_files[i].path[1] & 0xFF;
+        g_array_append_val (*file_path, val);
+        val = (sim_files[i].path[1] >> 8) & 0xFF;
+        g_array_append_val (*file_path, val);
+        *file_id = sim_files[i].path[2];
+    } else {
+        *file_id = sim_files[i].path[1];
+    }
+}
+
+static GArray *
+common_read_sim_file_finish (RmfdPortProcessorQmi  *self,
+                             GAsyncResult          *res,
+                             GError               **error)
+{
+    return g_task_propagate_pointer (G_TASK (res), error);
+}
+
+static void
+uim_read_transparent_ready (QmiClientUim *client,
+                            GAsyncResult *res,
+                            GTask        *task)
+{
+    g_autoptr(QmiMessageUimReadTransparentOutput) output = NULL;
+    GError *error = NULL;
+    GArray *read_result = NULL;
+
+    output = qmi_client_uim_read_transparent_finish (client, res, &error);
+    if (!output ||
+        !qmi_message_uim_read_transparent_output_get_result (output, &error) ||
+        !qmi_message_uim_read_transparent_output_get_read_result (output, &read_result, &error))
+        g_task_return_error (task, error);
+    else if (!read_result)
+        g_task_return_new_error (task, RMFD_ERROR, RMFD_ERROR_UNKNOWN, "Read malformed data from UIM");
+    else
+        g_task_return_pointer (task, g_array_ref (read_result), (GDestroyNotify)g_array_unref);
+    g_object_unref (task);
+}
+
+static void
+common_read_sim_file (RmfdPortProcessorQmi *self,
+                      const gchar          *filename,
+                      GAsyncReadyCallback   callback,
+                      gpointer              user_data)
+{
+    g_autoptr(QmiMessageUimReadTransparentInput) input = NULL;
+    g_autoptr(GArray) file_path = NULL;
+    guint16 file_id = 0;
+    GTask *task;
+
+    task = g_task_new (self, NULL, callback, user_data);
+
+    input = qmi_message_uim_read_transparent_input_new ();
+    qmi_message_uim_read_transparent_input_set_session_information (input,
+                                                                    QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
+                                                                    "",
+                                                                    NULL);
+    get_sim_file_id_and_path (filename, &file_id, &file_path);
+    qmi_message_uim_read_transparent_input_set_file (input, file_id, file_path, NULL);
+    qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
+    qmi_client_uim_read_transparent (QMI_CLIENT_UIM (peek_qmi_client (self, QMI_SERVICE_UIM)),
+                                     input,
+                                     10,
+                                     NULL,
+                                     (GAsyncReadyCallback)uim_read_transparent_ready,
+                                     task);
+}
+
 /**********************/
 /* Get IMSI */
 
@@ -1244,12 +1348,14 @@ parse_plmns (GetSimInfoContext *get_sim_info_ctx,
 }
 
 static void
-sim_info_efoplmnwact_uim_read_transparent_ready (QmiClientUim *client,
-                                                 GAsyncResult *res,
-                                                 RunContext   *ctx)
+sim_info_efoplmnwact_ready (RmfdPortProcessorQmi *self,
+                            GAsyncResult         *res,
+                            RunContext           *ctx)
 {
     GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
-    QmiMessageUimReadTransparentOutput *output;
+    g_autoptr(GArray) read_result = NULL;
+
+    read_result = common_read_sim_file_finish (self, res, NULL);
 
     /* Enable for testing */
 #if 0
@@ -1261,29 +1367,11 @@ sim_info_efoplmnwact_uim_read_transparent_ready (QmiClientUim *client,
         };
 
         parse_plmns (get_sim_info_ctx, example, G_N_ELEMENTS (example));
-
-        /* Always call finish() for completeness */
-        output = qmi_client_uim_read_transparent_finish (client, res, NULL);
     }
 #else
-    {
-        GError *error = NULL;
-        GArray *read_result = NULL;
-
-        output = qmi_client_uim_read_transparent_finish (client, res, &error);
-        if (!output || !qmi_message_uim_read_transparent_output_get_result (output, &error)) {
-            g_error_free (error);
-        } else if (qmi_message_uim_read_transparent_output_get_read_result (
-                       output,
-                       &read_result,
-                       NULL)) {
-            parse_plmns (get_sim_info_ctx, (const guint8 *) read_result->data, read_result->len);
-        }
-    }
+    if (read_result)
+        parse_plmns (get_sim_info_ctx, (const guint8 *) read_result->data, read_result->len);
 #endif
-
-    if (output)
-        qmi_message_uim_read_transparent_output_unref (output);
 
     /* And go on */
     get_sim_info_ctx->step++;
@@ -1291,22 +1379,16 @@ sim_info_efoplmnwact_uim_read_transparent_ready (QmiClientUim *client,
 }
 
 static void
-sim_info_efad_uim_read_transparent_ready (QmiClientUim *client,
-                                          GAsyncResult *res,
-                                          RunContext   *ctx)
+sim_info_efad_ready (RmfdPortProcessorQmi *self,
+                     GAsyncResult         *res,
+                     RunContext           *ctx)
 {
     GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
-    QmiMessageUimReadTransparentOutput *output;
-    GArray *read_result = NULL;
+    g_autoptr(GArray) read_result = NULL;
     guint8 mnc_length = 0; /* just to mark it invalid */
 
-    output = qmi_client_uim_read_transparent_finish (client, res, NULL);
-    if (output &&
-        qmi_message_uim_read_transparent_output_get_result (output, NULL) &&
-        qmi_message_uim_read_transparent_output_get_read_result (
-            output,
-            &read_result,
-            NULL)) {
+    read_result = common_read_sim_file_finish (self, res, NULL);
+    if (read_result) {
         /* MCN length is optional; available in the 4th byte of the EFad field */
         if (read_result->len >= 4) {
             mnc_length = g_array_index (read_result, guint8, 3);
@@ -1333,9 +1415,6 @@ sim_info_efad_uim_read_transparent_ready (QmiClientUim *client,
             get_sim_info_ctx->mnc = atoi (aux);
         }
     }
-
-    if (output)
-        qmi_message_uim_read_transparent_output_unref (output);
 
     /* And go on */
     get_sim_info_ctx->step++;
@@ -1374,49 +1453,6 @@ sim_info_dms_uim_get_imsi_ready (QmiClientDms *client,
     get_sim_info_step (ctx);
 }
 
-typedef struct {
-    gchar *name;
-    guint16 path[3];
-} SimFile;
-
-static const SimFile sim_files[] = {
-    { "EFad",        { 0x3F00, 0x7F20, 0x6FAD } },
-    { "EFoplmnwact", { 0x3F00, 0x7F20, 0x6F61 } },
-};
-
-static void
-get_sim_file_id_and_path (const gchar *file_name,
-                          guint16 *file_id,
-                          GArray **file_path)
-{
-    guint i;
-    guint8 val;
-
-    for (i = 0; i < G_N_ELEMENTS (sim_files); i++) {
-        if (g_str_equal (sim_files[i].name, file_name))
-            break;
-    }
-
-    g_assert (i != G_N_ELEMENTS (sim_files));
-
-    *file_path = g_array_sized_new (FALSE, FALSE, sizeof (guint8), 4);
-
-    val = sim_files[i].path[0] & 0xFF;
-    g_array_append_val (*file_path, val);
-    val = (sim_files[i].path[0] >> 8) & 0xFF;
-    g_array_append_val (*file_path, val);
-
-    if (sim_files[i].path[2] != 0) {
-        val = sim_files[i].path[1] & 0xFF;
-        g_array_append_val (*file_path, val);
-        val = (sim_files[i].path[1] >> 8) & 0xFF;
-        g_array_append_val (*file_path, val);
-        *file_id = sim_files[i].path[2];
-    } else {
-        *file_id = sim_files[i].path[1];
-    }
-}
-
 static void
 get_sim_info_step (RunContext *ctx)
 {
@@ -1436,67 +1472,19 @@ get_sim_info_step (RunContext *ctx)
                                      ctx);
         return;
 
-    case GET_SIM_INFO_STEP_EFAD: {
-        QmiMessageUimReadTransparentInput *input;
-        guint16 file_id = 0;
-        GArray *file_path = NULL;
-
-        get_sim_file_id_and_path ("EFad", &file_id, &file_path);
-
-        input = qmi_message_uim_read_transparent_input_new ();
-        qmi_message_uim_read_transparent_input_set_session_information (
-            input,
-            QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
-            "",
-            NULL);
-        qmi_message_uim_read_transparent_input_set_file (
-            input,
-            file_id,
-            file_path,
-            NULL);
-        qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
-        g_array_unref (file_path);
-
-        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
-                                         input,
-                                         10,
-                                         NULL,
-                                         (GAsyncReadyCallback)sim_info_efad_uim_read_transparent_ready,
-                                         ctx);
-        qmi_message_uim_read_transparent_input_unref (input);
+    case GET_SIM_INFO_STEP_EFAD:
+        common_read_sim_file (ctx->self,
+                              "EFad",
+                              (GAsyncReadyCallback)sim_info_efad_ready,
+                              ctx);
         return;
-    }
 
-    case GET_SIM_INFO_STEP_EFOPLMNWACT: {
-        QmiMessageUimReadTransparentInput *input;
-        guint16 file_id = 0;
-        GArray *file_path = NULL;
-
-        get_sim_file_id_and_path ("EFoplmnwact", &file_id, &file_path);
-
-        input = qmi_message_uim_read_transparent_input_new ();
-        qmi_message_uim_read_transparent_input_set_session_information (
-            input,
-            QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
-            "",
-            NULL);
-        qmi_message_uim_read_transparent_input_set_file (
-            input,
-            file_id,
-            file_path,
-            NULL);
-        qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
-        g_array_unref (file_path);
-
-        qmi_client_uim_read_transparent (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
-                                         input,
-                                         10,
-                                         NULL,
-                                         (GAsyncReadyCallback)sim_info_efoplmnwact_uim_read_transparent_ready,
-                                         ctx);
-        qmi_message_uim_read_transparent_input_unref (input);
+    case GET_SIM_INFO_STEP_EFOPLMNWACT:
+        common_read_sim_file (ctx->self,
+                              "EFoplmnwact",
+                              (GAsyncReadyCallback)sim_info_efoplmnwact_ready,
+                              ctx);
         return;
-    }
 
     case GET_SIM_INFO_STEP_LAST: {
         /* Build result */
