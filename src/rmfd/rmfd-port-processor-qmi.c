@@ -60,6 +60,8 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 
 #define STATS_FILE_PATH "/var/log/rmfd.stats"
 
+static const gchar bcd_chars[] = "0123456789\0\0\0\0\0\0";
+
 struct _RmfdPortProcessorQmiPrivate {
     /* QMI device and clients */
     QmiDevice *qmi_device;
@@ -1045,6 +1047,7 @@ typedef struct {
 static const SimFile sim_files[] = {
     { "EFad",        { 0x3F00, 0x7F20, 0x6FAD } },
     { "EFoplmnwact", { 0x3F00, 0x7F20, 0x6F61 } },
+    { "EFimsi",      { 0x3F00, 0x7FFF, 0x6F07 } },
 };
 
 static void
@@ -1141,48 +1144,62 @@ common_read_sim_file (RmfdPortProcessorQmi *self,
 /**********************/
 /* Get IMSI */
 
-static void
-dms_uim_get_imsi_ready (QmiClientDms *client,
-                        GAsyncResult *res,
-                        RunContext   *ctx)
+static gchar *
+read_bcd_encoded_string (const guint8 *bcd,
+                         gsize         bcd_len)
 {
-    QmiMessageDmsUimGetImsiOutput *output = NULL;
+    GString *str;
+    gsize i;
+
+    g_return_val_if_fail (bcd != NULL, NULL);
+
+    str = g_string_sized_new (bcd_len * 2 + 1);
+    for (i = 0 ; i < bcd_len; i++) {
+        str = g_string_append_c (str, bcd_chars[bcd[i] & 0xF]);
+        str = g_string_append_c (str, bcd_chars[(bcd[i] >> 4) & 0xF]);
+    }
+    return g_string_free (str, FALSE);
+}
+
+static void
+efimsi_ready (RmfdPortProcessorQmi *self,
+              GAsyncResult         *res,
+              RunContext           *ctx)
+{
+    g_autoptr(GArray) read_result = NULL;
+    g_autofree gchar *imsi = NULL;
     GError *error = NULL;
 
-    output = qmi_client_dms_uim_get_imsi_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
+    read_result = common_read_sim_file_finish (self, res, &error);
+    if (!read_result) {
         g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_imsi_output_get_result (output, &error)) {
-        g_prefix_error (&error, "couldn't get IMSI: ");
-        g_simple_async_result_take_error (ctx->result, error);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    imsi = read_bcd_encoded_string ((const guint8 *) read_result->data, read_result->len);
+    g_assert (imsi);
+    if (strlen (imsi) < 3) {
+        g_simple_async_result_set_error (ctx->result, RMFD_ERROR, RMFD_ERROR_UNKNOWN, "IMSI is malformed");
     } else {
-        const gchar *str;
         guint8 *response;
 
-        qmi_message_dms_uim_get_imsi_output_get_imsi (output, &str, NULL);
-
-        response = rmf_message_get_imsi_response_new (str);
+        /* Skip length byte and parity nibble in EFimsi */
+        response = rmf_message_get_imsi_response_new (imsi + 3);
         g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                    g_byte_array_new_take (response, rmf_message_get_length (response)),
                                                    (GDestroyNotify)g_byte_array_unref);
     }
-
-    if (output)
-        qmi_message_dms_uim_get_imsi_output_unref (output);
-
     run_context_complete_and_free (ctx);
 }
 
 static void
 get_imsi (RunContext *ctx)
 {
-    qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
-                                 NULL,
-                                 5,
-                                 NULL,
-                                 (GAsyncReadyCallback) dms_uim_get_imsi_ready,
-                                 ctx);
+    common_read_sim_file (ctx->self,
+                          "EFimsi",
+                          (GAsyncReadyCallback)efimsi_ready,
+                          ctx);
 }
 
 /**********************/
@@ -1268,7 +1285,6 @@ read_bcd_encoded_mccmnc (const guint8 *data,
                          guint32 *mcc,
                          guint32 *mnc)
 {
-    static const gchar bcd_chars[] = "0123456789\0\0\0\0\0\0";
     gchar mcc_str[4];
     gchar mnc_str[4];
 
@@ -1422,31 +1438,28 @@ sim_info_efad_ready (RmfdPortProcessorQmi *self,
 }
 
 static void
-sim_info_dms_uim_get_imsi_ready (QmiClientDms *client,
-                                 GAsyncResult *res,
-                                 RunContext   *ctx)
+sim_info_efimsi_ready (RmfdPortProcessorQmi *self,
+                       GAsyncResult         *res,
+                       RunContext           *ctx)
 {
     GetSimInfoContext *get_sim_info_ctx = (GetSimInfoContext *)ctx->additional_context;
-    QmiMessageDmsUimGetImsiOutput *output = NULL;
-    GError *error = NULL;
-    const gchar *str;
+    g_autoptr(GArray) read_result = NULL;
+    g_autofree gchar *imsi = NULL;
 
-    output = qmi_client_dms_uim_get_imsi_finish (client, res, &error);
-    if (!output || !qmi_message_dms_uim_get_imsi_output_get_result (output, &error)) {
+    read_result = common_read_sim_file_finish (self, res, NULL);
+    if (read_result)
+        imsi = read_bcd_encoded_string ((const guint8 *) read_result->data, read_result->len);
+
+    if (!imsi || strlen (imsi) < 3) {
         /* Ignore these errors; just will set mcc/mnc to 0. And ignore reading
          * EFad, as it won't be needed. */
-        g_error_free (error);
         get_sim_info_ctx->step = GET_SIM_INFO_STEP_EFAD + 1;
         get_sim_info_step (ctx);
         return;
     }
 
-    /* Store IMSI temporarily */
-    qmi_message_dms_uim_get_imsi_output_get_imsi (output, &str, NULL);
-    get_sim_info_ctx->imsi = g_strdup (str);
-
-    if (output)
-        qmi_message_dms_uim_get_imsi_output_unref (output);
+    /* Skip length byte and parity nibble in EFimsi */
+    get_sim_info_ctx->imsi = g_strdup (imsi + 3);
 
     /* And go on */
     get_sim_info_ctx->step++;
@@ -1464,12 +1477,10 @@ get_sim_info_step (RunContext *ctx)
         /* fall through */
 
     case GET_SIM_INFO_STEP_IMSI:
-        qmi_client_dms_uim_get_imsi (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
-                                     NULL,
-                                     5,
-                                     NULL,
-                                     (GAsyncReadyCallback) sim_info_dms_uim_get_imsi_ready,
-                                     ctx);
+        common_read_sim_file (ctx->self,
+                              "EFimsi",
+                              (GAsyncReadyCallback)sim_info_efimsi_ready,
+                              ctx);
         return;
 
     case GET_SIM_INFO_STEP_EFAD:
