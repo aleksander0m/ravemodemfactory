@@ -70,6 +70,7 @@ struct _RmfdPortProcessorQmiPrivate {
     /* Connection related info */
     RmfConnectionStatus connection_status;
     guint32 packet_data_handle;
+    guint packet_service_status_indication_id;
     guint stats_timeout_id;
     gboolean stats_enabled;
 
@@ -3108,6 +3109,92 @@ schedule_stats (RmfdPortProcessorQmi *self)
         self->priv->stats_timeout_id = g_timeout_add_seconds (DEFAULT_STATS_TIMEOUT_SECS, (GSourceFunc) stats_cb, self);
 }
 
+/*************************************/
+/* Unsolicited network disconnection */
+
+static void
+packet_service_status_indication_cb (QmiClientWds                              *client,
+                                     QmiIndicationWdsPacketServiceStatusOutput *output,
+                                     RmfdPortProcessorQmi                      *self)
+{
+    QmiWdsConnectionStatus         connection_status;
+    QmiWdsCallEndReason            cer;
+    QmiWdsVerboseCallEndReasonType verbose_cer_type;
+    gint16                         verbose_cer_reason;
+
+    if (!qmi_indication_wds_packet_service_status_output_get_connection_status (output, &connection_status, NULL, NULL))
+        return;
+
+    /* Ignore reports unless they're reporting a disconnection */
+    if (connection_status != QMI_WDS_CONNECTION_STATUS_DISCONNECTED)
+        return;
+
+    /* Ignore reports if we're already considered disconnected */
+    if (self->priv->connection_status == RMF_CONNECTION_STATUS_DISCONNECTING ||
+        self->priv->connection_status == RMF_CONNECTION_STATUS_DISCONNECTED)
+        return;
+
+    g_message ("Network disconnected");
+
+    if (qmi_indication_wds_packet_service_status_output_get_call_end_reason (output, &cer, NULL)) {
+        const gchar *str;
+
+        str = qmi_wds_call_end_reason_get_string (cer);
+        g_warning ("call end reason (%u): '%s'",
+                   cer, str ? str : "unknown error");
+    }
+
+    if (qmi_indication_wds_packet_service_status_output_get_verbose_call_end_reason (output,
+                                                                                     &verbose_cer_type,
+                                                                                     &verbose_cer_reason,
+                                                                                     NULL)) {
+        const gchar *str;
+        const gchar *domain_str;
+
+        domain_str = qmi_wds_verbose_call_end_reason_type_get_string (verbose_cer_type),
+            str = qmi_wds_verbose_call_end_reason_get_string (verbose_cer_type, verbose_cer_reason);
+        g_warning ("verbose call end reason (%u,%d): [%s] %s",
+                   verbose_cer_type,
+                   verbose_cer_reason,
+                   domain_str,
+                   str);
+    }
+
+    /* Now, process the disconnection */
+}
+
+static void
+unregister_wds_indications (RmfdPortProcessorQmi *self)
+{
+    QmiClientWds *wds;
+
+    if (self->priv->packet_service_status_indication_id == 0)
+        return;
+
+    wds = QMI_CLIENT_WDS (peek_qmi_client (self, QMI_SERVICE_WDS));
+    g_assert (QMI_IS_CLIENT_WDS (wds));
+
+    g_signal_handler_disconnect (wds, self->priv->packet_service_status_indication_id);
+    self->priv->packet_service_status_indication_id = 0;
+}
+
+static void
+register_wds_indications (RmfdPortProcessorQmi *self)
+{
+    QmiClientWds *wds;
+
+    g_assert (self->priv->packet_service_status_indication_id == 0);
+
+    wds = QMI_CLIENT_WDS (peek_qmi_client (self, QMI_SERVICE_WDS));
+    g_assert (QMI_IS_CLIENT_WDS (wds));
+
+    self->priv->packet_service_status_indication_id =
+        g_signal_connect (wds,
+                          "packet-service-status",
+                          G_CALLBACK (packet_service_status_indication_cb),
+                          self);
+}
+
 /**********************/
 /* Connect */
 
@@ -3175,6 +3262,7 @@ connect_step_restart_iteration (RunContext *ctx)
         GByteArray *error_message;
 
         ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+        unregister_wds_indications (ctx->self);
 
         g_warning ("error: no more connection attempts left");
 
@@ -3730,6 +3818,7 @@ run_connect (RunContext *ctx)
 
     /* Now connecting */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_CONNECTING;
+    register_wds_indications (ctx->self);
 
     /* Setup connect context */
     connect_ctx = g_slice_new0 (ConnectContext);
@@ -3881,6 +3970,7 @@ disconnect (RunContext *ctx)
 
     /* Now disconnecting */
     ctx->self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTING;
+    unregister_wds_indications (ctx->self);
 
     input = qmi_message_wds_stop_network_input_new ();
     qmi_message_wds_stop_network_input_set_packet_data_handle (input, ctx->self->priv->packet_data_handle, NULL);
@@ -5354,6 +5444,7 @@ dispose (GObject *object)
 
     messaging_list_contexts_cancel (self);
     registration_context_cancel (self);
+    unregister_wds_indications (self);
     unregister_nas_indications (self);
     unregister_wms_indications (self);
 
