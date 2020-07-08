@@ -969,6 +969,14 @@ uim_switch_slot_ready (QmiClientUim *client,
     }
 
     g_message ("SIM slot switch operation successful");
+
+    /* Launch automatic network registration explicitly */
+    initiate_registration (ctx->self, TRUE);
+
+    /* And launch SMS listing, which will succeed here only if PIN unlocked or
+     * disabled in the newly selected slot */
+    messaging_list (ctx->self);
+
     response = rmf_message_set_sim_slot_response_new ();
     g_simple_async_result_set_op_res_gpointer (ctx->result,
                                                g_byte_array_new_take (response, rmf_message_get_length (response)),
