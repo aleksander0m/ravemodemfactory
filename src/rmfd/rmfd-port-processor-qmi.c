@@ -819,76 +819,211 @@ get_imei (RunContext *ctx)
 /**********************/
 /* Get SIM slot */
 
+typedef struct {
+    guint active_physical_id;
+    guint active_logical_id;
+} CommonSimSlotQueryResult;
+
+static gboolean
+common_sim_slot_query_finish (RmfdPortProcessorQmi  *self,
+                              GAsyncResult          *res,
+                              guint                 *active_physical_id,
+                              guint                 *active_logical_id,
+                              GError               **error)
+{
+    CommonSimSlotQueryResult *result;
+
+    result = g_task_propagate_pointer (G_TASK (res), error);
+    if (!result)
+        return FALSE;
+
+    if (active_physical_id)
+        *active_physical_id = result->active_physical_id;
+    if (active_logical_id)
+        *active_logical_id = result->active_logical_id;
+    g_free (result);
+    return TRUE;
+}
+
 static void
 uim_get_slot_status_ready (QmiClientUim *client,
                            GAsyncResult *res,
-                           RunContext   *ctx)
+                           GTask        *task)
 {
-    QmiMessageUimGetSlotStatusOutput *output;
+    g_autoptr(QmiMessageUimGetSlotStatusOutput) output = NULL;
     GError *error = NULL;
     GArray *physical_slots = NULL;
+    guint   i;
 
     output = qmi_client_uim_get_slot_status_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_uim_get_slot_status_output_get_result (output, &error)) {
-        g_prefix_error (&error, "couldn't get slot status: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_uim_get_slot_status_output_get_physical_slot_status (output, &physical_slots, &error)) {
-        g_prefix_error (&error, "couldn't get physical slot list: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        guint i;
-        guint active_slot = 0;
+    if (!output ||
+        !qmi_message_uim_get_slot_status_output_get_result (output, &error) ||
+        !qmi_message_uim_get_slot_status_output_get_physical_slot_status (output, &physical_slots, &error)) {
+        g_task_return_error (task, error);
+        g_object_unref (task);
+        return;
+    }
 
-        for (i = 0; i < physical_slots->len; i++) {
-            QmiPhysicalSlotStatusSlot *slot_status;
+    for (i = 0; i < physical_slots->len; i++) {
+        QmiPhysicalSlotStatusSlot *slot_status;
 
-            slot_status = &g_array_index (physical_slots, QmiPhysicalSlotStatusSlot, i);
-            if (slot_status->physical_slot_status == QMI_UIM_SLOT_STATE_ACTIVE) {
-                active_slot = i + 1;
-                break;
-            }
-        }
+        slot_status = &g_array_index (physical_slots, QmiPhysicalSlotStatusSlot, i);
+        if (slot_status->physical_slot_status == QMI_UIM_SLOT_STATE_ACTIVE) {
+            CommonSimSlotQueryResult *result;
 
-        if (!active_slot) {
-            g_simple_async_result_set_error (ctx->result,
-                                             RMFD_ERROR,
-                                             RMFD_ERROR_UNKNOWN,
-                                             "No active slot found (%u available)",
-                                             physical_slots->len);
-        } else if (active_slot > 2) {
-            g_simple_async_result_set_error (ctx->result,
-                                             RMFD_ERROR,
-                                             RMFD_ERROR_UNKNOWN,
-                                             "Invalid active slot reported (%u not in the [1,2] range)",
-                                             active_slot);
-        } else {
-            guint8 *response;
-
-            response = rmf_message_get_sim_slot_response_new ((uint8_t) active_slot);
-            g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                       g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                       (GDestroyNotify)g_byte_array_unref);
+            result = g_new0 (CommonSimSlotQueryResult, 1);
+            result->active_physical_id = i + 1;
+            result->active_logical_id = slot_status->logical_slot;
+            g_task_return_pointer (task, result, g_free);
+            g_object_unref (task);
+            return;
         }
     }
 
-    if (output)
-        qmi_message_uim_get_slot_status_output_unref (output);
+    g_task_return_new_error (task,
+                             RMFD_ERROR,
+                             RMFD_ERROR_UNKNOWN,
+                             "No active slot found (%u available)",
+                             physical_slots->len);
+    g_object_unref (task);
+}
 
+static void
+common_sim_slot_query (RmfdPortProcessorQmi *self,
+                       GAsyncReadyCallback   callback,
+                       gpointer              user_data)
+{
+    GTask *task;
+
+    task = g_task_new (self, NULL, callback, user_data);
+    qmi_client_uim_get_slot_status (QMI_CLIENT_UIM (peek_qmi_client (self, QMI_SERVICE_UIM)),
+                                    NULL,
+                                    10,
+                                    NULL,
+                                    (GAsyncReadyCallback) uim_get_slot_status_ready,
+                                    task);
+}
+
+static void
+common_sim_slot_query_in_get_ready (RmfdPortProcessorQmi  *self,
+                                    GAsyncResult          *res,
+                                    RunContext            *ctx)
+{
+    GError *error = NULL;
+    guint   active_physical_id;
+    guint8 *response;
+
+    if (!common_sim_slot_query_finish (self, res, &active_physical_id, NULL, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    if (active_physical_id < 1 || active_physical_id > 2) {
+        g_simple_async_result_set_error (ctx->result,
+                                         RMFD_ERROR,
+                                         RMFD_ERROR_UNKNOWN,
+                                         "Invalid active slot reported (%u not in the [1,2] range)",
+                                         active_physical_id);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    response = rmf_message_get_sim_slot_response_new ((uint8_t) active_physical_id);
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
     run_context_complete_and_free (ctx);
 }
 
 static void
 get_sim_slot (RunContext *ctx)
 {
-    qmi_client_uim_get_slot_status (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
-                                    NULL,
-                                    10,
-                                    NULL,
-                                    (GAsyncReadyCallback) uim_get_slot_status_ready,
-                                    ctx);
+    common_sim_slot_query (ctx->self,
+                           (GAsyncReadyCallback)common_sim_slot_query_in_get_ready,
+                           ctx);
+}
+
+/**********************/
+/* Set SIM slot */
+
+static void
+uim_switch_slot_ready (QmiClientUim *client,
+                       GAsyncResult *res,
+                       RunContext   *ctx)
+{
+    g_autoptr(QmiMessageUimSwitchSlotOutput) output = NULL;
+    GError *error = NULL;
+    guint8 *response;
+
+    output = qmi_client_uim_switch_slot_finish (client, res, &error);
+    if (!output || !qmi_message_uim_switch_slot_output_get_result (output, &error)) {
+        /* Fatal error? */
+        if (!g_error_matches (error, QMI_PROTOCOL_ERROR, QMI_PROTOCOL_ERROR_NO_EFFECT)) {
+            g_simple_async_result_take_error (ctx->result, error);
+            run_context_complete_and_free (ctx);
+            return;
+        }
+        g_message ("SIM slot switch operation reported as not needed");
+        g_clear_error (&error);
+    }
+
+    g_message ("SIM slot switch operation successful");
+    response = rmf_message_set_sim_slot_response_new ();
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
+    run_context_complete_and_free (ctx);
+}
+
+static void
+common_sim_slot_query_in_set_ready (RmfdPortProcessorQmi  *self,
+                                    GAsyncResult          *res,
+                                    RunContext            *ctx)
+{
+    g_autoptr(QmiMessageUimSwitchSlotInput) input = NULL;
+    GError *error = NULL;
+    guint   active_physical_id;
+    guint   active_logical_id;
+    uint8_t requested_physical_id;
+
+    if (!common_sim_slot_query_finish (self, res, &active_physical_id, &active_logical_id, &error)) {
+        g_simple_async_result_take_error (ctx->result, error);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    rmf_message_set_sim_slot_request_parse (ctx->request->data, &requested_physical_id);
+    if (active_physical_id == (guint)requested_physical_id) {
+        guint8 *response;
+
+        g_message ("SIM slot %u is already active, no need to switch", active_physical_id);
+        response = rmf_message_set_sim_slot_response_new ();
+        g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
+    }
+
+    g_message ("SIM slot switch in progress:  %u -> %u", active_physical_id, requested_physical_id);
+    input = qmi_message_uim_switch_slot_input_new ();
+    qmi_message_uim_switch_slot_input_set_logical_slot (input, active_logical_id, NULL);
+    qmi_message_uim_switch_slot_input_set_physical_slot (input, requested_physical_id, NULL);
+    qmi_client_uim_switch_slot (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
+                                input,
+                                10,
+                                NULL,
+                                (GAsyncReadyCallback) uim_switch_slot_ready,
+                                ctx);
+}
+
+static void
+set_sim_slot (RunContext *ctx)
+{
+    common_sim_slot_query (ctx->self,
+                           (GAsyncReadyCallback)common_sim_slot_query_in_set_ready,
+                           ctx);
 }
 
 /**********************/
@@ -3819,6 +3954,9 @@ run (RmfdPortProcessor   *self,
         return;
     case RMF_MESSAGE_COMMAND_GET_SIM_SLOT:
         get_sim_slot (ctx);
+        return;
+    case RMF_MESSAGE_COMMAND_SET_SIM_SLOT:
+        set_sim_slot (ctx);
         return;
     case RMF_MESSAGE_COMMAND_GET_IMSI:
         get_imsi (ctx);
