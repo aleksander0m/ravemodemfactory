@@ -1048,6 +1048,7 @@ static const SimFile sim_files[] = {
     { "EFad",        { 0x3F00, 0x7F20, 0x6FAD } },
     { "EFoplmnwact", { 0x3F00, 0x7F20, 0x6F61 } },
     { "EFimsi",      { 0x3F00, 0x7FFF, 0x6F07 } },
+    { "EFiccid",     { 0x3F00, 0x2FE2, 0x0000 } },
 };
 
 static void
@@ -1206,47 +1207,39 @@ get_imsi (RunContext *ctx)
 /* Get ICCID */
 
 static void
-dms_uim_get_iccid_ready (QmiClientDms *client,
-                         GAsyncResult *res,
-                         RunContext   *ctx)
+eficcid_ready (RmfdPortProcessorQmi *self,
+               GAsyncResult         *res,
+               RunContext           *ctx)
 {
-    QmiMessageDmsUimGetIccidOutput *output = NULL;
+    g_autoptr(GArray) read_result = NULL;
+    g_autofree gchar *iccid = NULL;
     GError *error = NULL;
+    guint8 *response;
 
-    output = qmi_client_dms_uim_get_iccid_finish (client, res, &error);
-    if (!output) {
-        g_prefix_error (&error, "QMI operation failed: ");
+    read_result = common_read_sim_file_finish (self, res, &error);
+    if (!read_result) {
         g_simple_async_result_take_error (ctx->result, error);
-    } else if (!qmi_message_dms_uim_get_iccid_output_get_result (output, &error)) {
-        g_prefix_error (&error, "couldn't get ICCID: ");
-        g_simple_async_result_take_error (ctx->result, error);
-    } else {
-        const gchar *str;
-        guint8 *response;
-
-        qmi_message_dms_uim_get_iccid_output_get_iccid (output, &str, NULL);
-
-        response = rmf_message_get_iccid_response_new (str);
-        g_simple_async_result_set_op_res_gpointer (ctx->result,
-                                                   g_byte_array_new_take (response, rmf_message_get_length (response)),
-                                                   (GDestroyNotify)g_byte_array_unref);
+        run_context_complete_and_free (ctx);
+        return;
     }
 
-    if (output)
-        qmi_message_dms_uim_get_iccid_output_unref (output);
+    iccid = read_bcd_encoded_string ((const guint8 *) read_result->data, read_result->len);
+    g_assert (iccid);
 
+    response = rmf_message_get_iccid_response_new (iccid);
+    g_simple_async_result_set_op_res_gpointer (ctx->result,
+                                               g_byte_array_new_take (response, rmf_message_get_length (response)),
+                                               (GDestroyNotify)g_byte_array_unref);
     run_context_complete_and_free (ctx);
 }
 
 static void
 get_iccid (RunContext *ctx)
 {
-    qmi_client_dms_uim_get_iccid (QMI_CLIENT_DMS (peek_qmi_client (ctx->self, QMI_SERVICE_DMS)),
-                                  NULL,
-                                  5,
-                                  NULL,
-                                  (GAsyncReadyCallback) dms_uim_get_iccid_ready,
-                                  ctx);
+    common_read_sim_file (ctx->self,
+                          "EFiccid",
+                          (GAsyncReadyCallback)eficcid_ready,
+                          ctx);
 }
 
 /**********************/
