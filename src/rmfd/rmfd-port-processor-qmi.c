@@ -73,6 +73,7 @@ struct _RmfdPortProcessorQmiPrivate {
     guint packet_service_status_indication_id;
     guint stats_timeout_id;
     gboolean stats_enabled;
+    RmfdPortData *connected_data;
 
     /* Registration related info */
     guint32 registration_timeout;
@@ -3123,6 +3124,17 @@ common_disconnect_finish (RmfdPortProcessorQmi  *self,
 }
 
 static void
+complete_disconnection (GTask *task)
+{
+    RmfdPortProcessorQmi *self;
+
+    self = g_task_get_source_object (task);
+    self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
+    g_task_return_boolean (task, TRUE);
+    g_object_unref (task);
+}
+
+static void
 data_setup_stop_ready (RmfdPortData *data,
                        GAsyncResult *res,
                        GTask        *task)
@@ -3131,6 +3143,7 @@ data_setup_stop_ready (RmfdPortData *data,
     RmfdPortProcessorQmi *self;
 
     self = g_task_get_source_object (task);
+    g_clear_object (&self->priv->connected_data);
 
     if (!rmfd_port_data_setup_finish (data, res, &error)) {
         g_warning ("error: couldn't stop interface: %s", error->message);
@@ -3141,10 +3154,7 @@ data_setup_stop_ready (RmfdPortData *data,
         return;
     }
 
-    /* Ok! */
-    self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTED;
-    g_task_return_boolean (task, TRUE);
-    g_object_unref (task);
+    complete_disconnection (task);
 }
 
 static void
@@ -3161,11 +3171,16 @@ write_connection_stats_stop_ready (RmfdPortProcessorQmi *self,
     self->priv->stats_enabled = FALSE;
     schedule_stats (self);
 
-    rmfd_port_data_setup (RMFD_PORT_DATA (g_task_get_task_data (task)),
-                          FALSE,
-                          NULL, NULL, NULL, NULL, NULL, 0,
-                          (GAsyncReadyCallback)data_setup_stop_ready,
-                          task);
+    if (self->priv->connected_data) {
+        rmfd_port_data_setup (self->priv->connected_data,
+                              FALSE,
+                              NULL, NULL, NULL, NULL, NULL, 0,
+                              (GAsyncReadyCallback)data_setup_stop_ready,
+                              task);
+        return;
+    }
+
+    complete_disconnection (task);
 }
 
 static void
@@ -3212,14 +3227,12 @@ wds_stop_network_ready (QmiClientWds *client,
 
 static void
 common_disconnect (RmfdPortProcessorQmi *self,
-                   RmfdPortData         *data,
                    GAsyncReadyCallback   callback,
                    gpointer              user_data)
 {
     GTask *task;
 
     task = g_task_new (self, NULL, callback, user_data);
-    g_task_set_task_data (task, data, (GDestroyNotify)g_object_unref);
 
     self->priv->connection_status = RMF_CONNECTION_STATUS_DISCONNECTING;
     unregister_wds_indications (self);
@@ -3427,8 +3440,9 @@ wds_stop_network_after_start_ready (QmiClientWds *client,
     if (output)
         qmi_message_wds_stop_network_output_unref (output);
 
-    /* Clear packet data handle */
+    /* Clear packet data handle and connected data port */
     ctx->self->priv->packet_data_handle = 0;
+    g_clear_object (&ctx->self->priv->connected_data);
 
     connect_step_restart_iteration (ctx);
 }
@@ -3493,6 +3507,10 @@ data_setup_start_ready (RmfdPortData *data,
         wds_stop_network_after_start (ctx);
         return;
     }
+
+    /* Store connected data port  */
+    g_clear_object (&ctx->self->priv->connected_data);
+    ctx->self->priv->connected_data = g_object_ref (ctx->data);
 
     /* Go on to next step */
     connect_ctx->step++;
@@ -4026,7 +4044,6 @@ disconnect (RunContext *ctx)
     }
 
     common_disconnect (ctx->self,
-                       ctx->data,
                        (GAsyncReadyCallback)common_disconnect_ready,
                        ctx);
 }
@@ -5484,6 +5501,8 @@ dispose (GObject *object)
 {
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
     guint                 i;
+
+    g_clear_object (&self->priv->connected_data);
 
     if (self->priv->stats) {
         rmfd_stats_teardown (self->priv->stats);
