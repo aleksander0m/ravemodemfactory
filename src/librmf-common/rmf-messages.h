@@ -44,13 +44,14 @@ uint32_t rmf_message_request_and_response_match (const uint8_t *request,
                                                  const uint8_t *response);
 
 enum {
-    RMF_RESPONSE_STATUS_OK                     = 0,
-    RMF_RESPONSE_STATUS_ERROR_UNKNOWN          = 1,
-    RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST  = 2,
-    RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND  = 3,
-    RMF_RESPONSE_STATUS_ERROR_NO_MODEM         = 4,
-    RMF_RESPONSE_STATUS_ERROR_INVALID_STATE    = 5,
-    RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT    = 6,
+    RMF_RESPONSE_STATUS_OK                           = 0,
+    RMF_RESPONSE_STATUS_ERROR_UNKNOWN                = 1,
+    RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST        = 2,
+    RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND        = 3,
+    RMF_RESPONSE_STATUS_ERROR_NO_MODEM               = 4,
+    RMF_RESPONSE_STATUS_ERROR_INVALID_STATE          = 5,
+    RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT          = 6,
+    RMF_RESPONSE_STATUS_ERROR_NOT_SUPPORTED_INTERNAL = 7,
     /* Mapping of QMI errors (libqmi error + 100) */
     RMF_RESPONSE_STATUS_ERROR_MALFORMED_MESSAGE                = 101,
     RMF_RESPONSE_STATUS_ERROR_NO_MEMORY                        = 102,

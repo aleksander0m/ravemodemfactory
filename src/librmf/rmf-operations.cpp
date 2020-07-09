@@ -52,13 +52,14 @@ using namespace Modem;
 /*****************************************************************************/
 
 static const char *response_status_str[] = {
-    "Ok",              /* RMF_RESPONSE_STATUS_OK */
-    "Unknown error",   /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
-    "Invalid request", /* RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST */
-    "Unknown command", /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
-    "No modem",        /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
-    "Invalid state",   /* RMF_RESPONSE_STATUS_ERROR_INVALID_STATE */
-    "Invalid input",   /* RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT */
+    "Ok",                       /* RMF_RESPONSE_STATUS_OK */
+    "Unknown error",            /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN */
+    "Invalid request",          /* RMF_RESPONSE_STATUS_ERROR_INVALID_REQUEST */
+    "Unknown command",          /* RMF_RESPONSE_STATUS_ERROR_UNKNOWN_COMMAND */
+    "No modem",                 /* RMF_RESPONSE_STATUS_ERROR_NO_MODEM */
+    "Invalid state",            /* RMF_RESPONSE_STATUS_ERROR_INVALID_STATE */
+    "Invalid input",            /* RMF_RESPONSE_STATUS_ERROR_INVALID_INPUT */
+    "Not supported (internal)", /* RMF_RESPONSE_STATUS_ERROR_NOT_SUPPORTED_INTERNAL */
 };
 
 static const char *qmi_response_status_str[] = {
