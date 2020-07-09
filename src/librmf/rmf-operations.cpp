@@ -1317,10 +1317,12 @@ Modem::Connect (const string apn,
 
     if (status != RMF_RESPONSE_STATUS_OK) {
         const char *error_str;
+        string extended_error_string = "";
 
         rmf_message_error_response_parse (response, NULL, &error_str);
+        extended_error_string.append (error_str);
         free (response);
-        throw_verbose_response_error (status, error_str);
+        throw_verbose_response_error (status, extended_error_string);
     }
 
     free (response);
