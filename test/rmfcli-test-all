@@ -79,15 +79,21 @@ run_rmfcli --get-hardware-revision
 run_rmfcli --get-imei
 run_rmfcli --get-iccid
 run_rmfcli --is-locked
-run_rmfcli --unlock=$PIN
-run_rmfcli --is-locked
+
+# PIN related operations only if PIN available
+[ -n "$PIN" ] && {
+    run_rmfcli --unlock=$PIN
+    run_rmfcli --is-locked
+}
 # IMSI readable only after PIN unlocked
 run_rmfcli --get-imsi
 run_rmfcli --get-sim-info
-run_rmfcli --disable-pin=$PIN
-run_rmfcli --enable-pin=$PIN
-run_rmfcli --change-pin=\"$PIN 0000\"
-run_rmfcli --change-pin=\"0000 $PIN\"
+[ -n "$PIN" ] && {
+    run_rmfcli --disable-pin=$PIN
+    run_rmfcli --enable-pin=$PIN
+    run_rmfcli --change-pin=\"$PIN 0000\"
+    run_rmfcli --change-pin=\"0000 $PIN\"
+}
 run_rmfcli --get-signal-info
 run_rmfcli --get-registration-status
 run_rmfcli --get-connection-status
