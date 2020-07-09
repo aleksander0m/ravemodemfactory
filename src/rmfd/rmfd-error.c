@@ -62,7 +62,7 @@ rmfd_error_message_new_from_error (const GByteArray *request,
             g_assert_not_reached ();
         }
     } else if (error_domain == QMI_PROTOCOL_ERROR) {
-        if (error_code < QMI_PROTOCOL_ERROR_PB_HIDDEN_KEY_RESTRICTION)
+        if (error_code <= QMI_PROTOCOL_ERROR_OPERATION_IN_PROGRESS)
             status = 100 + error_code;
         else
             status = RMF_RESPONSE_STATUS_ERROR_UNKNOWN;

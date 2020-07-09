@@ -105,9 +105,9 @@ static const char *qmi_response_status_str[] = {
     "Network QoS unaware", /* 140, RMF_RESPONSE_STATUS_ERROR_NETWORK_QOS_UNAWARE */
     "Invalid QoS ID", /* 141, RMF_RESPONSE_STATUS_ERROR_INVALID_QOS_ID */
     "QoS unavailable", /* 142, RMF_RESPONSE_STATUS_ERROR_QOS_UNAVAILABLE */
-    "Flow suspended", /* 143, RMF_RESPONSE_STATUS_ERROR_FLOW_SUSPENDED */
-    "", /* 144 */
-    "", /* 145 */
+    "Interface not found", /* 143, RMF_RESPONSE_STATUS_ERROR_INTERFACE_NOT_FOUND */
+    "Flow suspended", /* 144, RMF_RESPONSE_STATUS_ERROR_FLOW_SUSPENDED */
+    "Invalid data format", /* 145, RMF_RESPONSE_STATUS_ERROR_INVALID_DATA_FORMAT */
     "General error", /* 146, RMF_RESPONSE_STATUS_ERROR_GENERAL_ERROR */
     "Unknown error", /* 147, RMF_RESPONSE_STATUS_ERROR_UNKNOWN_ERROR */
     "Invalid argument", /* 148, RMF_RESPONSE_STATUS_ERROR_INVALID_ARGUMENT */
@@ -123,10 +123,10 @@ static const char *qmi_response_status_str[] = {
     "WMS encoding", /* 158, RMF_RESPONSE_STATUS_ERROR_WMS_ENCODING */
     "Authentication lock", /* 159, RMF_RESPONSE_STATUS_ERROR_AUTHENTICATION_LOCK */
     "Invalid transition", /* 160, RMF_RESPONSE_STATUS_ERROR_INVALID_TRANSITION */
-    "", /* 161 */
-    "", /* 162 */
-    "", /* 163 */
-    "", /* 164 */
+    "Not multicast interface", /* 161, RMF_RESPONSE_STATUS_ERROR_NOT_MCAST_INTERFACE */
+    "Maximum multicast requests in use", /* 162, RMF_RESPONSE_STATUS_ERROR_MAXIMUM_MCAST_REQUESTS_IN_USE */
+    "Invalid multicast handle", /* 163, RMF_RESPONSE_STATUS_ERROR_INVALID_MCAST_HANDLE */
+    "Invalid IP family preference", /* 164, RMF_RESPONSE_STATUS_ERROR_INVALID_IP_FAMILY_PREFERENCE */
     "Session inactive", /* 165, RMF_RESPONSE_STATUS_ERROR_SESSION_INACTIVE */
     "Session invalid", /* 166, RMF_RESPONSE_STATUS_ERROR_SESSION_INVALID */
     "Session ownership", /* 167, RMF_RESPONSE_STATUS_ERROR_SESSION_OWNERSHIP */
@@ -140,8 +140,8 @@ static const char *qmi_response_status_str[] = {
     "Segment too long", /* 175, RMF_RESPONSE_STATUS_ERROR_SEGMENT_TOO_LONG */
     "Segment order", /* 176, RMF_RESPONSE_STATUS_ERROR_SEGMENT_ORDER */
     "Bundling not supported", /* 177, RMF_RESPONSE_STATUS_ERROR_BUNDLING_NOT_SUPPORTED */
-    "", /* 178 */
-    "", /* 179 */
+    "Partial failure", /* 178, RMF_RESPONSE_STATUS_ERROR_PARTIAL_FAILURE */
+    "Policy mismatch", /* 179, RMF_RESPONSE_STATUS_ERROR_POLICY_MISMATCH */
     "SIM file not found", /* 180, RMF_RESPONSE_STATUS_ERROR_SIM_FILE_NOT_FOUND */
     "Extended internal", /* 181, RMF_RESPONSE_STATUS_ERROR_EXTENDED_INTERNAL */
     "Access denied", /* 182, RMF_RESPONSE_STATUS_ERROR_ACCESS_DENIED */
@@ -171,9 +171,16 @@ static const char *qmi_response_status_str[] = {
     "PUK restriction", /* 206, RMF_RESPONSE_STATUS_ERROR_PUK_RESTRICTION */
     "PUK2 restriction", /* 207, RMF_RESPONSE_STATUS_ERROR_PUK2_RESTRICTION */
     "Phonebook access restricted", /* 208, RMF_RESPONSE_STATUS_ERROR_PB_ACCESS_RESTRICTED */
-    "Phonebook text too long", /* 209, RMF_RESPONSE_STATUS_ERROR_PB_TEXT_TOO_LONG */
-    "Phonebook number too long", /* 210, RMF_RESPONSE_STATUS_ERROR_PB_NUMBER_TOO_LONG */
-    "Phonebook hidden key restriction", /* 211, RMF_RESPONSE_STATUS_ERROR_PB_HIDDEN_KEY_RESTRICTION */
+    "Phonebook delete in progress", /* 209, RMF_RESPONSE_STATUS_ERROR_PB_DELETE_IN_PROGRESS */
+    "Phonebook text too long", /* 210, RMF_RESPONSE_STATUS_ERROR_PB_TEXT_TOO_LONG */
+    "Phonebook number too long", /* 211, RMF_RESPONSE_STATUS_ERROR_PB_NUMBER_TOO_LONG */
+    "Phonebook hidden key restriction", /* 212, RMF_RESPONSE_STATUS_ERROR_PB_HIDDEN_KEY_RESTRICTION */
+    "Phonebook not available", /* 213, RMF_RESPONSE_STATUS_ERROR_PB_NOT_AVAILABLE */
+    "Device memory error", /* 214, RMF_RESPONSE_STATUS_ERROR_DEVICE_MEMORY_ERROR */
+    "No permission", /* 215, RMF_RESPONSE_STATUS_ERROR_NO_PERMISSION */
+    "Too soon", /* 216, RMF_RESPONSE_STATUS_ERROR_TOO_SOON */
+    "Time not acquired", /* 217, RMF_RESPONSE_STATUS_ERROR_TIME_NOT_ACQUIRED */
+    "Operation in progress", /* 218, RMF_RESPONSE_STATUS_ERROR_OPERATION_IN_PROGRESS */
 };
 
 /*****************************************************************************/
