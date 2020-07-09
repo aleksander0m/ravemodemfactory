@@ -3306,6 +3306,8 @@ packet_service_status_indication_cb (QmiClientWds                              *
     }
 
     /* Now, process the disconnection */
+    self->priv->packet_data_handle = 0;
+    common_disconnect (self, NULL, NULL);
 }
 
 static void
