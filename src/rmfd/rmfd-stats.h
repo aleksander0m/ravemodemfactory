@@ -36,7 +36,8 @@ typedef enum {
 
 typedef struct _RmfdStatsContext RmfdStatsContext;
 
-RmfdStatsContext *rmfd_stats_setup        (const gchar         *path);
+RmfdStatsContext *rmfd_stats_setup        (const gchar         *path,
+                                           const gchar         *context_name);
 void              rmfd_stats_record       (RmfdStatsContext    *ctx,
                                            RmfdStatsRecordType  type,
                                            GDateTime           *system_time,

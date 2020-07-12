@@ -5547,8 +5547,8 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
     g_signal_connect (self->priv->messaging_sms_list, "sms-added", G_CALLBACK (sms_added_cb), self);
 
     /* Initialize stats for both SIM slots */
-    self->priv->stats[0] = rmfd_stats_setup (stats_file_paths[0]);
-    self->priv->stats[1] = rmfd_stats_setup (stats_file_paths[1]);
+    self->priv->stats[0] = rmfd_stats_setup (stats_file_paths[0], "sim 1");
+    self->priv->stats[1] = rmfd_stats_setup (stats_file_paths[1], "sim 2");
 }
 
 static void

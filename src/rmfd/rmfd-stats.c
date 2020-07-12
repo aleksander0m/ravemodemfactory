@@ -44,6 +44,7 @@ typedef struct {
 
 struct _RmfdStatsContext {
     gchar        *path;
+    gchar        *name;
     FILE         *file;
     GDateTime    *start_system_time;
     time_t        start_time;
@@ -71,7 +72,8 @@ common_build_date_string (GDateTime *system_time,
 /* Write to syslog */
 
 static void
-write_syslog_record (gboolean     previous_run,
+write_syslog_record (const gchar *context_name,
+                     gboolean     previous_run,
                      const gchar *from_timestamp,
                      const gchar *to_timestamp,
                      gulong       duration,
@@ -90,12 +92,14 @@ write_syslog_record (gboolean     previous_run,
 {
     rmfd_syslog (LOG_INFO,
                  "Connection stats %s"
+                 "[%s] "
                  "[from: %s, to: %s, duration: %lus] "
                  "[rx: %" G_GUINT64_FORMAT ", tx: %" G_GUINT64_FORMAT "] "
                  "[access tech: %s, rssi: %ddBm] "
                  "[mcc: %u, mnc: %u, lac: %u, cid: %u] "
                  "[month %u/%u rx: %" G_GUINT64_FORMAT ", tx: %" G_GUINT64_FORMAT "] ",
                  previous_run ? "(previous run) " : "",
+                 context_name,
                  from_timestamp, to_timestamp, duration,
                  rx_bytes, tx_bytes,
                  radio_interface, rssi,
@@ -104,15 +108,18 @@ write_syslog_record (gboolean     previous_run,
 }
 
 static void
-write_monthly_stats (guint   year,
-                     guint   month,
-                     guint64 rx_bytes,
-                     guint64 tx_bytes)
+write_monthly_stats (const gchar *context_name,
+                     guint        year,
+                     guint        month,
+                     guint64      rx_bytes,
+                     guint64      tx_bytes)
 {
     rmfd_syslog (LOG_INFO,
                  "Month stats (%u/%u) "
+                 "[%s] "
                  "[rx: %" G_GUINT64_FORMAT ", tx: %" G_GUINT64_FORMAT "] ",
                  year, month,
+                 context_name,
                  rx_bytes, tx_bytes);
 }
 
@@ -384,7 +391,8 @@ process_previous_stats (RmfdStatsContext *ctx,
 
                 record_end = ftell (ctx->file);
 
-                write_syslog_record (TRUE,
+                write_syslog_record (ctx->name,
+                                     TRUE,
                                      fields[FIELD_FROM_SYSTEM_TIME],
                                      fields[FIELD_TO_SYSTEM_TIME],
                                      (gulong) g_ascii_strtoull (fields[FIELD_DURATION], NULL, 10),
@@ -563,7 +571,8 @@ rmfd_stats_record (RmfdStatsContext    *ctx,
         if ((year == ctx->monthly_stats.year && month > ctx->monthly_stats.month) ||
             (year > ctx->monthly_stats.year)) {
             if (ctx->monthly_stats.year > 0)
-                write_monthly_stats (ctx->monthly_stats.year,
+                write_monthly_stats (ctx->name,
+                                     ctx->monthly_stats.year,
                                      ctx->monthly_stats.month,
                                      ctx->monthly_stats.rx_bytes,
                                      ctx->monthly_stats.tx_bytes);
@@ -641,7 +650,8 @@ rmfd_stats_record (RmfdStatsContext    *ctx,
         to_str   = common_build_date_string (system_time, current_time);
 
         g_debug ("writing stats to syslog...");
-        write_syslog_record (FALSE,
+        write_syslog_record (ctx->name,
+                             FALSE,
                              from_str,
                              to_str,
                              (current_time > ctx->start_time ? (current_time - ctx->start_time) : 0),
@@ -673,12 +683,14 @@ rmfd_stats_record (RmfdStatsContext    *ctx,
 /******************************************************************************/
 
 RmfdStatsContext *
-rmfd_stats_setup (const gchar *path)
+rmfd_stats_setup (const gchar *path,
+                  const gchar *context_name)
 {
     RmfdStatsContext *ctx;
 
     ctx = g_slice_new0 (RmfdStatsContext);
     ctx->path = g_strdup (path);
+    ctx->name = g_strdup (context_name);
 
     /* Try to process last stats right away */
     load_previous_stats (ctx);
@@ -696,6 +708,7 @@ rmfd_stats_teardown (RmfdStatsContext *ctx)
         g_date_time_unref (ctx->start_system_time);
     if (ctx->file)
         fclose (ctx->file);
+    g_free (ctx->name);
     g_free (ctx->path);
     g_slice_free (RmfdStatsContext, ctx);
 }

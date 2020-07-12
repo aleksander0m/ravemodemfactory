@@ -59,7 +59,7 @@ common_test (const gchar *contents,
     g_assert (write (handle, contents, strlen (contents)) > 0);
     close (handle);
 
-    ctx = rmfd_stats_setup (path);
+    ctx = rmfd_stats_setup (path, "test");
 
     g_assert_cmpuint (expected_year,     ==, rmfd_stats_get_year     (ctx));
     g_assert_cmpuint (expected_month,    ==, rmfd_stats_get_month    (ctx));
