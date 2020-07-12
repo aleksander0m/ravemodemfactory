@@ -58,7 +58,10 @@ G_DEFINE_TYPE_EXTENDED (RmfdPortProcessorQmi, rmfd_port_processor_qmi, RMFD_TYPE
 
 #define MAX_CONNECT_ITERATIONS 3
 
-#define STATS_FILE_PATH "/var/log/rmfd.stats"
+const gchar *stats_file_paths[2] = {
+    "/var/log/rmfd.stats",   /* SIM slot 1, original filename */
+    "/var/log/rmfd.2.stats", /* SIM slot 2 */
+};
 
 static const gchar bcd_chars[] = "0123456789\0\0\0\0\0\0";
 
@@ -74,6 +77,7 @@ struct _RmfdPortProcessorQmiPrivate {
     guint stats_timeout_id;
     gboolean stats_enabled;
     RmfdPortData *connected_data;
+    guint connected_sim_slot;
 
     /* Registration related info */
     guint32 registration_timeout;
@@ -92,7 +96,7 @@ struct _RmfdPortProcessorQmiPrivate {
     GArray *messaging_sms_contexts;
 
     /* Stats */
-    RmfdStatsContext *stats;
+    RmfdStatsContext *stats[2];
 
     /* WWAN settings */
     gboolean llp_is_raw_ip;
@@ -3031,8 +3035,17 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
         return;
 
     case WRITE_CONNECTION_STATS_STEP_LAST:
+        /* Validate SIM slot just in case */
+        if (ctx->self->priv->connected_sim_slot < 1 || ctx->self->priv->connected_sim_slot > 2) {
+            g_simple_async_result_set_error (ctx->result, RMFD_ERROR, RMFD_ERROR_UNKNOWN,
+                                             "Invalid SIM slot reported: %u",
+                                             ctx->self->priv->connected_sim_slot);
+            write_connection_stats_context_complete_and_free (ctx);
+            return;
+        }
+
         /* Issue stats record */
-        rmfd_stats_record (ctx->self->priv->stats,
+        rmfd_stats_record (ctx->self->priv->stats[ctx->self->priv->connected_sim_slot - 1],
                            ctx->type,
                            ctx->system_time,
                            ctx->rx_bytes,
@@ -3044,6 +3057,10 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
                            ctx->lac,
                            ctx->cid);
 
+        /* If writing a final record, reset connected SIM slot */
+        if (ctx->type == RMFD_STATS_RECORD_TYPE_FINAL)
+            ctx->self->priv->connected_sim_slot = 0;
+
         /* Complete and finish */
         g_simple_async_result_set_op_res_gboolean (ctx->result, TRUE);
         write_connection_stats_context_complete_and_free (ctx);
@@ -3052,7 +3069,6 @@ write_connection_stats_context_step (WriteConnectionStatsContext *ctx)
 
     g_assert_not_reached ();
 }
-
 
 static void
 write_connection_stats (RmfdPortProcessorQmi *self,
@@ -3347,6 +3363,7 @@ register_wds_indications (RmfdPortProcessorQmi *self)
 
 typedef enum {
     CONNECT_STEP_FIRST,
+    CONNECT_STEP_SIM_QUERY,
     CONNECT_STEP_IP_FAMILY,
     CONNECT_STEP_START_NETWORK,
     CONNECT_STEP_IP_SETTINGS,
@@ -3871,6 +3888,35 @@ connect_step_ip_family (RunContext *ctx)
 }
 
 static void
+common_sim_slot_query_in_connect_ready (RmfdPortProcessorQmi  *self,
+                                        GAsyncResult          *res,
+                                        RunContext            *ctx)
+{
+    ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
+
+    g_warn_if_fail (self->priv->connected_sim_slot == 0);
+    if (!common_sim_slot_query_finish (self, res, &self->priv->connected_sim_slot, NULL, NULL)) {
+        g_debug ("Couldn't query current SIM slot: assuming slot 1");
+        self->priv->connected_sim_slot = 1;
+    } else if (self->priv->connected_sim_slot < 1 || self->priv->connected_sim_slot > 2) {
+        g_debug ("Invalid current SIM slot (%u): assuming slot 1", self->priv->connected_sim_slot);
+        self->priv->connected_sim_slot = 1;
+    }
+
+    /* Go on to next step */
+    connect_ctx->step++;
+    connect_step (ctx);
+}
+
+static void
+connect_step_sim_query (RunContext *ctx)
+{
+    common_sim_slot_query (ctx->self,
+                           (GAsyncReadyCallback)common_sim_slot_query_in_connect_ready,
+                           ctx);
+}
+
+static void
 connect_step (RunContext *ctx)
 {
     ConnectContext *connect_ctx = (ConnectContext *)ctx->additional_context;
@@ -3881,6 +3927,12 @@ connect_step (RunContext *ctx)
         g_warning ("connection: new connection attempt (%u/%u)...", connect_ctx->iteration, MAX_CONNECT_ITERATIONS);
         connect_ctx->step++;
         /* fall through */
+
+    case CONNECT_STEP_SIM_QUERY:
+        g_message ("connection %u/%u step %u/%u: querying current SIM slot...",
+                   connect_ctx->iteration, MAX_CONNECT_ITERATIONS, connect_ctx->step, CONNECT_STEP_LAST);
+        connect_step_sim_query (ctx);
+        return;
 
     case CONNECT_STEP_IP_FAMILY:
         g_message ("connection %u/%u step %u/%u: setting IPv4 family...",
@@ -5494,8 +5546,9 @@ rmfd_port_processor_qmi_init (RmfdPortProcessorQmi *self)
     self->priv->messaging_sms_list = rmfd_sms_list_new ();
     g_signal_connect (self->priv->messaging_sms_list, "sms-added", G_CALLBACK (sms_added_cb), self);
 
-    /* Initialize stats */
-    self->priv->stats = rmfd_stats_setup (STATS_FILE_PATH);
+    /* Initialize stats for both SIM slots */
+    self->priv->stats[0] = rmfd_stats_setup (stats_file_paths[0]);
+    self->priv->stats[1] = rmfd_stats_setup (stats_file_paths[1]);
 }
 
 static void
@@ -5504,12 +5557,9 @@ dispose (GObject *object)
     RmfdPortProcessorQmi *self = RMFD_PORT_PROCESSOR_QMI (object);
     guint                 i;
 
-    g_clear_object (&self->priv->connected_data);
-
-    if (self->priv->stats) {
-        rmfd_stats_teardown (self->priv->stats);
-        self->priv->stats = NULL;
-    }
+    g_clear_object  (&self->priv->connected_data);
+    g_clear_pointer (&(self->priv->stats[0]), (GDestroyNotify)rmfd_stats_teardown);
+    g_clear_pointer (&(self->priv->stats[1]), (GDestroyNotify)rmfd_stats_teardown);
 
     messaging_list_contexts_cancel (self);
     registration_context_cancel (self);
