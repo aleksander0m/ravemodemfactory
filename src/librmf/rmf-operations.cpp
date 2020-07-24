@@ -676,6 +676,7 @@ Modem::SetSimSlot (uint8_t slot)
         free (response);
         throw_response_error (status);
     }
+    free (response);
 }
 
 /*****************************************************************************/
