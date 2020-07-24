@@ -5217,6 +5217,7 @@ typedef enum {
     INIT_CONTEXT_STEP_DEVICE_NEW,
     INIT_CONTEXT_STEP_DEVICE_OPEN,
     INIT_CONTEXT_STEP_DATA_FORMAT_INIT,
+    INIT_CONTEXT_STEP_DEVICE_CLOSE_BEFORE_REOPEN,
     INIT_CONTEXT_STEP_DEVICE_REOPEN_802_3,
     INIT_CONTEXT_STEP_CLIENTS,
     INIT_CONTEXT_STEP_MESSAGING_INIT,
@@ -5298,6 +5299,21 @@ allocate_client_ready (QmiDevice    *qmi_device,
 
     /* Update client index and re-run the same step */
     ctx->clients_i++;
+    init_context_step (ctx);
+}
+
+static void
+close_before_reopen_ready (QmiDevice    *qmi_device,
+                           GAsyncResult *res,
+                           InitContext  *ctx)
+{
+    g_autoptr(GError) error = NULL;
+
+    if (!qmi_device_close_finish (qmi_device, res, &error))
+        g_warning ("error closing QMI device: %s", error->message);
+
+    /* Go on to next step */
+    ctx->step++;
     init_context_step (ctx);
 }
 
@@ -5413,9 +5429,18 @@ init_context_step (InitContext *ctx)
                          ctx);
         return;
 
+    case INIT_CONTEXT_STEP_DEVICE_CLOSE_BEFORE_REOPEN:
+        /* Close the QMI port */
+        g_debug ("closing QMI device...");
+        qmi_device_close_async (ctx->self->priv->qmi_device,
+                                0,
+                                NULL,
+                                (GAsyncReadyCallback) close_before_reopen_ready,
+                                ctx);
+        return;
+
     case INIT_CONTEXT_STEP_DEVICE_REOPEN_802_3: {
         QmiDeviceOpenFlags  flags;
-        GError             *error = NULL;
 
         flags = (QMI_DEVICE_OPEN_FLAGS_SYNC |
                  QMI_DEVICE_OPEN_FLAGS_VERSION_INFO |
@@ -5424,12 +5449,6 @@ init_context_step (InitContext *ctx)
 
         if (g_getenv ("RMFD_QMI_PROXY"))
             flags |= QMI_DEVICE_OPEN_FLAGS_PROXY;
-
-        /* Close the QMI port */
-        if (!qmi_device_close (ctx->self->priv->qmi_device, &error)) {
-            g_warning ("error closing QMI device: %s", error->message);
-            g_error_free (error);
-        }
 
         /* Open the QMI port */
         g_debug ("(re)opening QMI device with 802.3 requested...");
@@ -5587,15 +5606,8 @@ dispose (GObject *object)
     for (i = 0; i < G_N_ELEMENTS (service_items); i++)
         untrack_qmi_service (self, service_items[i].service);
 
-    if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device)) {
-        GError *error = NULL;
-
-        if (!qmi_device_close (self->priv->qmi_device, &error)) {
-            g_warning ("error closing QMI device: %s", error->message);
-            g_error_free (error);
-        } else
-            g_debug ("QmiDevice closed: %s", qmi_device_get_path (self->priv->qmi_device));
-    }
+    if (self->priv->qmi_device && qmi_device_is_open (self->priv->qmi_device))
+        qmi_device_close_async (self->priv->qmi_device, 0, NULL, NULL, NULL);
     g_clear_object (&self->priv->qmi_device);
 
     G_OBJECT_CLASS (rmfd_port_processor_qmi_parent_class)->dispose (object);
