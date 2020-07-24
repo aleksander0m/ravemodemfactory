@@ -4528,7 +4528,7 @@ read_next_sms_part (MessagingListPartsContext *ctx)
     QmiMessageWmsListMessagesOutputMessageListElement *message;
     QmiMessageWmsRawReadInput *input;
 
-    if (ctx->i >= ctx->message_array->len || !ctx->message_array) {
+    if (!ctx->message_array || (ctx->i >= ctx->message_array->len)) {
         ctx->step++;
         messaging_list_parts_context_step (ctx);
         return;
