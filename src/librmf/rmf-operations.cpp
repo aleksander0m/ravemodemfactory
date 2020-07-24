@@ -332,7 +332,8 @@ send_and_receive (const uint8_t  *request,
 
             /* Read socket status */
             len = sizeof (so_error);
-            getsockopt(fd, SOL_SOCKET, SO_ERROR, &so_error, &len);
+            if (getsockopt (fd, SOL_SOCKET, SO_ERROR, &so_error, &len) < 0)
+                so_error = -1;
         }
         /* If timed out, or socket actually not connected, fail miserably */
         if (so_error != 0) {
