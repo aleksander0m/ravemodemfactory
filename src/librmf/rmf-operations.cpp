@@ -457,7 +457,7 @@ failed:
 #define response_error_string(status)                                   \
     ((status < 100) ?                                                   \
      ((status < (sizeof (response_status_str) / sizeof (response_status_str[0]))) ? response_status_str[status] : "<invalid>") : \
-     qmi_response_status_str[status - 100])
+     (((status - 100) < (sizeof (qmi_response_status_str) / sizeof (qmi_response_status_str[0]))) ? qmi_response_status_str[status - 100] : "<unknown QMI error>"))
 
 #define throw_response_error(status) do {                       \
     throw std::runtime_error (response_error_string (status));  \
