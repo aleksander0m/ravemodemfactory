@@ -324,7 +324,10 @@ send_and_receive (const uint8_t  *request,
          * so that we can poll for readiness ourselves, providing a maximum
          * timeout. */
         fcntl (fd, F_SETFL, O_NONBLOCK);
-        connect (fd, (const struct sockaddr *)&address, sizeof (address));
+        if (connect (fd, (const struct sockaddr *)&address, sizeof (address)) < 0) {
+            ret = ERROR_CONNECT_FAILED;
+            goto failed;
+        }
 
         /* Connection is completed when socket is ready for writing */
         fds[0].fd = fd;
