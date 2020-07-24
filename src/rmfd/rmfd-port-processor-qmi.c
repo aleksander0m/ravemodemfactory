@@ -1129,14 +1129,16 @@ common_read_sim_file (RmfdPortProcessorQmi *self,
     g_autoptr(GArray) file_path = NULL;
     guint16 file_id = 0;
     GTask *task;
+    g_autoptr(GArray) aid = NULL;
 
     task = g_task_new (self, NULL, callback, user_data);
 
     input = qmi_message_uim_read_transparent_input_new ();
-    qmi_message_uim_read_transparent_input_set_session_information (input,
-                                                                    QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
-                                                                    "",
-                                                                    NULL);
+    aid = g_array_new (FALSE, FALSE, sizeof (guint8)); /* empty AID */
+    qmi_message_uim_read_transparent_input_set_session (input,
+                                                        QMI_UIM_SESSION_TYPE_PRIMARY_GW_PROVISIONING,
+                                                        aid,
+                                                        NULL);
     get_sim_file_id_and_path (filename, &file_id, &file_path);
     qmi_message_uim_read_transparent_input_set_file (input, file_id, file_path, NULL);
     qmi_message_uim_read_transparent_input_set_read_information (input, 0, 0, NULL);
@@ -1905,6 +1907,7 @@ before_unlock_check_ready (RmfdPortProcessorQmi *self,
     gboolean unlocked = FALSE;
     QmiMessageUimVerifyPinInput *input;
     const gchar *pin;
+    g_autoptr(GArray) aid = NULL;
 
     if (!common_unlock_check_finish (self, res, &unlocked, &error)) {
         g_simple_async_result_take_error (ctx->result, error);
@@ -1936,8 +1939,9 @@ before_unlock_check_ready (RmfdPortProcessorQmi *self,
     input = qmi_message_uim_verify_pin_input_new ();
     qmi_message_uim_verify_pin_input_set_info (
         input, QMI_UIM_PIN_ID_PIN1, pin, NULL);
-    qmi_message_uim_verify_pin_input_set_session_information (
-        input, QMI_UIM_SESSION_TYPE_CARD_SLOT_1, "", NULL);
+    aid = g_array_new (FALSE, FALSE, sizeof (guint8)); /* empty AID */
+    qmi_message_uim_verify_pin_input_set_session (
+        input, QMI_UIM_SESSION_TYPE_CARD_SLOT_1, aid, NULL);
     qmi_client_uim_verify_pin (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                input,
                                5,
@@ -2010,6 +2014,7 @@ enable_pin (RunContext *ctx)
     QmiMessageUimSetPinProtectionInput *input;
     guint32 enable;
     const gchar *pin;
+    g_autoptr(GArray) aid = NULL;
 
     rmf_message_enable_pin_request_parse (ctx->request->data, &enable, &pin);
 
@@ -2020,10 +2025,11 @@ enable_pin (RunContext *ctx)
         !!enable,
         pin,
         NULL);
-    qmi_message_uim_set_pin_protection_input_set_session_information (
+    aid = g_array_new (FALSE, FALSE, sizeof (guint8)); /* empty AID */
+    qmi_message_uim_set_pin_protection_input_set_session (
         input,
         QMI_UIM_SESSION_TYPE_CARD_SLOT_1,
-        "", /* ignored */
+        aid,
         NULL);
     qmi_client_uim_set_pin_protection (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                        input,
@@ -2088,6 +2094,7 @@ change_pin (RunContext *ctx)
     QmiMessageUimChangePinInput *input;
     const gchar *old_pin;
     const gchar *new_pin;
+    g_autoptr(GArray) aid = NULL;
 
     rmf_message_change_pin_request_parse (ctx->request->data, &old_pin, &new_pin);
 
@@ -2098,10 +2105,11 @@ change_pin (RunContext *ctx)
         old_pin,
         new_pin,
         NULL);
-    qmi_message_uim_change_pin_input_set_session_information (
+    aid = g_array_new (FALSE, FALSE, sizeof (guint8)); /* empty AID */
+    qmi_message_uim_change_pin_input_set_session (
         input,
         QMI_UIM_SESSION_TYPE_CARD_SLOT_1,
-        "", /* ignored */
+        aid,
         NULL);
     qmi_client_uim_change_pin (QMI_CLIENT_UIM (peek_qmi_client (ctx->self, QMI_SERVICE_UIM)),
                                input,
