@@ -50,18 +50,20 @@ rmfd_syslog_teardown (void)
 void
 rmfd_syslog (gint type, const gchar *fmt, ...)
 {
-    char *message;
-    va_list args;
+    char    *message;
+    va_list  args;
+    int      ret;
 
     if (!syslog_open)
         return;
 
     va_start (args, fmt);
-    if (vasprintf (&message, fmt, args) == -1)
-        return;
+    ret = vasprintf (&message, fmt, args);
     va_end (args);
 
-    syslog (type, "%s", message);
+    if (ret < 0)
+        return;
 
+    syslog (type, "%s", message);
     free (message);
 }
