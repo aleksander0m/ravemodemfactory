@@ -1,0 +1,18 @@
+env:
+  global:
+   # The next declaration is the encrypted COVERITY_SCAN_TOKEN, created
+   #   via the "travis encrypt" command using the project repo's public key
+   - secure: "N0ToFr7o7AciyXAZcyV43B8pRkvcbSGw1om/IfOPfBvf4fF6PCxshueItwngcgMdIPMacKUdX8d38yF9/c5zdY07MUgnTNFFVbz52H2ULCKukHv+G0j5o3N+jILoKqW3OT6ha7+sRS/POwKaYBlCHzadxvaIX9NkVLThmSyr9Q/tNGEBCvvMUkGhN2C9FZAuBmpQbkvq7FlDkHF6/tIM+nSVIPm1jHnJP7qOZb7hPT1tKaYBan37cYQOS1j1Lp6hY804D/jSIzQP3E+2y+RCsoDRJpGOp8QzqMB4lYD2axP6aw9lexqtxYYTTO37z+FSZNDmbr6UkueBk9VCnFY1o8S9VgMbOmHG3vM+9pC31NePS7kIAyO+0ieJK3EIcPOHitwvT5dWvAND2kCXXMf3gOKLDa3kBYXs9TYlhDlW/WLNBuQYVHXOUJQF1usBAIscMb2W+ogJbA3tpIOtRmEuRh7EF0dgvfk8umJMrcIOW6znc9QER9BnBIDFeD07MG4dYnm4qH0FIjbsTVUs3Qh4YVjjPB8IvW05eQcqqozEjk4ZPjA4//dOTcXzhQcZidwAtczurNTq7No7HmP4x5rV76P/S1jS7KFy/ly1TcFnICKcv86zAsJ5victb1nPzfelufHgC3IeOjkeowHNu2728QaFfuRbRwp1OQUI+mRNQXw="
+
+before_install:
+  - echo -n | openssl s_client -connect https://scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+
+addons:
+  coverity_scan:
+    project:
+      name: "aleksander0m/ravemodemfactory"
+      description: "The RaveModemFactory is a simple connection manager for modems which speak the Qualcomm MSM Interface (QMI) protocol."
+    notification_email: aleksander@aleksander.es
+    build_command_prepend: ./autogen.sh
+    build_command: make -j2
+    branch_pattern: master
