@@ -674,10 +674,8 @@ rmfd_stats_record (RmfdStatsContext    *ctx,
     ctx->start_system_time = NULL;
     ctx->start_time = 0;
 
-    if (ctx->file) {
-        fclose (ctx->file);
-        ctx->file = NULL;
-    }
+    fclose (ctx->file);
+    ctx->file = NULL;
 }
 
 /******************************************************************************/
