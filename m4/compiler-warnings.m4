@@ -9,26 +9,31 @@ if test "$GCC" = "yes"; then
 	CFLAGS="-Wall -std=gnu89 $CFLAGS"
 
 	# Settings to disable warnings always applicable, even when
-	#  --disable-more-warnings is being used.
+	#  --disable-more-warnings is being used, and for both C and C++
 	for option in -fno-strict-aliasing -Wno-deprecated-declarations \
 		      -Wno-unused-parameter -Wno-sign-compare \
 		      -Wno-psabi; do
 		SAVE_CFLAGS="$CFLAGS"
 		CFLAGS="$CFLAGS $option"
+		SAVE_CXXFLAGS="$CXXFLAGS"
+		CXXFLAGS="$CXXFLAGS $option"
 		AC_MSG_CHECKING([whether gcc understands $option])
 		AC_TRY_COMPILE([], [],
 			has_option=yes,
 			has_option=no,)
 		if test $has_option = no; then
 			CFLAGS="$SAVE_CFLAGS"
+			CXXFLAGS="$SAVE_CXXFLAGS"
 		fi
 		AC_MSG_RESULT($has_option)
 		unset has_option
 		unset SAVE_CFLAGS
+		unset SAVE_CXXFLAGS
 	done
 	unset option
 	if test "x$set_more_warnings" = xerror; then
 		CFLAGS="$CFLAGS -Werror"
+		CXXFLAGS="$CXXFLAGS -Werror"
 	fi
 
 
