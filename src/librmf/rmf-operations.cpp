@@ -323,7 +323,10 @@ send_and_receive (const uint8_t  *request,
          * We set the socket in non-blocking mode during the connect operation
          * so that we can poll for readiness ourselves, providing a maximum
          * timeout. */
-        fcntl (fd, F_SETFL, O_NONBLOCK);
+        if (fcntl (fd, F_SETFL, O_NONBLOCK) < 0) {
+            ret = ERROR_SOCKET_FAILED;
+            goto failed;
+        }
         if (connect (fd, (const struct sockaddr *)&address, sizeof (address)) < 0) {
             ret = ERROR_CONNECT_FAILED;
             goto failed;
