@@ -225,6 +225,7 @@ enum {
     ERROR_NO_MEMORY,
     ERROR_RECV_NOT_FULL,
     ERROR_INVALID_MSG_LENGTH,
+    ERROR_TIMEOUT_SETUP_FAILED,
     ERROR_N
 };
 
@@ -242,6 +243,7 @@ static const char *error_strings[] = {
     "No memory",
     "Full message not received",
     "Invalid message length",
+    "Timeout setup failed",
 };
 
 /* We'll wait up to 1s for the connection to be established */
@@ -404,7 +406,10 @@ send_and_receive (const uint8_t  *request,
          * for the server response */
         recv_timeout_tv.tv_sec = DEFAULT_RECV_TIMEOUT_SEC;
         recv_timeout_tv.tv_usec = 0;
-        setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &recv_timeout_tv, sizeof (struct timeval));
+        if (setsockopt (fd, SOL_SOCKET, SO_RCVTIMEO, (char *) &recv_timeout_tv, sizeof (struct timeval)) < 0) {
+            ret = ERROR_TIMEOUT_SETUP_FAILED;
+            goto failed;
+        }
 
         /* Peek 4 bytes for the message length */
         if ((current = recv (fd, buffer, sizeof (uint32_t), MSG_PEEK)) != sizeof (uint32_t)) {
